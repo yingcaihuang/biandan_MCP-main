@@ -170,6 +170,7 @@ struct TaskEditPanel: View {
     @State private var latitudeText: String
     @State private var longitudeText: String
     @State private var locationRemind: Bool
+    @State private var showMapPicker = false
     @State private var checklist: Bool
     @State private var targetCount: Int
     @State private var subtasks: [String]
@@ -398,6 +399,10 @@ struct TaskEditPanel: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 200)
             }
+            EditRow("地图", field: "MapKit") {
+                Button("在地图上选点…") { showMapPicker = true }
+                    .buttonStyle(.themed)
+            }
             EditRow("纬度", field: "latitude") {
                 TextField("GCJ-02", text: $latitudeText)
                     .textFieldStyle(.roundedBorder)
@@ -414,6 +419,15 @@ struct TaskEditPanel: View {
             SaveBar(title: "保存地点", enabled: true, secondary: clear) {
                 saveLocation()
             }
+        }
+        .sheet(isPresented: $showMapPicker) {
+            LocationPickerSheet(initialName: locationName,
+                                initial: GeoText.coordinate(latitude: latitudeText, longitude: longitudeText)) { picked in
+                if !picked.name.isEmpty { locationName = picked.name }
+                latitudeText = GeoText.format(picked.latitude)
+                longitudeText = GeoText.format(picked.longitude)
+            }
+            .environment(model)
         }
     }
 
