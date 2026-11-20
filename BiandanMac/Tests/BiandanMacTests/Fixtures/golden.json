@@ -2634,15 +2634,15 @@
    "china_makeup": true,
    "error": "Bundled Chinese make-up day data covers 2024–2026. Use regular weekends for other dates.",
    "from_date": null,
-   "name": "err_makeup_2027",
+   "name": "err_makeup_2030",
    "row": {
     "duration": 1,
-    "endTime": "2027-02-01",
+    "endTime": "2030-02-01",
     "loopBaseNumber": 1,
     "loopDate": "",
     "loopSet": 2,
     "loopUnit": 0,
-    "startTime": "2027-01-01",
+    "startTime": "2030-01-01",
     "validEndTime": "10:00:00",
     "validStartTime": "09:00:00"
    },

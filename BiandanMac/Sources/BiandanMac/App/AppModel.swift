@@ -125,6 +125,12 @@ final class AppModel {
     /// 续期状态（下次续期时间、还有几天要重新登录），每次同步后刷新。
     var renewal: RenewalStatus?
 
+    // 调休数据
+    /// 调休数据覆盖到的最后一年（内置 + 远程补充）。
+    var holidayLastYear: Int = ChinaMakeup.builtinLastYear
+    var holidayStatus: String?
+    var isCheckingHolidays = false
+
     // 写操作状态
     /// 前台写操作（弹窗、检查器保存按钮）。
     var busyOperations = 0
@@ -185,6 +191,8 @@ final class AppModel {
     }
 
     init() {
+        // 先装好本地缓存的调休数据，重复规则展开时要用。
+        HolidayUpdater.loadCache()
         tokens = TokenProvider()
         if let url = try? LocalStore.defaultURL(), let disk = try? LocalStore(url: url) {
             store = disk
@@ -202,6 +210,7 @@ final class AppModel {
         guard !bootstrapped else { return }
         bootstrapped = true
         reloadSnapshot()
+        Task { await checkHolidayUpdates(force: false) }
         if await tokens.isSignedIn {
             profile = AccountProfile.loadSaved() ?? .placeholder
             authState = .signedIn

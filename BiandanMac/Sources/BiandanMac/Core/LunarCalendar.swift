@@ -154,12 +154,35 @@ enum LunarCalendar {
     ]
 }
 
-/// 中国法定节假日调休（来自 holidayChecker.ets）。集合里的日期会翻转「是否休息日」。
+/// 中国法定节假日调休。集合里的日期会翻转「是否休息日」：工作日放假、周末补班。
+/// - 内置 2024–2027 年（2024–2026 来自 holidayChecker.ets；2027 依据国办发明电〔2026〕10号）。
+/// - 之后的年份由 `HolidayUpdater` 远程补充；只计入紧接内置末年、逐年连续的年份。
 enum ChinaMakeup {
-    static let coverageStart = LocalDate(year: 2024, month: 1, day: 1)!
-    static let coverageEnd = LocalDate(year: 2026, month: 12, day: 31)!
+    static let firstYear = 2024
+    static let builtinLastYear = 2027
 
-    static let days: Set<LocalDate> = Set(raw.compactMap { LocalDate(year: $0.0, month: $0.1, day: $0.2) })
+    static var coverageStart: LocalDate { LocalDate(year: firstYear, month: 1, day: 1)! }
+    static var coverageEnd: LocalDate { LocalDate(year: lastYear, month: 12, day: 31)! }
+    /// 当前覆盖到的最后一年（内置 + 远程补充）。
+    static var lastYear: Int { store.snapshot().lastYear }
+    static var days: Set<LocalDate> { store.snapshot().days }
+
+    /// 安装远程年份数据，返回新的覆盖末年。
+    @discardableResult
+    static func install(_ years: [Int: Set<LocalDate>]) -> Int { store.update(years) }
+
+    /// 清除远程补充的年份（测试用）。
+    static func resetRemote() { store.reset() }
+
+    /// 由官方放假安排换算翻转日：放假且是工作日，或上班且是周末。
+    static func flipDays(year: Int, entries: [(date: LocalDate, isOffDay: Bool)]) -> Set<LocalDate> {
+        Set(entries.filter { entry in
+            entry.date.year == year && (entry.isOffDay ? entry.date.pythonWeekday < 5 : entry.date.pythonWeekday >= 5)
+        }.map(\.date))
+    }
+
+    static let builtinDays: Set<LocalDate> = Set(raw.compactMap { LocalDate(year: $0.0, month: $0.1, day: $0.2) })
+    private static let store = MakeupStore(builtin: builtinDays, lastYear: builtinLastYear)
 
     private static let raw: [(Int, Int, Int)] = [
         (2024, 1, 1), (2024, 2, 4), (2024, 2, 12), (2024, 2, 13), (2024, 2, 14),
@@ -177,5 +200,61 @@ enum ChinaMakeup {
         (2026, 2, 28), (2026, 4, 6), (2026, 5, 1), (2026, 5, 4), (2026, 5, 5),
         (2026, 5, 9), (2026, 6, 19), (2026, 9, 20), (2026, 9, 25), (2026, 10, 1),
         (2026, 10, 2), (2026, 10, 5), (2026, 10, 6), (2026, 10, 7), (2026, 10, 10),
+        // 2027：国办发明电〔2026〕10号
+        (2027, 1, 1), (2027, 1, 31), (2027, 2, 5), (2027, 2, 8), (2027, 2, 9),
+        (2027, 2, 10), (2027, 2, 11), (2027, 2, 12), (2027, 2, 14), (2027, 4, 5),
+        (2027, 5, 3), (2027, 5, 4), (2027, 5, 5), (2027, 5, 8), (2027, 6, 9),
+        (2027, 9, 15), (2027, 9, 26), (2027, 10, 1), (2027, 10, 4), (2027, 10, 5),
+        (2027, 10, 6), (2027, 10, 7), (2027, 10, 9),
     ]
+}
+
+/// 调休数据的线程安全存储：内置数据 + 远程补充年份。
+private final class MakeupStore: @unchecked Sendable {
+    struct Snapshot {
+        var days: Set<LocalDate>
+        var lastYear: Int
+    }
+
+    private let lock = NSLock()
+    private let builtin: Set<LocalDate>
+    private let builtinLastYear: Int
+    private var remote: [Int: Set<LocalDate>] = [:]
+    private var current: Snapshot
+
+    init(builtin: Set<LocalDate>, lastYear: Int) {
+        self.builtin = builtin
+        builtinLastYear = lastYear
+        current = Snapshot(days: builtin, lastYear: lastYear)
+    }
+
+    func snapshot() -> Snapshot {
+        lock.lock(); defer { lock.unlock() }
+        return current
+    }
+
+    func update(_ years: [Int: Set<LocalDate>]) -> Int {
+        lock.lock(); defer { lock.unlock() }
+        for (year, days) in years where year > builtinLastYear {
+            remote[year] = days.filter { $0.year == year }
+        }
+        rebuild()
+        return current.lastYear
+    }
+
+    func reset() {
+        lock.lock(); defer { lock.unlock() }
+        remote = [:]
+        rebuild()
+    }
+
+    private func rebuild() {
+        var days = builtin
+        var last = builtinLastYear
+        while let next = remote[last + 1] {
+            days.formUnion(next)
+            last += 1
+        }
+        current = Snapshot(days: days, lastYear: last)
+    }
 }

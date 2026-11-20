@@ -529,8 +529,19 @@ private struct CalendarPane: View {
 
             InspectorSection("节假日") {
                 ThemedRow("工作日 / 休息日使用中国调休") { ThemedSwitch(isOn: $model.chinaMakeup) }
+                ThemedRow("调休数据覆盖到") {
+                    HStack(spacing: 8) {
+                        Text(verbatim: "\(model.holidayLastYear) 年")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundStyle(Theme.text)
+                        if model.isCheckingHolidays { ProgressView().controlSize(.small) }
+                        Button("检查更新") { Task { await model.checkHolidayUpdates(force: true) } }
+                            .buttonStyle(.themed)
+                            .disabled(model.isCheckingHolidays)
+                    }
+                }
                 NoteRow(icon: "info.circle",
-                        text: "内置调休数据覆盖 \(String(ChinaMakeup.coverageStart.year))–\(String(ChinaMakeup.coverageEnd.year)) 年，与鸿蒙端一致。在创建或修改「工作日 / 休息日」重复任务时生效。")
+                        text: "2024–2027 年内置（2027 年依据国办发明电〔2026〕10号）；之后的年份在启动时从 holiday-cn（整理自国务院放假通知）自动补充。在创建或修改「工作日 / 休息日」重复任务时生效。" + (model.holidayStatus.map { " " + $0 } ?? ""))
             }
         }
     }

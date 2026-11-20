@@ -70,7 +70,7 @@ REC_CASES = [
     dict(name="from_date", start="2026-11-01", end="2026-11-30", rule={"mode": "daily"}, from_date="2026-11-25"),
     dict(name="from_date_allow_empty", start="2026-11-01", end="2026-11-10", rule={"mode": "daily"}, from_date="2026-12-01", allow_empty=True),
     dict(name="err_empty", start="2026-11-01", end="2026-11-10", rule={"mode": "daily"}, from_date="2026-12-01"),
-    dict(name="err_makeup_2027", start="2027-01-01", end="2027-02-01", rule={"mode": "workdays"}, china_makeup=True),
+    dict(name="err_makeup_2030", start="2030-01-01", end="2030-02-01", rule={"mode": "workdays"}, china_makeup=True),
     dict(name="err_too_many", start="2020-01-01", end="2026-12-31", rule={"mode": "daily"}),
     dict(name="err_end_before_start", start="2026-11-01", end="2026-11-05", rule={"mode": "daily"}, vs="10:00:00", ve="09:00:00"),
     dict(name="err_range", start="1890-01-01", end="1890-02-01", rule={"mode": "daily"}),
