@@ -122,6 +122,8 @@ final class AppModel {
     var syncStatus: SyncStatus = .idle
     var lastSyncedAt: Date?
     var lastError: String?
+    /// 续期状态（下次续期时间、还有几天要重新登录），每次同步后刷新。
+    var renewal: RenewalStatus?
 
     // 写操作状态
     /// 前台写操作（弹窗、检查器保存按钮）。
@@ -204,6 +206,7 @@ final class AppModel {
             profile = AccountProfile.loadSaved() ?? .placeholder
             authState = .signedIn
             startAutoSync()
+            await refreshRenewal()
             await syncNow()
         } else {
             authState = .signedOut
@@ -312,14 +315,23 @@ final class AppModel {
         syncStatus = .idle
         profile = .placeholder
         authState = .signedOut
+        renewal = nil
     }
 
     // MARK: - 同步
+
+    /// 从令牌提供者读取最新的续期时间；未登录时清空。
+    func refreshRenewal() async {
+        let status = await tokens.renewalStatus()
+        renewal = authState == .signedIn ? status : nil
+    }
 
     /// 返回本次同步是否成功。
     @discardableResult
     func syncNow() async -> Bool {
         guard authState == .signedIn else { return false }
+        // 同步过程中可能续期过，结束后刷新显示。
+        defer { Task { await self.refreshRenewal() } }
         syncStatus = .syncing("正在同步…")
         loginProgress?.update(.syncing, detail: "正在同步…")
         do {

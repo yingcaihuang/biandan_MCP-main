@@ -13,7 +13,7 @@ struct AccountCard: View {
         case .failed: return ("同步失败，点开查看", Theme.overdue)
         case .idle:
             if model.isSavingInBackground { return ("正在保存更改…", Theme.accent) }
-            return ("华为账号 · 自动续期", Color(hex: 0x34C759))
+            return RenewalText.cardStatus(days: model.renewal?.daysUntilRelogin(now: Date()))
         }
     }
 
@@ -109,6 +109,10 @@ struct AccountPanel: View {
             }
             .padding(.vertical, 8)
             .themedCard()
+
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                RenewalSummary(renewal: model.renewal, now: context.date)
+            }
 
             VStack(spacing: 0) {
                 ThemedMenuRow(icon: "arrow.clockwise", title: "立即同步", detail: syncDetail,
@@ -206,7 +210,7 @@ struct SignOutSheet: View {
         } footer: {
             if working { ProgressView().controlSize(.small) }
             Spacer()
-            Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
+            Button("取消") { dismiss() }
                 .buttonStyle(.themed)
                 .keyboardShortcut(.cancelAction)
             Button("退出登录", role: .destructive) { signOut() }

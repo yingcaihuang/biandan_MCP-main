@@ -197,7 +197,7 @@ struct NewTaskSheet: View {
         } footer: {
             if saving { ProgressView().controlSize(.small) }
             Spacer()
-            Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
+            Button("取消") { dismiss() }
                 .buttonStyle(.themed)
                 .keyboardShortcut(.cancelAction)
             Button("创建") { save() }
@@ -333,7 +333,7 @@ struct DeleteTaskSheet: View {
         } footer: {
             if working { ProgressView().controlSize(.small) }
             Spacer()
-            Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
+            Button("取消") { dismiss() }
                 .buttonStyle(.themed)
                 .keyboardShortcut(.cancelAction)
             Button("删除", role: .destructive) { confirm() }

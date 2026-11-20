@@ -8,10 +8,13 @@ import Security
 struct StoredCredential: Codable, Equatable, Sendable {
     var refreshToken: String
     var deviceGrant: String?
+    /// 拿到当前刷新令牌的时间，用来估算 180 天的失效日。旧凭据没有这一项。
+    var refreshIssuedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case refreshToken = "refresh_token"
         case deviceGrant = "device_grant"
+        case refreshIssuedAt = "refresh_issued_at"
     }
 }
 
@@ -35,17 +38,23 @@ struct CredentialStore: Sendable {
     func load() throws -> StoredCredential? {
         var query = baseQuery
         query[kSecReturnData as String] = true
+        query[kSecReturnAttributes as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = item as? Data, data.count <= 16_384 else {
+        guard status == errSecSuccess, let attributes = item as? [String: Any],
+              let data = attributes[kSecValueData as String] as? Data, data.count <= 16_384 else {
             throw AuthError.storage("无法读取本机保存的华为凭据（\(status)）")
         }
-        guard let credential = try? JSONDecoder().decode(StoredCredential.self, from: data),
+        guard var credential = try? JSONDecoder().decode(StoredCredential.self, from: data),
               TokenProvider.isValidToken(credential.refreshToken),
               credential.deviceGrant.map(TokenProvider.isValidToken) ?? true else {
             throw AuthError.storage("本机保存的华为凭据无效")
+        }
+        // 旧版凭据没记录时间，用钥匙串条目的最后修改时间代替。
+        if credential.refreshIssuedAt == nil {
+            credential.refreshIssuedAt = attributes[kSecAttrModificationDate as String] as? Date
         }
         return credential
     }
@@ -123,6 +132,8 @@ actor TokenProvider {
     private let store: CredentialStore
     private var accessToken: String?
     private var expiresAt = Date.distantPast
+    /// 访问令牌真正的过期时间（未减提前量），仅供显示。
+    private var accessExpiresAt: Date?
     private var credential: StoredCredential?
     private var refreshTask: Task<String, Error>?
 
@@ -138,6 +149,16 @@ actor TokenProvider {
     }
 
     var isSignedIn: Bool { credential != nil }
+
+    /// 当前续期状态快照，不含任何令牌内容。
+    func renewalStatus() -> RenewalStatus {
+        let live = accessToken != nil && Date() < expiresAt
+        return RenewalStatus(
+            nextRenewalAt: live ? expiresAt : nil,
+            accessExpiresAt: live ? accessExpiresAt : nil,
+            refreshIssuedAt: credential?.refreshIssuedAt,
+            deviceGrantExpiry: RenewalStatus.jwtExpiry(credential?.deviceGrant))
+    }
 
     // MARK: 登录 / 退出
 
@@ -221,13 +242,17 @@ actor TokenProvider {
         if let grant, !TokenProvider.isValidToken(grant) {
             throw AuthError.invalidResponse("便单续期服务返回了无效的设备凭据")
         }
-        let next = StoredCredential(refreshToken: refresh!, deviceGrant: grant)
+        // 刷新令牌换了就重新计时；没换沿用原来的时间。
+        let rotated = refresh != credential?.refreshToken
+        let issuedAt = rotated ? Date() : (credential?.refreshIssuedAt ?? Date())
+        let next = StoredCredential(refreshToken: refresh!, deviceGrant: grant, refreshIssuedAt: issuedAt)
         if next != credential {
             try store.save(next)
             credential = next
         }
         let expiresIn = Double(rawExpiry)
         accessToken = token
+        accessExpiresAt = Date().addingTimeInterval(expiresIn)
         expiresAt = Date().addingTimeInterval(expiresIn - min(60, expiresIn / 10))
     }
 }

@@ -396,15 +396,20 @@ private struct AccountPane: View {
             .themedCard(cornerRadius: 14)
 
             SectionTitle("凭据与续期")
-            HStack(spacing: 10) {
-                InfoTile(icon: "key.fill", tint: Quadrant.importantNotUrgent.tint, title: "凭据存储",
-                         value: "macOS 钥匙串", note: "只保存在这台 Mac，不上传")
-                InfoTile(icon: "arrow.triangle.2.circlepath", tint: Quadrant.notImportantUrgent.tint, title: "自动续期",
-                         value: "便单续期服务", note: "访问令牌过期会自动刷新")
-                InfoTile(icon: "hourglass", tint: Quadrant.neither.tint, title: "刷新令牌",
-                         value: "通常 180 天", note: "改密码或撤销授权会提前失效")
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                let renewal = model.renewal
+                let days = renewal?.daysUntilRelogin(now: context.date)
+                HStack(spacing: 10) {
+                    InfoTile(icon: "key.fill", tint: Quadrant.importantNotUrgent.tint, title: "凭据存储",
+                             value: "macOS 钥匙串", note: "只保存在这台 Mac，不上传")
+                    InfoTile(icon: "arrow.triangle.2.circlepath", tint: Quadrant.notImportantUrgent.tint, title: "下次续期",
+                             value: RenewalText.nextRenewalShort(renewal, now: context.date),
+                             note: RenewalText.nextRenewalNote(renewal))
+                    InfoTile(icon: "hourglass", tint: RenewalText.tint(days: days) ?? Quadrant.neither.tint, title: "重新登录",
+                             value: RenewalText.reloginValue(days: days), note: RenewalText.reloginNote(renewal))
+                }
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .fixedSize(horizontal: false, vertical: true)
 
             if signedIn {
                 SectionTitle("操作")

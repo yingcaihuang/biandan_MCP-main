@@ -63,7 +63,7 @@ struct ListEditorSheet: View {
         } footer: {
             if saving { ProgressView().controlSize(.small) }
             Spacer()
-            Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
+            Button("取消") { dismiss() }
                 .buttonStyle(.themed)
                 .keyboardShortcut(.cancelAction)
             Button(request.list == nil ? "创建" : "保存") { save() }
@@ -141,7 +141,7 @@ struct ListDeleteSheet: View {
         } footer: {
             if working { ProgressView().controlSize(.small) }
             Spacer()
-            Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
+            Button("取消") { dismiss() }
                 .buttonStyle(.themed)
                 .keyboardShortcut(.cancelAction)
             if count > 0 {
