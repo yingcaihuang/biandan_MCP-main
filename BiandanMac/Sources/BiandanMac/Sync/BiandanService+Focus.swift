@@ -41,7 +41,7 @@ extension BiandanService {
             do {
                 try await ensureRecord(.tomato, identifier, expected: expected, existing: existing)
             } catch {
-                throw ServiceError(error.localizedDescription, mayHaveWritten: true, recovery: "请用同样的开始时间重试。")
+                throw ServiceError(wrapping: error, mayHaveWritten: true, recovery: "请用同样的开始时间重试。")
             }
             return identifier
         }

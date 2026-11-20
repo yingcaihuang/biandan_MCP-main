@@ -121,7 +121,7 @@ extension BiandanService {
                 }
                 try await reconcileTask(task, try await taskOccurrences(taskID))
             } catch {
-                throw ServiceError(error.localizedDescription, mayHaveWritten: true,
+                throw ServiceError(wrapping: error, mayHaveWritten: true,
                                    recovery: "请同步后用同样的规则和起始日期重试。")
             }
             return plan
@@ -167,7 +167,7 @@ extension BiandanService {
                 reparent["id1"] = .string(detachedID)
                 _ = try await patch(instance, reparent, reparent: true)
             } catch {
-                throw ServiceError(error.localizedDescription, mayHaveWritten: true, recovery: "请同步后重试改期这一次。")
+                throw ServiceError(wrapping: error, mayHaveWritten: true, recovery: "请同步后重试改期这一次。")
             }
             return detachedID
         }

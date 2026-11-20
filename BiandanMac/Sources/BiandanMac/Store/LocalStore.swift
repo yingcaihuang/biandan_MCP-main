@@ -332,6 +332,55 @@ final class LocalStore: @unchecked Sendable {
         }
     }
 
+    // MARK: 待同步队列（outbox）
+
+    func enqueueOutbox(_ entry: OutboxEntry) throws {
+        try dbQueue.write { db -> Void in
+            try db.execute(sql: """
+                INSERT INTO outbox(op_id, command, args_json, created_at, attempts, last_error, state)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, arguments: [entry.opID, entry.command, entry.argsJSON, entry.createdAt,
+                                 entry.attempts, entry.lastError, entry.state])
+        }
+    }
+
+    /// 按入队顺序返回；`state` 为 nil 时返回全部。
+    func outboxEntries(state: String? = nil) throws -> [OutboxEntry] {
+        try dbQueue.read { db -> [OutboxEntry] in
+            let columns = "SELECT op_id, command, args_json, created_at, attempts, last_error, state FROM outbox"
+            let rows: [Row]
+            if let state {
+                rows = try Row.fetchAll(db, sql: columns + " WHERE state = ? ORDER BY rowid", arguments: [state])
+            } else {
+                rows = try Row.fetchAll(db, sql: columns + " ORDER BY rowid")
+            }
+            return rows.map { row in
+                OutboxEntry(opID: row["op_id"], command: row["command"], argsJSON: row["args_json"],
+                            createdAt: row["created_at"], attempts: row["attempts"],
+                            lastError: row["last_error"], state: row["state"])
+            }
+        }
+    }
+
+    func updateOutbox(_ opID: String, attempts: Int, lastError: String?, state: String) throws {
+        try dbQueue.write { db -> Void in
+            try db.execute(sql: "UPDATE outbox SET attempts = ?, last_error = ?, state = ? WHERE op_id = ?",
+                           arguments: [attempts, lastError, state, opID])
+        }
+    }
+
+    func removeOutbox(_ opID: String) throws {
+        try dbQueue.write { db -> Void in
+            try db.execute(sql: "DELETE FROM outbox WHERE op_id = ?", arguments: [opID])
+        }
+    }
+
+    func removeOutbox(state: String) throws {
+        try dbQueue.write { db -> Void in
+            try db.execute(sql: "DELETE FROM outbox WHERE state = ?", arguments: [state])
+        }
+    }
+
     /// 退出登录时清空本地缓存。
     func wipe() throws {
         try dbQueue.write { db in

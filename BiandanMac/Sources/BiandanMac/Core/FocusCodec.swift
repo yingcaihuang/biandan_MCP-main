@@ -1,14 +1,14 @@
 import Foundation
 
 /// 补记时关联的执行实例。
-struct FocusLink: Hashable, Sendable {
+struct FocusLink: Hashable, Sendable, Codable {
     var occurrenceID: String
     var listID: Int
     var title: String
 }
 
 /// 补记专注的输入。
-struct FocusInput: Sendable {
+struct FocusInput: Sendable, Codable, Equatable {
     var startedAt: Date
     var minutes: Double
     var title: String

@@ -13,6 +13,7 @@ struct AccountCard: View {
         case .failed: return ("同步失败，点开查看", Theme.overdue)
         case .idle:
             if model.isSavingInBackground { return ("正在保存更改…", Theme.accent) }
+            if model.outboxPending > 0 { return ("\(model.outboxPending) 项修改待同步", Color(hex: 0xE8890C)) }
             return RenewalText.cardStatus(days: model.renewal?.daysUntilRelogin(now: Date()))
         }
     }

@@ -296,7 +296,7 @@ extension BiandanService {
                 }
             }
         } catch {
-            throw ServiceError(error.localizedDescription, mayHaveWritten: true, recovery: "请同步后用同样的范围重试。")
+            throw ServiceError(wrapping: error, mayHaveWritten: true, recovery: "请同步后用同样的范围重试。")
         }
         return work.plan
     }
@@ -328,7 +328,7 @@ extension BiandanService {
                 taskDone = true
                 try await patch(instance, window)
             } catch {
-                throw ServiceError(error.localizedDescription, mayHaveWritten: taskDone, recovery: "请同步后重试改期。")
+                throw ServiceError(wrapping: error, mayHaveWritten: taskDone, recovery: "请同步后重试改期。")
             }
         }.1
     }
@@ -347,7 +347,7 @@ extension BiandanService {
                 let flags = a.int("isRemind") ?? 0
                 try await patch(task, window.merging(["haveNoTime": .of(1), "isRemind": .of(flags & ~1)]) { _, new in new })
             } catch {
-                throw ServiceError(error.localizedDescription, mayHaveWritten: true, recovery: "请同步后重试。")
+                throw ServiceError(wrapping: error, mayHaveWritten: true, recovery: "请同步后重试。")
             }
         }.1
     }
@@ -399,7 +399,7 @@ extension BiandanService {
                 task = try await patch(task, ["taskContent": .string(encoded), "unitTimeNumber": .of(target)])
                 try await reconcileTask(task, try await taskOccurrences(taskID))
             } catch {
-                throw ServiceError(error.localizedDescription, mayHaveWritten: true, recovery: "请用同样的目标重试。")
+                throw ServiceError(wrapping: error, mayHaveWritten: true, recovery: "请用同样的目标重试。")
             }
         }.1
     }
@@ -484,7 +484,7 @@ extension BiandanService {
             task = latest
             return summary
         } catch {
-            throw ServiceError(error.localizedDescription, mayHaveWritten: true, recovery: "请重试同一操作以修正汇总状态。")
+            throw ServiceError(wrapping: error, mayHaveWritten: true, recovery: "请重试同一操作以修正汇总状态。")
         }
     }
 }

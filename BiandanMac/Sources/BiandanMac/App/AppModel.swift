@@ -125,6 +125,17 @@ final class AppModel {
     /// 续期状态（下次续期时间、还有几天要重新登录），每次同步后刷新。
     var renewal: RenewalStatus?
 
+    // 待同步队列
+    /// 等待写入云端的命令数（断网或云端暂时不可用时入队）。
+    var outboxPending = 0
+    /// 重放时遇到永久错误、已放弃的命令数。
+    var outboxFailed = 0
+    var outboxLastError: String?
+    /// 入队命令 → 它的乐观修改，重放成功或放弃时移除。
+    @ObservationIgnored var queuedEdits: [String: UUID] = [:]
+    @ObservationIgnored var isFlushingOutbox = false
+    @ObservationIgnored var outboxRetryTask: Task<Void, Never>?
+
     // 调休数据
     /// 调休数据覆盖到的最后一年（内置 + 远程补充）。
     var holidayLastYear: Int = ChinaMakeup.builtinLastYear
@@ -214,6 +225,7 @@ final class AppModel {
         guard !bootstrapped else { return }
         bootstrapped = true
         reloadSnapshot()
+        refreshOutboxCounts()
         Task { await checkHolidayUpdates(force: false) }
         if await tokens.isSignedIn {
             profile = AccountProfile.loadSaved() ?? .placeholder
@@ -329,6 +341,7 @@ final class AppModel {
         profile = .placeholder
         authState = .signedOut
         renewal = nil
+        discardOutbox()
     }
 
     // MARK: - 同步
@@ -345,6 +358,11 @@ final class AppModel {
         guard authState == .signedIn else { return false }
         // 同步过程中可能续期过，结束后刷新显示。
         defer { Task { await self.refreshRenewal() } }
+        // 先把排队的修改写回云端，再拉取。
+        if outboxPending > 0 {
+            await flushOutbox()
+            guard authState == .signedIn else { return false }
+        }
         syncStatus = .syncing("正在同步…")
         loginProgress?.update(.syncing, detail: "正在同步…")
         do {

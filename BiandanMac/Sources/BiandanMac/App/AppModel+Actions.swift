@@ -82,11 +82,11 @@ extension AppModel {
         return result ?? false
     }
 
-    private static func failureText(_ label: String, _ message: String, reverted: Bool) -> String {
+    static func failureText(_ label: String, _ message: String, reverted: Bool) -> String {
         "\(label)失败" + (reverted ? "，已恢复原状态" : "") + "：\(message)"
     }
 
-    private func applyLocal(_ changes: ChangeSet, forceReload: Bool = false) {
+    func applyLocal(_ changes: ChangeSet, forceReload: Bool = false) {
         if !changes.isEmpty {
             do {
                 try store.applyChanges(changes)
@@ -133,39 +133,29 @@ extension AppModel {
         let target = Self.target(of: item.task)
         switch item.status {
         case .pending:
-            await perform("完成", background: true,
-                          optimistic: Self.progressEdit(id, target: target, { _ in target })) {
-                try await $0.completeOccurrence(id)
-            }
+            await performQueued("完成", optimistic: Self.progressEdit(id, target: target, { _ in target }),
+                                .completeOccurrence(id: id))
         case .completed:
-            await perform("撤销完成", background: true,
-                          optimistic: Self.progressEdit(id, target: target, { _ in 0 })) {
-                try await $0.changeProgress(id, action: .reopen)
-            }
+            await performQueued("撤销完成", optimistic: Self.progressEdit(id, target: target, { _ in 0 }),
+                                .changeProgress(id: id, action: .reopen, count: nil))
         case .abandoned:
-            await perform("恢复", background: true,
-                          optimistic: Self.progressEdit(id, target: target, { $0 < 0 ? 0 : $0 })) {
-                try await $0.changeProgress(id, action: .restore)
-            }
+            await performQueued("恢复", optimistic: Self.progressEdit(id, target: target, { $0 < 0 ? 0 : $0 }),
+                                .changeProgress(id: id, action: .restore, count: nil))
         }
     }
 
     func abandon(_ item: OccurrenceItem) async {
         let id = item.id
         let target = Self.target(of: item.task)
-        await perform("放弃本次", background: true,
-                      optimistic: Self.progressEdit(id, target: target, { _ in -1 })) {
-            try await $0.changeProgress(id, action: .abandon)
-        }
+        await performQueued("放弃本次", optimistic: Self.progressEdit(id, target: target, { _ in -1 }),
+                            .changeProgress(id: id, action: .abandon, count: nil))
     }
 
     func reopen(_ item: OccurrenceItem) async {
         let id = item.id
         let target = Self.target(of: item.task)
-        await perform("撤销进度", background: true,
-                      optimistic: Self.progressEdit(id, target: target, { _ in 0 })) {
-            try await $0.changeProgress(id, action: .reopen)
-        }
+        await performQueued("撤销进度", optimistic: Self.progressEdit(id, target: target, { _ in 0 }),
+                            .changeProgress(id: id, action: .reopen, count: nil))
     }
 
     func setSubtask(_ item: OccurrenceItem, index: Int, checked: Bool) async {
@@ -176,18 +166,15 @@ extension AppModel {
             let mask = 1 << index
             return (checked ? (bits | mask) : (bits & ~mask)) * 100
         })
-        await perform(checked ? "勾选子任务" : "取消勾选", background: true, optimistic: edit) {
-            try await $0.setSubtask(id, index: index, checked: checked)
-        }
+        await performQueued(checked ? "勾选子任务" : "取消勾选", optimistic: edit,
+                            .setSubtask(id: id, index: index, checked: checked))
     }
 
     func setCount(_ item: OccurrenceItem, count: Int) async {
         let id = item.id
         let target = Self.target(of: item.task)
-        await perform("记录次数", background: true,
-                      optimistic: Self.progressEdit(id, target: target, { _ in count })) {
-            try await $0.changeProgress(id, action: .setCount, count: count)
-        }
+        await performQueued("记录次数", optimistic: Self.progressEdit(id, target: target, { _ in count }),
+                            .changeProgress(id: id, action: .setCount, count: count))
     }
 
     // MARK: - 任务字段
@@ -204,9 +191,9 @@ extension AppModel {
                 task.isUrgency = urgent ? 1 : 0
             }
         }
-        await performChange("移到「\(quadrant.title)」", background: true, optimistic: edit) {
-            try await $0.updateTask(taskID, important: important, urgent: urgent)
-        }
+        await performQueued("移到「\(quadrant.title)」", optimistic: edit,
+                            .updateTask(taskID: taskID, title: nil, remark: nil, important: important,
+                                        urgent: urgent, collected: nil))
     }
 
     func updateTask(_ taskID: String, title: String? = nil, remark: String? = nil, important: Bool? = nil,
@@ -224,19 +211,16 @@ extension AppModel {
                 if let collected { task.isCollectible = collected ? 1 : 0 }
             }
         }
-        await performChange("保存任务", background: true, optimistic: edit) {
-            try await $0.updateTask(taskID, title: title, remark: remark, important: important,
-                                    urgent: urgent, collected: collected)
-        }
+        await performQueued("保存任务", optimistic: edit,
+                            .updateTask(taskID: taskID, title: title, remark: remark, important: important,
+                                        urgent: urgent, collected: collected))
     }
 
     func moveTask(_ taskID: String, to listID: String) async {
         let edit: SnapshotEdit = { snapshot in
             snapshot.editTask(taskID) { task in task.id3 = listID }
         }
-        await performChange("移动待办单", background: true, optimistic: edit) {
-            try await $0.moveTask(taskID, to: listID)
-        }
+        await performQueued("移动待办单", optimistic: edit, .moveTask(taskID: taskID, listID: listID))
     }
 
     func setTimeReminder(_ taskID: String, date: LocalDate?, time: LocalTime?, enabled: Bool) async {
@@ -251,9 +235,9 @@ extension AppModel {
                 }
             }
         }
-        await performChange(enabled ? "设置提醒" : "关闭提醒", background: true, optimistic: edit) {
-            try await $0.setTimeReminder(taskID, date: enabled ? date : nil, time: enabled ? time : nil, enabled: enabled)
-        }
+        await performQueued(enabled ? "设置提醒" : "关闭提醒", optimistic: edit,
+                            .setTimeReminder(taskID: taskID, date: enabled ? date?.iso : nil,
+                                             time: enabled ? time.map(BiandanService.clockText) : nil, enabled: enabled))
     }
 
     func setLocation(_ taskID: String, name: String?, latitude: Double?, longitude: Double?, remind: Bool?) async {
@@ -272,9 +256,8 @@ extension AppModel {
                 }
             }
         }
-        await performChange("保存地点", background: true, optimistic: edit) {
-            try await $0.setLocation(taskID, name: name, latitude: latitude, longitude: longitude, remind: remind)
-        }
+        await performQueued("保存地点", optimistic: edit,
+                            .setLocation(taskID: taskID, name: name, latitude: latitude, longitude: longitude, remind: remind))
     }
 
     func clearLocation(_ taskID: String) async {
@@ -286,7 +269,7 @@ extension AppModel {
                 task.isRemind &= ~2
             }
         }
-        await performChange("清除地点", background: true, optimistic: edit) { try await $0.setLocation(taskID, clear: true) }
+        await performQueued("清除地点", optimistic: edit, .clearLocation(taskID: taskID))
     }
 
     /// 把任务和实例的日期窗口改成同一组值（乐观更新用，对应 BiandanService.dateWindow）。
@@ -327,9 +310,10 @@ extension AppModel {
         let to = BiandanService.clockText(endTime ?? item.occurrence.endClock ?? LocalTime(hour: 23, minute: 59)!)
         let edit = Self.windowEdit(taskID: taskID, occurrenceIDs: [item.id], start: start.iso, end: last.iso,
                                    from: from, to: to, undated: false)
-        await performChange("改期", background: true, optimistic: edit) {
-            try await $0.rescheduleTask(taskID, start: start, end: end, startTime: startTime, endTime: endTime)
-        }
+        await performQueued("改期", optimistic: edit,
+                            .rescheduleTask(taskID: taskID, start: start.iso, end: end?.iso,
+                                            startTime: startTime.map(BiandanService.clockText),
+                                            endTime: endTime.map(BiandanService.clockText)))
     }
 
     func clearSchedule(_ taskID: String) async {
@@ -337,7 +321,7 @@ extension AppModel {
         let edit = Self.windowEdit(taskID: taskID, occurrenceIDs: ids, start: LocalDate.undatedStart.iso,
                                    end: LocalDate.maxSupported.iso, from: "00:00:00", to: "23:59:00",
                                    undated: true, clearTimeReminder: true)
-        await performChange("清除日期", background: true, optimistic: edit) { try await $0.clearSchedule(taskID) }
+        await performQueued("清除日期", optimistic: edit, .clearSchedule(taskID: taskID))
     }
 
     func editGoal(_ taskID: String, subtasks: [String]?, targetCount: Int?) async {
@@ -364,9 +348,8 @@ extension AppModel {
                 }
             }
         }
-        await performChange("修改完成目标", background: true, optimistic: edit) {
-            try await $0.editTaskGoal(taskID, subtasks: subtasks, targetCount: targetCount)
-        }
+        await performQueued("修改完成目标", optimistic: edit,
+                            .editGoal(taskID: taskID, subtasks: subtasks, targetCount: targetCount))
     }
 
     // MARK: - 重复任务（P5）
@@ -410,10 +393,10 @@ extension AppModel {
         let to = BiandanService.clockText(endTime ?? item.occurrence.endClock ?? LocalTime(hour: 23, minute: 59)!)
         let edit = Self.windowEdit(taskID: nil, occurrenceIDs: [id], start: start.iso, end: last.iso,
                                    from: from, to: to, undated: nil)
-        let detached = await perform("改期这一次", background: true, optimistic: edit) {
-            try await $0.rescheduleOccurrence(id, start: start, startTime: startTime, endTime: endTime)
-        }
-        return detached != nil
+        return await performQueued("改期这一次", optimistic: edit,
+                                   .rescheduleOccurrence(id: id, start: start.iso,
+                                                         startTime: startTime.map(BiandanService.clockText),
+                                                         endTime: endTime.map(BiandanService.clockText)))
     }
 
     // MARK: - 新建 / 删除任务
@@ -468,9 +451,8 @@ extension AppModel {
 
     @discardableResult
     func updateList(_ listID: String, name: String?, colorIndex: Int?, sortIndex: Int? = nil) async -> Bool {
-        await performChange("保存待办单") {
-            try await $0.updateList(listID, name: name, colorIndex: colorIndex, sortIndex: sortIndex)
-        }
+        await performQueued("保存待办单",
+                            .updateList(listID: listID, name: name, colorIndex: colorIndex, sortIndex: sortIndex))
     }
 
     @discardableResult

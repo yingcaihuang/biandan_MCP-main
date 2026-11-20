@@ -7,11 +7,19 @@ struct ServiceError: Error, LocalizedError, Sendable {
     var message: String
     var mayHaveWritten: Bool
     var recovery: String?
+    /// 原始错误是否是临时性的（断网、超时、429、5xx），可以放进待同步队列重试。
+    var transient = false
 
     init(_ message: String, mayHaveWritten: Bool = false, recovery: String? = nil) {
         self.message = message
         self.mayHaveWritten = mayHaveWritten
         self.recovery = recovery
+    }
+
+    /// 包装下层错误，保留「是否临时」的判断。
+    init(wrapping error: Error, mayHaveWritten: Bool = false, recovery: String? = nil) {
+        self.init(error.localizedDescription, mayHaveWritten: mayHaveWritten, recovery: recovery)
+        transient = OutboxPolicy.isTransient(error)
     }
 
     var errorDescription: String? {
@@ -40,10 +48,13 @@ struct OperationFailure: Error, LocalizedError, Sendable {
     let message: String
     let changes: ChangeSet
     let needsSignIn: Bool
+    /// 临时失败，可以入队重试。
+    let transient: Bool
 
     init(error: Error, changes: ChangeSet) {
         message = error.localizedDescription
         self.changes = changes
+        transient = OutboxPolicy.isTransient(error)
         if let auth = error as? AuthError {
             needsSignIn = auth == .reauthorizationRequired || auth == .notSignedIn
         } else {
@@ -298,7 +309,7 @@ actor BiandanService {
                     "id3": .int(numeric), "favoritesName": .string(trimmed), "favoritesColor": .of(sort * 100 + colorIndex),
                 ], existing: existing)
             } catch {
-                throw ServiceError(error.localizedDescription, mayHaveWritten: true, recovery: "请重试同一操作。")
+                throw ServiceError(wrapping: error, mayHaveWritten: true, recovery: "请重试同一操作。")
             }
             return identifier
         }
@@ -350,7 +361,7 @@ actor BiandanService {
                     try await deleteRecord(folder)
                 }
             } catch {
-                throw ServiceError(error.localizedDescription, mayHaveWritten: true, recovery: "请同步后重试同一操作。")
+                throw ServiceError(wrapping: error, mayHaveWritten: true, recovery: "请同步后重试同一操作。")
             }
         }.1
     }

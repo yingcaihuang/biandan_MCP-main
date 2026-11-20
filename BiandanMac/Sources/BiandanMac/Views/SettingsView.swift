@@ -498,6 +498,31 @@ private struct SyncPane: View {
                 }
             }
 
+            InspectorSection("待同步队列") {
+                ThemedRow("等待写入云端") {
+                    HStack(spacing: 8) {
+                        StatusPill(text: model.outboxPending == 0 ? "无" : "\(model.outboxPending) 项",
+                                   color: model.outboxPending == 0 ? Theme.done : Color(hex: 0xE8890C))
+                        if model.outboxPending > 0 {
+                            Button("立即重试") { Task { await model.flushOutbox() } }
+                                .buttonStyle(.themed)
+                        }
+                    }
+                }
+                if model.outboxFailed > 0 {
+                    ThemedRow("已放弃") {
+                        HStack(spacing: 8) {
+                            StatusPill(text: "\(model.outboxFailed) 项", color: Theme.overdue)
+                            Button("清除") { model.clearFailedOutbox() }
+                                .buttonStyle(.themed)
+                        }
+                    }
+                }
+                NoteRow(icon: "info.circle",
+                        text: "断网、超时或云端暂时不可用时，完成、改期、编辑等修改会先保存在本机，联网后按顺序自动写入。"
+                            + (model.outboxLastError.map { " 上次失败：" + $0 } ?? ""))
+            }
+
             InspectorSection("同步方式") {
                 NoteRow(icon: "square.stack.3d.down.right", text: "云端没有增量接口，每次同步完整拉取四张表，四张表都拉完整才会写进本地。")
                 NoteRow(icon: "macwindow", text: "窗口重新激活时也会同步一次（距上次超过 1 分钟）。")

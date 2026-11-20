@@ -7,12 +7,16 @@ struct CloudError: Error, LocalizedError, Sendable {
     var code: String?
     /// 429 / 503 时服务给出的重试秒数。
     var retryAfter: TimeInterval?
+    /// 连接失败或超时（没有拿到 HTTP 响应），可稍后重试。
+    var isNetwork: Bool
 
-    init(_ message: String, status: Int? = nil, code: String? = nil, retryAfter: TimeInterval? = nil) {
+    init(_ message: String, status: Int? = nil, code: String? = nil, retryAfter: TimeInterval? = nil,
+         network: Bool = false) {
         self.message = message
         self.status = status
         self.code = code
         self.retryAfter = retryAfter
+        isNetwork = network
     }
 
     var errorDescription: String? { message }
@@ -59,7 +63,7 @@ enum HTTPTransport {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            throw CloudError("\(method) 无法连接服务或请求超时")
+            throw CloudError("\(method) 无法连接服务或请求超时", network: true)
         }
         guard let http = response as? HTTPURLResponse else {
             throw CloudError("服务返回了无法识别的响应")
