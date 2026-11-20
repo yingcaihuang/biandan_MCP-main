@@ -387,6 +387,14 @@ struct FocusInspector: View {
                 Text(log.eventTitle.isEmpty ? "专注记录" : log.eventTitle)
                     .font(.system(size: 18, weight: .bold))
                     .textSelection(.enabled)
+                HStack(spacing: 8) {
+                    Button("编辑…") { model.focusEditor = FocusEditorRequest(record: record) }
+                        .buttonStyle(.themed)
+                    Spacer(minLength: 0)
+                    Button("删除…") { model.focusDeleteRequest = record }
+                        .buttonStyle(.themedDestructive)
+                }
+                .disabled(model.authState != .signedIn)
                 InspectorSection("专注 · tomato") {
                     FieldRow(label: "开始", field: "time", value: startedText)
                     FieldRow(label: "毫秒时间戳", field: "time", value: record.time)

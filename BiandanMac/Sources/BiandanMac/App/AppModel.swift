@@ -151,6 +151,10 @@ final class AppModel {
     var signOutRequested = false
     /// 编辑重复规则弹窗（也用于把一次性任务设为重复）。
     var recurrenceRequest: TaskDef?
+    /// 补记 / 编辑专注记录弹窗。
+    var focusEditor: FocusEditorRequest?
+    /// 待确认删除的专注记录。
+    var focusDeleteRequest: FocusRecord?
 
     // 数据
     var snapshot: DataSnapshot = .empty

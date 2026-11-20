@@ -44,6 +44,12 @@ struct MainView: View {
         .sheet(item: $model.recurrenceRequest) { task in
             RecurrenceSheet(task: task).environment(model)
         }
+        .sheet(item: $model.focusEditor) { request in
+            FocusEditorSheet(request: request).environment(model)
+        }
+        .sheet(item: $model.focusDeleteRequest) { record in
+            FocusDeleteSheet(record: record).environment(model)
+        }
     }
 }
 
