@@ -62,6 +62,9 @@ struct ContentArea: View {
         let item = model.sidebarSelection ?? .all
         VStack(spacing: 0) {
             ContentHeader(item: item)
+            if item != .focus {
+                QuickAddBar()
+            }
             Group {
                 if item == .focus {
                     FocusListView()
