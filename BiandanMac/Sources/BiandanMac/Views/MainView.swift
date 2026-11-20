@@ -3,6 +3,7 @@ import SwiftUI
 /// 主窗口：侧栏 / 内容区 / 检查器 三栏。
 struct MainView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.undoManager) private var undoManager
 
     var body: some View {
         @Bindable var model = model
@@ -15,6 +16,7 @@ struct MainView: View {
                         .inspectorColumnWidth(min: 320, ideal: 372, max: 480)
                 }
         }
+        .onAppear { model.undoManager = undoManager }
         .searchable(text: $model.searchText, placement: .toolbar, prompt: "搜索标题、备注、子任务")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

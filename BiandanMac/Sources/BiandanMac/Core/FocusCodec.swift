@@ -21,7 +21,8 @@ struct FocusInput: Sendable, Codable, Equatable {
 enum FocusCodec {
     /// 主键 `time`：开始时间的毫秒时间戳（向下取整）。
     static func identifier(startedAt: Date) -> String {
-        String(Int64((startedAt.timeIntervalSince1970 * 1000).rounded(.down)))
+        // 加 0.001 毫秒抵消浮点误差：由毫秒时间戳还原的 Date 再换算回来时可能少 1 毫秒。
+        String(Int64((startedAt.timeIntervalSince1970 * 1000 + 0.001).rounded(.down)))
     }
 
     /// 时长必须在 1–1440 分钟，向下取整。

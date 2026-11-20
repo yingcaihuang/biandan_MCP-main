@@ -127,35 +127,36 @@ extension AppModel {
 
     // MARK: - 执行实例进度（后台 + 乐观）
 
-    /// 点圆圈：待完成 → 完成；已完成 → 撤销；已放弃 → 恢复。
+    /// 点圆圈：待完成 → 完成；已完成 → 撤销；已放弃 → 恢复。都可以 ⌘Z 撤销。
     func toggleCompletion(_ item: OccurrenceItem) async {
         let id = item.id
         let target = Self.target(of: item.task)
+        let label: String
+        let command: OutboxCommand
+        let compute: (Int) -> Int
         switch item.status {
         case .pending:
-            await performQueued("完成", optimistic: Self.progressEdit(id, target: target, { _ in target }),
-                                .completeOccurrence(id: id))
+            label = "完成"
+            command = .completeOccurrence(id: id)
+            compute = { _ in target }
         case .completed:
-            await performQueued("撤销完成", optimistic: Self.progressEdit(id, target: target, { _ in 0 }),
-                                .changeProgress(id: id, action: .reopen, count: nil))
+            label = "撤销完成"
+            command = .changeProgress(id: id, action: .reopen, count: nil)
+            compute = { _ in 0 }
         case .abandoned:
-            await performQueued("恢复", optimistic: Self.progressEdit(id, target: target, { $0 < 0 ? 0 : $0 }),
-                                .changeProgress(id: id, action: .restore, count: nil))
+            label = "恢复"
+            command = .changeProgress(id: id, action: .restore, count: nil)
+            compute = { $0 < 0 ? 0 : $0 }
         }
+        await progressChange(item, label: label, command, compute)
     }
 
     func abandon(_ item: OccurrenceItem) async {
-        let id = item.id
-        let target = Self.target(of: item.task)
-        await performQueued("放弃本次", optimistic: Self.progressEdit(id, target: target, { _ in -1 }),
-                            .changeProgress(id: id, action: .abandon, count: nil))
+        await progressChange(item, label: "放弃本次", .changeProgress(id: item.id, action: .abandon, count: nil), { _ in -1 })
     }
 
     func reopen(_ item: OccurrenceItem) async {
-        let id = item.id
-        let target = Self.target(of: item.task)
-        await performQueued("撤销进度", optimistic: Self.progressEdit(id, target: target, { _ in 0 }),
-                            .changeProgress(id: id, action: .reopen, count: nil))
+        await progressChange(item, label: "撤销进度", .changeProgress(id: item.id, action: .reopen, count: nil), { _ in 0 })
     }
 
     func setSubtask(_ item: OccurrenceItem, index: Int, checked: Bool) async {
@@ -166,15 +167,25 @@ extension AppModel {
             let mask = 1 << index
             return (checked ? (bits | mask) : (bits & ~mask)) * 100
         })
-        await performQueued(checked ? "勾选子任务" : "取消勾选", optimistic: edit,
-                            .setSubtask(id: id, index: index, checked: checked))
+        let label = checked ? "勾选子任务" : "取消勾选"
+        let command = OutboxCommand.setSubtask(id: id, index: index, checked: checked)
+        if await performQueued(label, optimistic: edit, command) {
+            registerUndo(label, undo: [.setSubtask(id: id, index: index, checked: !checked)], redo: [command])
+        }
     }
 
     func setCount(_ item: OccurrenceItem, count: Int) async {
-        let id = item.id
+        await progressChange(item, label: "记录次数", .changeProgress(id: item.id, action: .setCount, count: count), { _ in count })
+    }
+
+    /// 执行一次进度修改，成功后登记撤销（恢复到修改前的进度）。
+    private func progressChange(_ item: OccurrenceItem, label: String, _ command: OutboxCommand,
+                                _ compute: @escaping (Int) -> Int) async {
         let target = Self.target(of: item.task)
-        await performQueued("记录次数", optimistic: Self.progressEdit(id, target: target, { _ in count }),
-                            .changeProgress(id: id, action: .setCount, count: count))
+        let undo = UndoPlan.restoreProgress(item.id, previous: item.occurrence.completedCount, target: target)
+        if await performQueued(label, optimistic: Self.progressEdit(item.id, target: target, compute), command) {
+            registerUndo(label, undo: undo, redo: [command])
+        }
     }
 
     // MARK: - 任务字段
@@ -191,9 +202,14 @@ extension AppModel {
                 task.isUrgency = urgent ? 1 : 0
             }
         }
-        await performQueued("移到「\(quadrant.title)」", optimistic: edit,
-                            .updateTask(taskID: taskID, title: nil, remark: nil, important: important,
-                                        urgent: urgent, collected: nil))
+        let label = "移到「\(quadrant.title)」"
+        let redo = OutboxCommand.updateTask(taskID: taskID, title: nil, remark: nil, important: important,
+                                            urgent: urgent, collected: nil)
+        let undo = OutboxCommand.updateTask(taskID: taskID, title: nil, remark: nil, important: item.task.isImportant != 0,
+                                            urgent: item.task.isUrgency != 0, collected: nil)
+        if await performQueued(label, optimistic: edit, redo) {
+            registerUndo(label, undo: [undo], redo: [redo])
+        }
     }
 
     func updateTask(_ taskID: String, title: String? = nil, remark: String? = nil, important: Bool? = nil,
@@ -211,16 +227,31 @@ extension AppModel {
                 if let collected { task.isCollectible = collected ? 1 : 0 }
             }
         }
-        await performQueued("保存任务", optimistic: edit,
-                            .updateTask(taskID: taskID, title: title, remark: remark, important: important,
-                                        urgent: urgent, collected: collected))
+        let old = snapshot.tasks[taskID]
+        let redo = OutboxCommand.updateTask(taskID: taskID, title: title, remark: remark, important: important,
+                                            urgent: urgent, collected: collected)
+        if await performQueued("保存任务", optimistic: edit, redo), let old {
+            let undo = OutboxCommand.updateTask(taskID: taskID, title: title.map { _ in old.taskTitle },
+                                                remark: remark.map { _ in old.content.remark },
+                                                important: important.map { _ in old.isImportant != 0 },
+                                                urgent: urgent.map { _ in old.isUrgency != 0 },
+                                                collected: collected.map { _ in old.isCollectible != 0 })
+            let onlyCollected = collected != nil && title == nil && remark == nil && important == nil && urgent == nil
+            let label = onlyCollected ? (collected == true ? "收藏" : "取消收藏") : "修改任务"
+            registerUndo(label, undo: [undo], redo: [redo])
+        }
     }
 
     func moveTask(_ taskID: String, to listID: String) async {
         let edit: SnapshotEdit = { snapshot in
             snapshot.editTask(taskID) { task in task.id3 = listID }
         }
-        await performQueued("移动待办单", optimistic: edit, .moveTask(taskID: taskID, listID: listID))
+        let oldList = snapshot.tasks[taskID]?.id3
+        if await performQueued("移动待办单", optimistic: edit, .moveTask(taskID: taskID, listID: listID)),
+           let oldList, oldList != listID {
+            registerUndo("移动待办单", undo: [.moveTask(taskID: taskID, listID: oldList)],
+                         redo: [.moveTask(taskID: taskID, listID: listID)])
+        }
     }
 
     func setTimeReminder(_ taskID: String, date: LocalDate?, time: LocalTime?, enabled: Bool) async {
@@ -310,10 +341,13 @@ extension AppModel {
         let to = BiandanService.clockText(endTime ?? item.occurrence.endClock ?? LocalTime(hour: 23, minute: 59)!)
         let edit = Self.windowEdit(taskID: taskID, occurrenceIDs: [item.id], start: start.iso, end: last.iso,
                                    from: from, to: to, undated: false)
-        await performQueued("改期", optimistic: edit,
-                            .rescheduleTask(taskID: taskID, start: start.iso, end: end?.iso,
-                                            startTime: startTime.map(BiandanService.clockText),
-                                            endTime: endTime.map(BiandanService.clockText)))
+        let redo = OutboxCommand.rescheduleTask(taskID: taskID, start: start.iso, end: end?.iso,
+                                                startTime: startTime.map(BiandanService.clockText),
+                                                endTime: endTime.map(BiandanService.clockText))
+        let undo = UndoPlan.restoreSchedule(item.task)
+        if await performQueued("改期", optimistic: edit, redo) {
+            registerUndo("改期", undo: undo, redo: [redo])
+        }
     }
 
     func clearSchedule(_ taskID: String) async {
@@ -321,7 +355,10 @@ extension AppModel {
         let edit = Self.windowEdit(taskID: taskID, occurrenceIDs: ids, start: LocalDate.undatedStart.iso,
                                    end: LocalDate.maxSupported.iso, from: "00:00:00", to: "23:59:00",
                                    undated: true, clearTimeReminder: true)
-        await performQueued("清除日期", optimistic: edit, .clearSchedule(taskID: taskID))
+        let undo = snapshot.tasks[taskID].map { UndoPlan.restoreSchedule($0, restoreReminder: true) } ?? []
+        if await performQueued("清除日期", optimistic: edit, .clearSchedule(taskID: taskID)) {
+            registerUndo("清除日期", undo: undo, redo: [.clearSchedule(taskID: taskID)])
+        }
     }
 
     func editGoal(_ taskID: String, subtasks: [String]?, targetCount: Int?) async {

@@ -139,6 +139,9 @@ final class AppModel {
     /// 全量拉取节流状态。
     var syncThrottle = SyncThrottle()
 
+    /// 主窗口的撤销管理器，⌘Z / ⇧⌘Z 用。
+    @ObservationIgnored weak var undoManager: UndoManager?
+
     // 调休数据
     /// 调休数据覆盖到的最后一年（内置 + 远程补充）。
     var holidayLastYear: Int = ChinaMakeup.builtinLastYear
@@ -346,6 +349,7 @@ final class AppModel {
         authState = .signedOut
         renewal = nil
         discardOutbox()
+        undoManager?.removeAllActions()
     }
 
     // MARK: - 同步
