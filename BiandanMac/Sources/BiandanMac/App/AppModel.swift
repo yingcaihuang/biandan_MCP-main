@@ -136,6 +136,9 @@ final class AppModel {
     @ObservationIgnored var isFlushingOutbox = false
     @ObservationIgnored var outboxRetryTask: Task<Void, Never>?
 
+    /// 全量拉取节流状态。
+    var syncThrottle = SyncThrottle()
+
     // 调休数据
     /// 调休数据覆盖到的最后一年（内置 + 远程补充）。
     var holidayLastYear: Int = ChinaMakeup.builtinLastYear
@@ -232,7 +235,8 @@ final class AppModel {
             authState = .signedIn
             startAutoSync()
             await refreshRenewal()
-            await syncNow()
+            syncThrottle.lastSuccess = snapshot.lastPulledAt
+            await syncNow(.startup)
         } else {
             authState = .signedOut
         }
@@ -244,7 +248,7 @@ final class AppModel {
         if now != today { today = now }
         guard authState == .signedIn, !syncStatus.isSyncing else { return }
         if let last = lastSyncedAt, Date().timeIntervalSince(last) < 60 { return }
-        Task { await syncNow() }
+        Task { await syncNow(.automatic) }
     }
 
     // MARK: - 登录 / 退出
@@ -354,8 +358,17 @@ final class AppModel {
 
     /// 返回本次同步是否成功。
     @discardableResult
-    func syncNow() async -> Bool {
+    func syncNow(_ reason: SyncReason = .manual) async -> Bool {
         guard authState == .signedIn else { return false }
+        switch syncThrottle.decide(reason) {
+        case .allow:
+            break
+        case .skip:
+            return false
+        case .wait(let seconds):
+            syncStatus = .failed("云端繁忙，请 \(Int(seconds.rounded(.up))) 秒后再同步。")
+            return false
+        }
         // 同步过程中可能续期过，结束后刷新显示。
         defer { Task { await self.refreshRenewal() } }
         // 先把排队的修改写回云端，再拉取。
@@ -371,6 +384,9 @@ final class AppModel {
             }
             lastSyncedAt = report.finishedAt
             reloadSnapshot()
+            syncThrottle.recordSuccess(at: report.finishedAt,
+                                       records: snapshot.lists.count + snapshot.tasks.count
+                                           + snapshot.occurrences.count + snapshot.focus.count)
             syncStatus = .idle
             lastError = nil
             return true
@@ -385,6 +401,7 @@ final class AppModel {
             syncStatus = .idle
             return false
         } catch {
+            syncThrottle.recordFailure(at: Date(), retryAfter: (error as? CloudError)?.retryAfter)
             syncStatus = .failed(error.localizedDescription)
             return false
         }
@@ -402,7 +419,7 @@ final class AppModel {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Double(minutes) * 60))
                 guard !Task.isCancelled, let self else { return }
-                await self.syncNow()
+                await self.syncNow(.automatic)
             }
         }
     }

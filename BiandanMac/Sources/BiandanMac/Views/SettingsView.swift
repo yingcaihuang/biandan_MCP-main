@@ -496,6 +496,10 @@ private struct SyncPane: View {
                     ValueText(text: "\(model.snapshot.lists.count) 个待办单 · \(model.snapshot.tasks.count) 个任务 · \(model.snapshot.occurrences.count) 个实例",
                               color: Theme.subtext)
                 }
+                NoteRow(icon: "gauge.with.dots.needle.33percent",
+                        text: "定时和切回窗口触发的自动同步至少间隔 1 分钟，本地超过 3000 条时放宽到 3 分钟；连续失败时按 30 秒、1、2、4… 分钟退避，最长 30 分钟。手动同步不受限制，只在云端要求稍后再试时等待。"
+                            + (model.syncThrottle.consecutiveFailures > 0
+                               ? " 已连续失败 \(model.syncThrottle.consecutiveFailures) 次。" : ""))
             }
 
             InspectorSection("待同步队列") {
