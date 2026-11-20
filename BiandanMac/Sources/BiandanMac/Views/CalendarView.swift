@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// 月历视图：6×7 网格，显示与每天有交集的执行实例（含已完成、已放弃）。
+/// 日历：月视图（6×7 网格）和周视图（7 列）。显示与每天有交集的执行实例（含已完成、已放弃），
+/// 可以把实例拖到其他日期改期。
 struct CalendarView: View {
     @Environment(AppModel.self) private var model
 
@@ -11,58 +12,125 @@ struct CalendarView: View {
         return (0..<42).map { start.adding(days: $0) }
     }
 
+    static func weekDays(containing day: LocalDate, weekStart: Int) -> [LocalDate] {
+        let start = CalendarDrop.weekStart(of: day, weekStart: weekStart)
+        return (0..<7).map { start.adding(days: $0) }
+    }
+
     var body: some View {
-        let month = model.calendarMonth
-        let days = Self.gridDays(month: month, weekStart: model.weekStart)
+        @Bindable var model = model
+        let scope = model.calendarScope
+        let days = scope == .month
+            ? Self.gridDays(month: model.calendarMonth, weekStart: model.weekStart)
+            : Self.weekDays(containing: model.calendarFocus, weekStart: model.weekStart)
         let rangeStart = days[0]
-        let rangeEnd = days[41]
+        let rangeEnd = days[days.count - 1]
         let visible = model.items(for: .calendar).filter {
             !$0.task.undated && $0.occurrence.overlaps(rangeStart, rangeEnd)
         }
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                Text(verbatim: "\(month.year)年\(month.month)月")
+                Text(verbatim: title(days: days))
                     .font(.system(size: 17, weight: .bold))
+                Picker("范围", selection: $model.calendarScope) {
+                    ForEach(CalendarScope.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 96)
                 Spacer()
-                Button {
-                    model.calendarMonth = month.adding(months: -1).firstOfMonth
-                } label: {
-                    Image(systemName: "chevron.left")
+                Text("拖动任务到其他日期即可改期")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.fieldName)
+                Button { step(-1) } label: { Image(systemName: "chevron.left") }
+                Button("今天") {
+                    model.calendarMonth = model.today.firstOfMonth
+                    model.calendarFocus = model.today
                 }
-                Button("今天") { model.calendarMonth = model.today.firstOfMonth }
-                Button {
-                    model.calendarMonth = month.adding(months: 1).firstOfMonth
-                } label: {
-                    Image(systemName: "chevron.right")
-                }
+                Button { step(1) } label: { Image(systemName: "chevron.right") }
             }
             .buttonStyle(.bordered)
 
-            HStack(spacing: 6) {
-                ForEach(0..<7, id: \.self) { index in
-                    Text(LocalDate.weekdayShortNames[floorMod(index + model.weekStart, 7)])
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Theme.subtext)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-
-            VStack(spacing: 6) {
-                ForEach(0..<6, id: \.self) { row in
-                    HStack(spacing: 6) {
-                        ForEach(0..<7, id: \.self) { column in
-                            let day = days[row * 7 + column]
-                            CalendarDayCell(day: day,
-                                            inMonth: day.month == month.month,
-                                            isToday: day == model.today,
-                                            items: visible.filter { $0.occurrence.overlaps(day, day) })
+            if scope == .month {
+                weekdayHeader
+                VStack(spacing: 6) {
+                    ForEach(0..<6, id: \.self) { row in
+                        HStack(spacing: 6) {
+                            ForEach(0..<7, id: \.self) { column in
+                                let day = days[row * 7 + column]
+                                CalendarDayCell(day: day,
+                                                inMonth: day.month == model.calendarMonth.month,
+                                                isToday: day == model.today,
+                                                items: visible.filter { $0.occurrence.overlaps(day, day) })
+                            }
                         }
+                    }
+                }
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(days, id: \.self) { day in
+                        CalendarWeekColumn(day: day, isToday: day == model.today,
+                                           items: visible.filter { $0.occurrence.overlaps(day, day) })
                     }
                 }
             }
         }
         .padding(.horizontal, 22)
         .padding(.bottom, 20)
+    }
+
+    private var weekdayHeader: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<7, id: \.self) { index in
+                Text(LocalDate.weekdayShortNames[floorMod(index + model.weekStart, 7)])
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.subtext)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func title(days: [LocalDate]) -> String {
+        if model.calendarScope == .month {
+            let month = model.calendarMonth
+            return "\(month.year)年\(month.month)月"
+        }
+        let first = days[0], last = days[days.count - 1]
+        let tail = first.month == last.month ? "\(last.day)日" : "\(last.month)月\(last.day)日"
+        return "\(first.year)年\(first.month)月\(first.day)日 – " + tail
+    }
+
+    private func step(_ direction: Int) {
+        if model.calendarScope == .month {
+            model.calendarMonth = model.calendarMonth.adding(months: direction).firstOfMonth
+        } else {
+            model.calendarFocus = model.calendarFocus.adding(days: 7 * direction)
+            model.calendarMonth = model.calendarFocus.firstOfMonth
+        }
+    }
+}
+
+/// 初一显示月名，其余显示日名，例如「十月」「十二」。
+func calendarLunarText(_ day: LocalDate) -> String {
+    guard let lunar = LunarCalendar.lunarDay(for: day) else { return "" }
+    return lunar.day == 1 ? LunarCalendar.monthName(lunar.month, leap: lunar.isLeap) : LunarCalendar.dayName(lunar.day)
+}
+
+/// 把拖进来的实例改期到这一天。
+private struct CalendarDropModifier: ViewModifier {
+    @Environment(AppModel.self) private var model
+    let day: LocalDate
+    @Binding var targeted: Bool
+
+    func body(content: Content) -> some View {
+        content.dropDestination(for: String.self) { identifiers, _ in
+            for identifier in identifiers {
+                Task { await model.dropOnDay(identifier, day: day) }
+            }
+            return !identifiers.isEmpty
+        } isTargeted: { value in
+            targeted = value
+        }
     }
 }
 
@@ -73,6 +141,7 @@ struct CalendarDayCell: View {
     let isToday: Bool
     let items: [OccurrenceItem]
     @State private var showAll = false
+    @State private var targeted = false
 
     private let maxVisible = 3
 
@@ -84,7 +153,7 @@ struct CalendarDayCell: View {
                     .foregroundStyle(isToday ? Color.white : (inMonth ? Theme.text : Theme.fieldName))
                     .padding(.horizontal, isToday ? 6 : 0)
                     .background(Capsule().fill(isToday ? Theme.accent : Color.clear))
-                Text(lunarText)
+                Text(calendarLunarText(day))
                     .font(.system(size: 10))
                     .foregroundStyle(Theme.fieldName)
                     .lineLimit(1)
@@ -123,14 +192,72 @@ struct CalendarDayCell: View {
         }
         .padding(6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(inMonth ? Theme.card : Theme.card.opacity(0.45)))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isToday ? Theme.accent : Theme.line))
+        .background(RoundedRectangle(cornerRadius: 8)
+            .fill(targeted ? Theme.accent.opacity(0.14) : (inMonth ? Theme.card : Theme.card.opacity(0.45))))
+        .overlay(RoundedRectangle(cornerRadius: 8)
+            .stroke(targeted || isToday ? Theme.accent : Theme.line, lineWidth: targeted ? 2 : 1))
+        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .modifier(CalendarDropModifier(day: day, targeted: $targeted))
     }
+}
 
-    /// 初一显示月名，其余显示日名，例如「十月」「十二」。
-    private var lunarText: String {
-        guard let lunar = LunarCalendar.lunarDay(for: day) else { return "" }
-        return lunar.day == 1 ? LunarCalendar.monthName(lunar.month, leap: lunar.isLeap) : LunarCalendar.dayName(lunar.day)
+/// 周视图的一列：当天的完整任务卡片。
+struct CalendarWeekColumn: View {
+    @Environment(AppModel.self) private var model
+    let day: LocalDate
+    let isToday: Bool
+    let items: [OccurrenceItem]
+    @State private var targeted = false
+
+    var body: some View {
+        let weekend = day.pythonWeekday >= 5
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(LocalDate.weekdayShortNames[day.weekday])
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(weekend ? Color(hex: 0xD9534A) : Theme.subtext)
+                Text(verbatim: "\(day.day)")
+                    .font(.system(size: 16, weight: .heavy))
+                    .monospacedDigit()
+                    .foregroundStyle(isToday ? Color.white : Theme.text)
+                    .padding(.horizontal, isToday ? 7 : 0)
+                    .background(Capsule().fill(isToday ? Theme.accent : Color.clear))
+                Text(calendarLunarText(day))
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.fieldName)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                if !items.isEmpty {
+                    Text(verbatim: "\(items.count)")
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(Theme.subtext)
+                }
+            }
+            if items.isEmpty {
+                Text("拖到这里改期")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Theme.fieldName)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 12)
+                Spacer(minLength: 0)
+            } else {
+                ScrollView {
+                    VStack(spacing: 6) {
+                        ForEach(items) { item in
+                            OccurrenceCard(item: item)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 10)
+            .fill(targeted ? Theme.accent.opacity(0.14) : Theme.card))
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .stroke(targeted || isToday ? Theme.accent : Theme.line, lineWidth: targeted ? 2 : 1))
+        .contentShape(RoundedRectangle(cornerRadius: 10))
+        .modifier(CalendarDropModifier(day: day, targeted: $targeted))
     }
 }
 
@@ -159,7 +286,8 @@ struct CalendarChip: View {
             model.selectedOccurrenceID = item.id
             model.selectedFocusID = nil
         }
-        .help(item.task.taskTitle + " · " + item.scheduleText(today: model.today))
+        .draggable(item.id)
+        .help(item.task.taskTitle + " · " + item.scheduleText(today: model.today) + " · 拖到其他日期可改期")
     }
 
     private var label: String {

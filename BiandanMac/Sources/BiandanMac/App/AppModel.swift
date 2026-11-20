@@ -192,6 +192,14 @@ final class AppModel {
     var showInspector = true
     var showRawJSON = false
     var calendarMonth: LocalDate = LocalDate.today().firstOfMonth
+    /// 日历显示月还是周，记住上次的选择。
+    var calendarScope: CalendarScope = CalendarScope(
+        rawValue: UserDefaults.standard.string(forKey: "biandan.calendarScope") ?? ""
+    ) ?? .month {
+        didSet { UserDefaults.standard.set(calendarScope.rawValue, forKey: "biandan.calendarScope") }
+    }
+    /// 周视图显示的那一周里的任意一天。
+    var calendarFocus: LocalDate = .today()
 
     // 设置
     var weekStart: Int = UserDefaults.standard.integer(forKey: DefaultsKey.weekStart) {

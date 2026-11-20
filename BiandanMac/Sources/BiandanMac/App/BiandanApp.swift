@@ -68,6 +68,7 @@ struct BiandanCommands: Commands {
             Button("回到今天") {
                 model.today = .today()
                 model.calendarMonth = model.today.firstOfMonth
+                model.calendarFocus = model.today
             }
             .keyboardShortcut("t", modifiers: .command)
         }
