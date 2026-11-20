@@ -151,6 +151,7 @@ private func text(_ value: String?) -> String {
 
 struct TaskInspector: View {
     @Environment(AppModel.self) private var model
+    @AppStorage("biandan.showReadonlyFields") private var showReadonly = false
     let item: OccurrenceItem
 
     var body: some View {
@@ -177,9 +178,9 @@ struct TaskInspector: View {
                 TaskEditPanel(task: task, occurrence: item.occurrence)
                     // 云端版本变化或切换实例时重置草稿。
                     .id("\(task.id1)#\(task.meta?.version ?? 0)#\(item.id)#\(item.occurrence.meta?.version ?? 0)")
-                Text("全部字段（只读）")
-                    .font(.system(size: 13, weight: .bold))
-                    .padding(.top, 6)
+                // 只读字段默认折叠，避免和上面能编辑的项混在一起。
+                DisclosureGroup(isExpanded: $showReadonly) {
+                    VStack(alignment: .leading, spacing: 14) {
                 basics(task)
                 schedule(task)
                 recurrence(task)
@@ -196,6 +197,14 @@ struct TaskInspector: View {
                 ExtraFieldsSection(kind: .showTask, raw: item.occurrence.meta?.raw ?? [:])
                 RawJSONSection(title: "原始 JSON · Task", raw: task.meta?.raw ?? [:])
                 RawJSONSection(title: "原始 JSON · showTask", raw: item.occurrence.meta?.raw ?? [:])
+                    }
+                    .padding(.top, 8)
+                } label: {
+                    Text("全部字段（只读，仅供查看）")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Theme.subtext)
+                }
+                .padding(.top, 6)
             }
             // 内容宽度跟随检查器这一栏，不允许被子视图撑宽。
             .frame(maxWidth: .infinity, alignment: .leading)

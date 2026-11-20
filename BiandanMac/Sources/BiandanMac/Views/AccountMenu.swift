@@ -206,7 +206,7 @@ struct SignOutSheet: View {
         } footer: {
             if working { ProgressView().controlSize(.small) }
             Spacer()
-            Button("取消") { dismiss() }
+            Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
                 .buttonStyle(.themed)
                 .keyboardShortcut(.cancelAction)
             Button("退出登录", role: .destructive) { signOut() }

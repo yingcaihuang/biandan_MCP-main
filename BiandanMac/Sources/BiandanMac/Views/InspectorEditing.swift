@@ -6,11 +6,13 @@ private struct EditRow<Content: View>: View {
     @Environment(AppModel.self) private var model
     let label: String
     let field: String?
+    let stacked: Bool
     let content: Content
 
-    init(_ label: String, field: String? = nil, @ViewBuilder content: () -> Content) {
+    init(_ label: String, field: String? = nil, stacked: Bool = false, @ViewBuilder content: () -> Content) {
         self.label = label
         self.field = field
+        self.stacked = stacked
         self.content = content()
     }
 
@@ -20,7 +22,8 @@ private struct EditRow<Content: View>: View {
                 .foregroundStyle(Color(hex: 0x4A453C))
                 .fixedSize()
             if model.showFieldNames, let field {
-                FieldTag(field)
+                // 空间不够时字段名先缩成省略号，不撑宽检查器。
+                FieldTag(field).layoutPriority(-1)
             }
         }
     }
@@ -28,15 +31,18 @@ private struct EditRow<Content: View>: View {
     var body: some View {
         // 一行放不下时把控件换到下一行，不撑宽检查器。
         // 撑宽会让检查器整体溢出、居中，显示位置和点击位置错开（控件点不动、输入法气泡跑到别处）。
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                labelView
-                Spacer(minLength: 6)
-                content
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                labelView
-                content.frame(maxWidth: .infinity, alignment: .trailing)
+        Group {
+            if stacked {
+                VStack(alignment: .leading, spacing: 6) {
+                    labelView
+                    content.frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            } else {
+                HStack(spacing: 8) {
+                    labelView
+                    Spacer(minLength: 6)
+                    content.layoutPriority(1)
+                }
             }
         }
         .font(.system(size: 12.5))
@@ -360,16 +366,10 @@ struct TaskEditPanel: View {
                 Toggle("", isOn: $remindOn).toggleStyle(.switch).labelsHidden().controlSize(.mini)
             }
             if remindOn {
-                EditRow("提醒于", field: "remindDate·remindTime") {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 6) {
-                            ThemedDateField(date: $remindAt)
-                            ThemedTimeField(time: $remindAt)
-                        }
-                        VStack(alignment: .trailing, spacing: 6) {
-                            ThemedDateField(date: $remindAt)
-                            ThemedTimeField(time: $remindAt)
-                        }
+                EditRow("提醒于", field: "remindDate·remindTime", stacked: true) {
+                    HStack(spacing: 6) {
+                        ThemedDateField(date: $remindAt)
+                        ThemedTimeField(time: $remindAt)
                     }
                 }
             }

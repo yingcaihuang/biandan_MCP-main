@@ -494,7 +494,7 @@ struct RecurrenceSheet: View {
         } footer: {
             if saving { ProgressView().controlSize(.small) }
             Spacer()
-            Button("取消") { dismiss() }
+            Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
                 .buttonStyle(.themed)
                 .keyboardShortcut(.cancelAction)
             Button("保存规则") { save() }
