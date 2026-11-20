@@ -220,16 +220,35 @@ actor BiandanService {
     }
 
     /// 只提交真正变化的字段，写后读回确认。
+    /// 遇到 409（版本已变化）时重新读取并三方合并：其他设备只改了别的字段就重试，
+    /// 改了同一个字段就以云端为准并提示「已被其他设备修改」。
     @discardableResult
     func patch(_ record: RawRecord, _ changes: JSONObject, reparent: Bool = false) async throws -> RawRecord {
-        let current = record.attributes ?? [:]
-        let diff = changes.filter { !AttributeMatch.matches(current[$0.key], $0.value, key: $0.key) }
+        var base = record
+        var diff = changes.filter { !AttributeMatch.matches(base.attributes?[$0.key], $0.value, key: $0.key) }
         guard !diff.isEmpty else { return record }
-        guard let version = record.version else {
-            throw ServiceError("记录缺少版本号，请重新同步后再试。")
+        var attempt = 0
+        while true {
+            guard let version = base.version else {
+                throw ServiceError("记录缺少版本号，请重新同步后再试。")
+            }
+            do {
+                _ = try await cloud.update(base.kind, base.cloudID, baseVersion: version, changes: diff, reparent: reparent)
+                break
+            } catch let error as CloudError where error.status == 409 && attempt < ConflictMerge.maxRetries {
+                attempt += 1
+                let latest = try await fresh(base)
+                let resolution = ConflictMerge.resolve(base: base.attributes ?? [:], latest: latest.attributes ?? [:],
+                                                       desired: diff)
+                if !resolution.conflicts.isEmpty {
+                    throw ServiceError(ConflictMerge.message(kind: base.kind, conflicts: resolution.conflicts))
+                }
+                if resolution.remaining.isEmpty { return latest }
+                base = latest
+                diff = resolution.remaining
+            }
         }
-        _ = try await cloud.update(record.kind, record.cloudID, baseVersion: version, changes: diff, reparent: reparent)
-        let updated = try await fresh(record)
+        let updated = try await fresh(base)
         for (key, value) in diff where !AttributeMatch.matches(updated.attributes?[key], value, key: key) {
             throw ServiceError("云端读回没有确认\(record.kind.title)的修改。", mayHaveWritten: true)
         }
@@ -256,15 +275,27 @@ actor BiandanService {
         }
     }
 
-    /// 删除记录，404 视为已删除。
+    /// 删除记录，404 视为已删除；409 时读取最新版本后重试。
     func deleteRecord(_ record: RawRecord) async throws {
-        guard let version = record.version else {
-            throw ServiceError("记录缺少版本号，请重新同步后再试。")
-        }
-        do {
-            try await cloud.delete(record.kind, record.cloudID, baseVersion: version)
-        } catch let error as CloudError where error.status == 404 {
-            // 已被删除
+        var target = record
+        var attempt = 0
+        deleting: while true {
+            guard let version = target.version else {
+                throw ServiceError("记录缺少版本号，请重新同步后再试。")
+            }
+            do {
+                try await cloud.delete(target.kind, target.cloudID, baseVersion: version)
+                break
+            } catch let error as CloudError where error.status == 404 {
+                break   // 已被删除
+            } catch let error as CloudError where error.status == 409 && attempt < ConflictMerge.maxRetries {
+                attempt += 1
+                do {
+                    target = try await fresh(target)
+                } catch let missing as CloudError where missing.status == 404 {
+                    break deleting
+                }
+            }
         }
         pending.removed.append(RemovedRecord(kind: record.kind, cloudID: record.cloudID))
     }
