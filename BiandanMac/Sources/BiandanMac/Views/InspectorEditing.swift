@@ -14,7 +14,7 @@ private struct EditRow<Content: View>: View {
         self.content = content()
     }
 
-    var body: some View {
+    private var labelView: some View {
         HStack(spacing: 8) {
             Text(label)
                 .foregroundStyle(Color(hex: 0x4A453C))
@@ -22,8 +22,22 @@ private struct EditRow<Content: View>: View {
             if model.showFieldNames, let field {
                 FieldTag(field)
             }
-            Spacer(minLength: 6)
-            content
+        }
+    }
+
+    var body: some View {
+        // 一行放不下时把控件换到下一行，不撑宽检查器。
+        // 撑宽会让检查器整体溢出、居中，显示位置和点击位置错开（控件点不动、输入法气泡跑到别处）。
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                labelView
+                Spacer(minLength: 6)
+                content
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                labelView
+                content.frame(maxWidth: .infinity, alignment: .trailing)
+            }
         }
         .font(.system(size: 12.5))
         .padding(.horizontal, 10)
@@ -347,9 +361,15 @@ struct TaskEditPanel: View {
             }
             if remindOn {
                 EditRow("提醒于", field: "remindDate·remindTime") {
-                    HStack(spacing: 6) {
-                        ThemedDateField(date: $remindAt)
-                        ThemedTimeField(time: $remindAt)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 6) {
+                            ThemedDateField(date: $remindAt)
+                            ThemedTimeField(time: $remindAt)
+                        }
+                        VStack(alignment: .trailing, spacing: 6) {
+                            ThemedDateField(date: $remindAt)
+                            ThemedTimeField(time: $remindAt)
+                        }
                     }
                 }
             }

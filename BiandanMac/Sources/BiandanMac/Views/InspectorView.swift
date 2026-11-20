@@ -37,6 +37,7 @@ struct InspectorSection<Content: View>: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Theme.subtext)
             VStack(spacing: 0) { content }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.line))
@@ -196,6 +197,8 @@ struct TaskInspector: View {
                 RawJSONSection(title: "原始 JSON · Task", raw: task.meta?.raw ?? [:])
                 RawJSONSection(title: "原始 JSON · showTask", raw: item.occurrence.meta?.raw ?? [:])
             }
+            // 内容宽度跟随检查器这一栏，不允许被子视图撑宽。
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
         }
     }
@@ -413,6 +416,8 @@ struct FocusInspector: View {
                 ExtraFieldsSection(kind: .tomato, raw: record.meta?.raw ?? [:])
                 RawJSONSection(title: "原始 JSON · tomato", raw: record.meta?.raw ?? [:])
             }
+            // 内容宽度跟随检查器这一栏，不允许被子视图撑宽。
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
         }
     }
