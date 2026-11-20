@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="referrer" content="no-referrer">
+<title>便单 · 已收到华为授权</title>
+<style>
+:root{--bg:#F4EFE3;--panel:#FBF8F1;--card:#FFFDF8;--line:#E6DFCF;--text:#1F1D1A;--sub:#8A8273;
+  --accent:#F5B800;--q1:#E5483A;--q2:#E9BC12;--q3:#4BA9E0;--q4:#5DB65A;--red:#D93025}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;
+  background:var(--bg);color:var(--text);
+  font:14px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
+.card{width:100%;max-width:440px;background:var(--card);border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 18px 50px rgba(60,48,20,.12);overflow:hidden;transition:box-shadow .4s}
+.card.finished{box-shadow:0 18px 50px rgba(93,182,90,.22)}
+.strip{display:grid;grid-template-columns:repeat(4,1fr);height:6px}
+.strip i:nth-child(1){background:var(--q1)}.strip i:nth-child(2){background:var(--q2)}
+.strip i:nth-child(3){background:var(--q3)}.strip i:nth-child(4){background:var(--q4)}
+.main{padding:34px 32px 26px;text-align:center}
+.logo{width:72px;height:72px;margin:0 auto 18px;border-radius:18px;
+  background:linear-gradient(135deg,#FFD54A,#F5A300);color:#fff;font-size:34px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(245,163,0,.3)}
+.tag{display:inline-block;padding:2px 10px;border-radius:999px;color:#fff;font-size:12px;font-weight:600;
+  margin-bottom:10px;transition:background .3s}
+h1{margin:0 0 8px;font-size:24px;font-weight:800;letter-spacing:.5px}
+.msg{margin:0;color:var(--sub)}
+.steps{margin:22px 0 0;padding:4px 0;list-style:none;text-align:left;background:var(--panel);
+  border:1px solid var(--line);border-radius:10px}
+.steps li{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid #F0EADD;
+  color:var(--sub);font-size:13px}
+.steps li:first-child{border-top:none}
+.steps b{width:20px;height:20px;border-radius:50%;flex:none;display:flex;align-items:center;
+  justify-content:center;font-size:11px;background:#EEE8DA;color:var(--sub);transition:background .3s}
+.t{display:flex;flex-direction:column;min-width:0}
+.t small{font-size:11.5px;font-weight:400;color:var(--sub);margin-top:1px}
+.t small:empty{display:none}
+.steps .done{color:var(--text)}
+.steps .done b{background:var(--q4);color:#fff}
+.steps .now{color:var(--text);font-weight:600}
+.steps .now b{background:var(--accent);color:#fff;animation:pulse 1.2s ease-in-out infinite}
+.steps .fail{color:var(--red);font-weight:600}
+.steps .fail b{background:var(--red);color:#fff}
+.steps .fail small{color:var(--red)}
+.wait{margin-left:auto;flex:none;font-size:11px;font-weight:600;color:#9A7400;background:#FFF1C2;
+  border-radius:999px;padding:1px 8px}
+@keyframes pulse{50%{opacity:.45}}
+.foot{padding:14px 32px;border-top:1px solid var(--line);background:var(--panel);color:var(--sub);
+  font-size:12px;text-align:center}
+kbd{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;background:#EEE8DA;border-radius:4px;
+  padding:1px 6px;color:#6B6457;margin-left:4px}
+</style>
+</head>
+<body>
+<main class="card" id="card">
+<div class="strip"><i></i><i></i><i></i><i></i></div>
+<div class="main">
+<div class="logo">便</div>
+<span class="tag" id="tag" style="background:var(--q4)">授权成功</span>
+<h1 id="title">已收到华为授权</h1>
+<p class="msg" id="msg">便单 App 正在完成登录，本页会自动更新进度。</p>
+<ol class="steps"><li id="s1" data-n="1" class="done"><b>✓</b><span class="t">打开华为授权页<small></small></span><span class="wait" hidden>进行中</span></li><li id="s2" data-n="2" class="done"><b>✓</b><span class="t">收到授权回调<small></small></span><span class="wait" hidden>进行中</span></li><li id="s3" data-n="3" class="done"><b>✓</b><span class="t">换取令牌，保存到钥匙串<small></small></span><span class="wait" hidden>进行中</span></li><li id="s4" data-n="4" class="now"><b>4</b><span class="t">首次同步待办单、任务和专注记录<small>正在同步执行实例… 120</small></span><span class="wait">进行中</span></li></ol>
+</div>
+<div class="foot"><span id="foot">保持本页打开可以看到进度，也可以直接关闭</span><kbd>⌘W</kbd></div>
+</main>
+<script nonce="NONCE">
+(function(){
+var S="SESSION",P="syncing",H={"done":{"color":"var(--q4)","footer":"全部完成，可以关闭本页","message":"{summary}。可以回到便单 App 了。","tag":"登录完成","title":"登录完成，数据已同步"},"exchanging":{"color":"var(--q4)","footer":"保持本页打开可以看到进度，也可以直接关闭","message":"便单 App 正在完成登录，本页会自动更新进度。","tag":"授权成功","title":"已收到华为授权"},"failed":{"color":"var(--red)","footer":"可以关闭本页，回到便单 App","message":"请回到便单 App 查看原因后重试。","tag":"登录未完成","title":"登录没有完成"},"syncing":{"color":"var(--q4)","footer":"保持本页打开可以看到进度，也可以直接关闭","message":"便单 App 正在完成登录，本页会自动更新进度。","tag":"授权成功","title":"已收到华为授权"}},fails=0;
+function q(id){return document.getElementById(id);}
+function sum(c){return c?('共 '+c.lists+' 个待办单、'+c.tasks+' 个任务、'+c.occurrences+' 个执行实例、'+c.focus+' 条专注记录'):'同步完成';}
+function mark(id,st,detail){var li=q(id);li.className=st;
+  li.querySelector('b').textContent=st==='done'?'✓':(st==='fail'?'!':li.getAttribute('data-n'));
+  li.querySelector('small').textContent=detail||'';li.querySelector('.wait').hidden=st!=='now';}
+function apply(s){
+  var p=s.phase,f=p==='failed',f3=f&&s.failedStep===3;
+  mark('s3',p==='exchanging'?'now':(f3?'fail':'done'),p==='exchanging'?s.detail:(f3?s.error:''));
+  mark('s4',(p==='exchanging'||f3)?'':(p==='syncing'?'now':(p==='done'?'done':'fail')),
+    p==='syncing'?s.detail:(p==='done'?sum(s.counts):((f&&!f3)?s.error:'')));
+  var h=H[p];if(h){var t=q('tag');t.textContent=h.tag;t.style.background=h.color;
+    q('title').textContent=h.title;q('msg').textContent=h.message.replace('{summary}',sum(s.counts));
+    q('foot').textContent=h.footer;document.title='便单 · '+h.title;}
+  if(p==='done'){q('card').className='card finished';}
+  return p==='done'||f;
+}
+function tick(){
+  fetch('/biandan/status?s='+S,{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.json();})
+    .then(function(s){fails=0;if(!apply(s))setTimeout(tick,700);})
+    .catch(function(){if(++fails>=8){q('msg').textContent='便单 App 已停止更新本页，请回到 App 查看登录结果。';return;}setTimeout(tick,1000);});
+}
+try{history.replaceState(null,'','/biandan/done');}catch(e){}
+if(P!=='done'&&P!=='failed'){tick();}
+})();
+</script>
+</body>
+</html>

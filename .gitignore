@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+
+# Swift / SwiftPM 编译产物
+.build/
+.swiftpm/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+# 打包产物（Tools/build_app.sh 生成）
+BiandanMac/dist/
+
+# 本地临时文件
+*.log
+*.tmp
+*.swp
+*~
+
+# 证书、密钥、环境变量（任何时候都不要提交）
+*.p12
+*.pem
+*.key
+*.cer
+*.keychain
+*.keychain-db
+*.mobileprovision
+.env
+.env.*

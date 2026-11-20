@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>便单 for macOS · UI 原型 v0.1</title>
+<style>
+:root{
+  --bg:#F4EFE3;--panel:#FBF8F1;--card:#FFFDF8;--line:#E6DFCF;--text:#1F1D1A;--sub:#8A8273;
+  --accent:#F5B800;--q1:#E5483A;--q2:#E9BC12;--q3:#4BA9E0;--q4:#5DB65A;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:32px;background:#D8D3C7;color:var(--text);
+  font:13px/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.note{color:#5d574c;margin:0 0 20px}
+h2.sec{font-size:15px;margin:44px 0 12px;color:#4a453c}
+
+/* window */
+.win{width:1380px;height:840px;border-radius:12px;overflow:hidden;background:var(--bg);
+  box-shadow:0 24px 70px rgba(0,0,0,.28);display:flex;flex-direction:column}
+.titlebar{height:52px;flex:none;display:flex;align-items:center;gap:14px;padding:0 16px;
+  border-bottom:1px solid var(--line);background:rgba(251,248,241,.85)}
+.lights span{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:7px}
+.lights span:nth-child(1){background:#FF5F57}.lights span:nth-child(2){background:#FEBC2E}.lights span:nth-child(3){background:#28C840}
+.search{margin-left:auto;width:240px;height:28px;border-radius:7px;background:#ECE6D8;color:var(--sub);
+  display:flex;align-items:center;padding:0 10px}
+.sync{color:var(--sub);font-size:12px;display:flex;align-items:center;gap:6px}
+.sync i{width:8px;height:8px;border-radius:50%;background:#34C759;display:inline-block}
+.body{flex:1;display:flex;min-height:0}
+
+/* sidebar */
+.side{width:232px;flex:none;background:rgba(236,230,216,.7);border-right:1px solid var(--line);padding:12px 10px;overflow:auto}
+.acct{display:flex;gap:10px;align-items:center;padding:10px;border-radius:10px;background:var(--card);margin-bottom:14px;border:1px solid var(--line)}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#F5B800,#F08A24);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:700}
+.acct b{display:block;font-size:13px}.acct small{color:var(--sub);font-size:11px}
+.grp{font-size:11px;color:var(--sub);margin:12px 8px 4px;display:flex;justify-content:space-between}
+.item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;color:#3b372f}
+.item .ic{width:18px;text-align:center}
+.item .n{margin-left:auto;color:var(--sub);font-size:12px}
+.item.on{background:rgba(245,184,0,.22);color:#1F1D1A;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin:0 4px}
+
+/* content */
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.head{padding:16px 22px 10px;display:flex;align-items:flex-end;gap:16px}
+.head h3{font-size:26px;margin:0;font-weight:800}
+.date{font-size:20px;font-weight:800}.date em{color:var(--accent);font-style:normal}
+.lunar{font-size:13px;font-weight:600;color:#3b372f;margin-left:6px}
+.tools{margin-left:auto;display:flex;gap:8px;align-items:center}
+.seg{display:flex;background:#E8E1D1;border-radius:8px;padding:2px}
+.seg span{padding:4px 12px;border-radius:6px;color:#5d574c}
+.seg span.on{background:#fff;color:#1F1D1A;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.pill{border:1px solid var(--line);background:#fff;border-radius:16px;padding:4px 12px;font-weight:600}
+.add{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;font-weight:700}
+.quick{margin:0 22px 12px;height:36px;border-radius:9px;background:var(--card);border:1px solid var(--line);
+  display:flex;align-items:center;padding:0 12px;color:var(--sub);gap:10px}
+.quick kbd{margin-left:auto;font:11px monospace;background:#EEE8DA;border-radius:4px;padding:1px 5px;color:#6b6457}
+.grid{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:12px;padding:0 22px 20px;min-height:0}
+.q{border:2px solid;border-radius:14px;padding:10px;overflow:hidden;display:flex;flex-direction:column;gap:7px}
+.q h4{margin:0 0 4px;text-align:center;font-size:15px;font-weight:800}
+.q1{border-color:var(--q1);background:#EFDCD3}.q1 h4{color:var(--q1)}
+.q2{border-color:var(--q2);background:#EEE7CB}.q2 h4{color:#D9A800}
+.q3{border-color:var(--q3);background:#DCE3DF}.q3 h4{color:var(--q3)}
+.q4{border-color:var(--q4);background:#E0E3CC}.q4 h4{color:var(--q4)}
+.t{background:rgba(255,253,248,.92);border-radius:9px;padding:8px 10px;display:flex;gap:9px;align-items:flex-start;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.t.sel{outline:2px solid var(--accent)}
+.ck{width:16px;height:16px;border:1.6px solid #B9B09C;border-radius:50%;flex:none;margin-top:2px}
+.ck.done{background:var(--q4);border-color:var(--q4)}
+.t .tt{font-weight:600}
+.t .meta{color:var(--sub);font-size:11.5px;margin-top:2px;display:flex;gap:8px;flex-wrap:wrap}
+.t.fin .tt{text-decoration:line-through;color:#9c9484}
+.bar{height:4px;border-radius:2px;background:#E7E0D0;margin-top:5px;width:120px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+
+/* inspector */
+.insp{width:372px;flex:none;border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:14px 16px 30px}
+.insp .title{font-size:18px;font-weight:700;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:6px}
+.sec2{margin-top:14px}
+.sec2 > b{font-size:11px;color:var(--sub);letter-spacing:.5px;display:block;margin-bottom:6px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.row{display:flex;align-items:center;padding:7px 10px;border-top:1px solid #F0EADD;gap:8px;min-height:34px}
+.row:first-child{border-top:none}
+.row .k{color:#4a453c}
+.row .v{margin-left:auto;color:#1F1D1A}
+.row .f{font-size:10.5px;color:#B3AA97;font-family:ui-monospace,monospace}
+.tg{width:30px;height:18px;border-radius:9px;background:#D9D2C2;position:relative;margin-left:auto}
+.tg::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff}
+.tg.on{background:#34C759}.tg.on::after{left:14px}
+.chips{display:flex;gap:4px;margin-left:auto}
+.chips span{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;background:#EEE8DA;color:#5d574c}
+.chips span.on{background:var(--accent);color:#fff;font-weight:700}
+.occ{display:grid;grid-template-columns:70px 1fr auto;gap:6px;align-items:center;padding:7px 10px;border-top:1px solid #F0EADD;font-size:12px}
+.occ:first-child{border-top:none}
+.st{font-size:11px;padding:1px 7px;border-radius:9px}
+.st.done{background:#DDF0DA;color:#2F8A2B}.st.pend{background:#FFF1C2;color:#9A7400}.st.ab{background:#EEE;color:#888}
+.ta{width:100%;min-height:52px;padding:8px 10px;color:#3b372f}
+.btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 10px;font-size:12px}
+.btn.red{color:#D93025}
+
+/* secondary screens */
+.screens{width:1380px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.panel{background:var(--panel);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:18px 20px;min-height:360px}
+.panel h5{margin:0 0 12px;font-size:15px}
+.panel .cap{color:var(--sub);font-size:12px;margin:-8px 0 12px}
+.login{text-align:center;padding-top:30px}
+.logo{width:72px;height:72px;border-radius:18px;background:linear-gradient(135deg,#FFD54A,#F5A300);margin:0 auto 14px;color:#fff;font-size:34px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.hw{display:inline-block;margin-top:18px;background:#CE0E2D;color:#fff;border-radius:20px;padding:9px 28px;font-weight:600}
+.steps{margin:22px auto 0;width:360px;text-align:left;color:#5d574c;font-size:12px}
+.steps div{padding:5px 0;display:flex;gap:8px}
+.steps i{width:18px;height:18px;border-radius:50%;background:#EEE8DA;font-style:normal;text-align:center;font-size:11px;line-height:18px}
+.steps .now i{background:var(--accent);color:#fff}
+table{width:100%;border-collapse:collapse;font-size:12px;background:var(--card);border-radius:8px;overflow:hidden}
+th,td{padding:7px 8px;border-bottom:1px solid #F0EADD;text-align:left}
+th{background:#EFE9DC;color:#5d574c;font-weight:600}
+th small{display:block;font-weight:400;color:#A79F8C;font-family:ui-monospace,monospace;font-size:10px}
+.form .row{background:var(--card)}
+.palette{display:grid;grid-template-columns:repeat(8,22px);gap:6px;margin-left:auto}
+.palette span{width:22px;height:22px;border-radius:50%}
+.palette span.on{outline:2px solid #1F1D1A;outline-offset:2px}
+</style>
+</head>
+<body>
+<h1>便单 for macOS · UI 原型 v0.1</h1>
+<p class="note">静态视觉稿，用来确认布局和交互，不是最终 SwiftUI 实现。主窗口采用三栏 NavigationSplitView：侧栏、内容区、检查器。灰色等宽小字是对应的云端字段名。</p>
+
+<!-- ============ 主窗口：四象限 ============ -->
+<div class="win">
+  <div class="titlebar">
+    <div class="lights"><span></span><span></span><span></span></div>
+    <div class="sync"><i></i>已同步 · 18:36</div>
+    <div class="search">🔍 搜索标题、备注、子任务</div>
+  </div>
+  <div class="body">
+    <!-- sidebar -->
+    <div class="side">
+      <div class="acct"><div class="avatar">B</div><div><b>Blender</b><small>华为账号 · 自动续期中</small></div></div>
+      <div class="grp">视图</div>
+      <div class="item"><span class="ic">☀️</span>今天<span class="n">5</span></div>
+      <div class="item"><span class="ic">📅</span>近 7 天<span class="n">12</span></div>
+      <div class="item"><span class="ic">📋</span>全部待办<span class="n">38</span></div>
+      <div class="item on"><span class="ic">▦</span>四象限</div>
+      <div class="item"><span class="ic">🗓</span>日历</div>
+      <div class="item"><span class="ic">∅</span>无日期<span class="n">4</span></div>
+      <div class="item"><span class="ic">⭐</span>收藏<span class="n">3</span></div>
+      <div class="item"><span class="ic">✓</span>已完成</div>
+      <div class="item"><span class="ic">⊘</span>已放弃</div>
+      <div class="grp">待办单 <span>＋</span></div>
+      <div class="item"><span class="dot" style="background:#B9B09C"></span>默认<span class="n">9</span></div>
+      <div class="item"><span class="dot" style="background:#E5483A"></span>工作<span class="n">14</span></div>
+      <div class="item"><span class="dot" style="background:#4BA9E0"></span>学习<span class="n">8</span></div>
+      <div class="item"><span class="dot" style="background:#8FA889"></span>生活<span class="n">7</span></div>
+      <div class="grp">记录</div>
+      <div class="item"><span class="ic">⏱</span>专注记录<span class="n">本周 6</span></div>
+    </div>
+
+    <!-- main -->
+    <div class="main">
+      <div class="head">
+        <h3>全部待办</h3>
+        <div><span class="date">2026<em>/</em>11<em>/</em>20</span><span class="lunar">丙午十月十二·周五</span></div>
+        <div class="tools">
+          <div class="seg"><span>列表</span><span class="on">四象限</span><span>日历</span></div>
+          <span class="pill">近1天 ▾</span>
+          <span class="add">+</span>
+        </div>
+      </div>
+      <div class="quick">＋ 快速添加：例如「明天 15:00 准备汇报 !重要 #工作」<kbd>⌘N</kbd></div>
+      <div class="grid">
+        <div class="q q1"><h4>重要且紧急</h4>
+          <div class="t sel"><div class="ck"></div><div><div class="tt">交材料</div>
+            <div class="meta"><span>09:30–10:00</span><span>🔔 09:00</span><span>📍 办公室</span><span>☑ 1/2</span></div>
+            <div class="bar"><i style="width:50%"></i></div></div></div>
+          <div class="t"><div class="ck"></div><div><div class="tt">回复客户报价</div>
+            <div class="meta"><span>今天</span><span><span class="dot" style="background:#E5483A;margin:0"></span> 工作</span></div></div></div>
+        </div>
+        <div class="q q2"><h4>重要但不紧急</h4>
+          <div class="t"><div class="ck"></div><div><div class="tt">读书 30 分钟</div>
+            <div class="meta"><span>↻ 每周一、三</span><span>习惯</span><span>20:00–20:30</span></div></div></div>
+          <div class="t"><div class="ck"></div><div><div class="tt">背单词</div>
+            <div class="meta"><span>↻ 艾宾浩斯</span><span>次数 1/3</span></div>
+            <div class="bar"><i style="width:33%"></i></div></div></div>
+        </div>
+        <div class="q q3"><h4>不重要但紧急</h4>
+          <div class="t"><div class="ck"></div><div><div class="tt">取快递</div>
+            <div class="meta"><span>18:00–19:00</span><span>📍 地点提醒</span></div></div></div>
+        </div>
+        <div class="q q4"><h4>不重要且不紧急</h4>
+          <div class="t fin"><div class="ck done"></div><div><div class="tt">整理桌面</div>
+            <div class="meta"><span>完成于 17:42</span></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- inspector -->
+    <div class="insp">
+      <div class="title">交材料</div>
+
+      <div class="sec2"><b>基本</b><div class="box">
+        <div class="ta">出门前确认<span class="f" style="float:right">taskContent·备注</span></div>
+        <div class="row"><span class="k">📎 附件</span><span class="v" style="color:var(--sub)">file-id-1（只读）</span></div>
+        <div class="row"><span class="k">待办单</span><span class="f">id3</span><span class="v">● 默认 ▾</span></div>
+        <div class="row"><span class="k">⭐ 收藏</span><span class="f">isCollectible</span><span class="tg"></span></div>
+        <div class="row"><span class="k">❗ 重要</span><span class="f">isImportant</span><span class="tg on"></span></div>
+        <div class="row"><span class="k">⚡ 紧急</span><span class="f">isUrgency</span><span class="tg on"></span></div>
+      </div></div>
+
+      <div class="sec2"><b>时间</b><div class="box">
+        <div class="row"><span class="k">无指定时间</span><span class="f">haveNoTime</span><span class="tg"></span></div>
+        <div class="row"><span class="k">开始</span><span class="f">startTime·validStartTime</span><span class="v">2026-11-20 09:30</span></div>
+        <div class="row"><span class="k">结束</span><span class="f">endTime·validEndTime</span><span class="v">2026-11-20 10:00</span></div>
+      </div></div>
+
+      <div class="sec2"><b>重复</b><div class="box">
+        <div class="row"><span class="k">类型</span><span class="f">isLoop</span><span class="v">不重复 ▾</span></div>
+        <div class="row"><span class="k">规则</span><span class="f">loopSet…duration</span><span class="v" style="color:var(--sub)">点击编辑 ›</span></div>
+      </div></div>
+
+      <div class="sec2"><b>完成目标</b><div class="box">
+        <div class="row"><span class="k">模式</span><span class="f">unitTimeNumber=300</span><span class="v">子任务 ▾</span></div>
+        <div class="row"><span class="ck done" style="width:14px;height:14px"></span>带钥匙</div>
+        <div class="row"><span class="ck" style="width:14px;height:14px"></span>带证件</div>
+        <div class="row" style="color:var(--sub)">＋ 添加子任务（最多 20）</div>
+      </div></div>
+
+      <div class="sec2"><b>提醒</b><div class="box">
+        <div class="row"><span class="k">🔔 时间提醒</span><span class="f">isRemind bit0</span><span class="tg on"></span></div>
+        <div class="row"><span class="k">　提醒时间</span><span class="f">remindDate·remindTime</span><span class="v">11-20 09:00</span></div>
+        <div class="row"><span class="k">📍 地点提醒</span><span class="f">isRemind bit1</span><span class="tg on"></span></div>
+        <div class="row"><span class="k">　地点</span><span class="f">location</span><span class="v">办公室</span></div>
+        <div class="row"><span class="k">　坐标 GCJ-02</span><span class="f">latitude·longitude</span><span class="v">31.2304, 121.4737</span></div>
+        <div class="row" style="font-size:11px;color:var(--sub)">地点提醒只会在已授权的鸿蒙设备上触发</div>
+      </div></div>
+
+      <div class="sec2"><b>执行实例 · showTask</b><div class="box">
+        <div class="occ"><span>11-20</span><span>09:30–10:00 · 子任务 1/2</span><span class="st pend">进行中</span></div>
+      </div>
+      <div class="btns"><span class="btn">✓ 完成本次</span><span class="btn">撤销</span><span class="btn">放弃</span><span class="btn">改期本次</span></div></div>
+
+      <div class="sec2"><b>高级（只读）</b><div class="box">
+        <div class="row"><span class="k">任务 ID</span><span class="f">id1</span><span class="v">1800000000000001</span></div>
+        <div class="row"><span class="k">云记录 ID / 版本</span><span class="v">a8f3…/ v3</span></div>
+        <div class="row"><span class="k">汇总完成</span><span class="f">isFinish</span><span class="v">否</span></div>
+        <div class="row"><span class="k">修改时间</span><span class="v">11-20 18:30</span></div>
+      </div>
+      <div class="btns"><span class="btn">查看原始 JSON</span><span class="btn red">删除任务…</span></div></div>
+    </div>
+  </div>
+</div>
+
+<h2 class="sec">其他界面</h2>
+<div class="screens">
+
+  <!-- 登录 -->
+  <div class="panel login">
+    <div class="logo">便</div>
+    <h5 style="font-size:20px">登录便单</h5>
+    <div style="color:var(--sub)">登录华为账号后，Mac 上的待办会和你的鸿蒙手机、平板保持同步</div>
+    <span class="hw">使用华为账号登录</span>
+    <div class="steps">
+      <div><i>1</i>在系统浏览器打开华为授权页（PKCE）</div>
+      <div class="now"><i>2</i>等待授权… 本机正在监听 127.0.0.1:42681 <span style="margin-left:auto" class="btn">取消</span></div>
+      <div><i>3</i>换取令牌，凭据保存到钥匙串</div>
+      <div><i>4</i>首次全量同步四张表</div>
+    </div>
+  </div>
+
+  <!-- 重复规则编辑 -->
+  <div class="panel form">
+    <h5>重复规则</h5>
+    <div class="cap">sheet，对应 loopSet / loopBaseNumber / loopUnit / loopDate / duration / isLoop</div>
+    <div class="box">
+      <div class="row"><span class="k">预设</span><span class="v">自定义 ▾</span><span class="f">仅一次·自定义·工作日·休息日·每天·艾宾浩斯·每周·每月·每年</span></div>
+      <div class="row"><span class="k">每</span><span class="v">1</span><span class="v" style="margin-left:8px">周 ▾</span><span class="f">天/周/月/年/农历月/农历年</span></div>
+      <div class="row"><span class="k">选择</span><div class="chips"><span>日</span><span class="on">一</span><span>二</span><span class="on">三</span><span>四</span><span>五</span><span>六</span></div></div>
+      <div class="row"><span class="k">日期筛选</span><span class="v">全部 / 只保留工作日 / 只保留休息日</span></div>
+      <div class="row"><span class="k">每次持续</span><span class="v">1 天</span></div>
+      <div class="row"><span class="k">系列起止</span><span class="v">2026-11-23 → 2026-12-31</span></div>
+      <div class="row"><span class="k">标记为习惯</span><span class="tg on"></span></div>
+      <div class="row"><span class="k">中国调休</span><span class="tg"></span></div>
+    </div>
+    <div class="btns"><span class="btn">预览影响：新增 11 · 改期 0 · 移除 2 · 保护 3</span><span class="btn" style="margin-left:auto">取消</span><span class="btn" style="background:var(--accent);color:#fff;border:none">保存</span></div>
+  </div>
+
+  <!-- 专注记录 -->
+  <div class="panel">
+    <h5>专注记录 · tomato</h5>
+    <div class="cap">只做记录的查看、补记、编辑和删除，不提供计时器</div>
+    <table>
+      <tr><th>开始<small>time</small></th><th>日期<small>date</small></th><th>分钟<small>minutes</small></th><th>好/坏<small>good/badCount</small></th><th>关联事项<small>log.eventTitle</small></th></tr>
+      <tr><td>11-20 14:00</td><td>2026-11-20</td><td>25</td><td>1 / 0</td><td>写方案 ↗</td></tr>
+      <tr><td>11-20 10:10</td><td>2026-11-20</td><td>50</td><td>2 / 0</td><td>交材料 ↗</td></tr>
+      <tr><td>11-19 21:00</td><td>2026-11-19</td><td>18</td><td>0 / 1</td><td style="color:var(--sub)">（自填）复盘</td></tr>
+    </table>
+    <div class="btns"><span class="btn">＋ 补记</span><span class="btn">本周合计 93 分钟 · 🍅 3 / 1</span></div>
+  </div>
+
+  <!-- 待办单编辑 + 设置 -->
+  <div class="panel form">
+    <h5>待办单编辑 · favorites</h5>
+    <div class="box">
+      <div class="row"><span class="k">名称</span><span class="f">favoritesName</span><span class="v">工作</span></div>
+      <div class="row" style="align-items:flex-start"><span class="k">颜色</span><span class="f">favoritesColor % 100</span>
+        <div class="palette">
+          <span style="background:#E5483A" class="on"></span><span style="background:#F08A24"></span><span style="background:#F5C518"></span><span style="background:#5DB65A"></span><span style="background:#2BB5B0"></span><span style="background:#4BA9E0"></span><span style="background:#3C64D8"></span><span style="background:#8E5BD6"></span>
+          <span style="background:#E8928A"></span><span style="background:#F2B57F"></span><span style="background:#F2DA85"></span><span style="background:#9ED19A"></span><span style="background:#86D2CE"></span><span style="background:#9BCDEB"></span><span style="background:#93A8E8"></span><span style="background:#BFA3E8"></span>
+          <span style="background:#B57B74"></span><span style="background:#BE9677"></span><span style="background:#C2B27E"></span><span style="background:#8FA889"></span><span style="background:#7FA3A1"></span><span style="background:#8BA3B5"></span><span style="background:#7D86A6"></span><span style="background:#9C8AA8"></span>
+        </div></div>
+      <div class="row"><span class="k">排序</span><span class="f">favoritesColor / 100</span><span class="v">侧栏拖动排序</span></div>
+    </div>
+    <div class="btns"><span class="btn red">删除待办单…（任务移回默认 / 连同任务删除）</span></div>
+    <h5 style="margin-top:22px">设置</h5>
+    <div class="box">
+      <div class="row"><span class="k">账户</span><span class="v">已登录 · 刷新令牌剩余约 176 天</span><span class="btn">退出</span></div>
+      <div class="row"><span class="k">同步</span><span class="v">每 5 分钟 · 窗口激活时</span><span class="btn">立即同步</span></div>
+      <div class="row"><span class="k">一周开始于</span><span class="v">周日 ▾</span></div>
+      <div class="row"><span class="k">本机 MCP 服务</span><span class="v">127.0.0.1:42682</span><span class="tg"></span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

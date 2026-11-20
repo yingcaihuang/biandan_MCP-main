@@ -1,0 +1,3097 @@
+{
+ "content_decode": [
+  {
+   "attachments": [],
+   "raw": "出门前确认",
+   "remark": "出门前确认",
+   "subtasks": []
+  },
+  {
+   "attachments": [],
+   "raw": "",
+   "remark": "",
+   "subtasks": []
+  },
+  {
+   "attachments": [],
+   "raw": "[\"出门前确认\",\"带钥匙\",\"带证件\"]",
+   "remark": "出门前确认",
+   "subtasks": [
+    "带钥匙",
+    "带证件"
+   ]
+  },
+  {
+   "attachments": [
+    "file-id-1",
+    "file-id-2"
+   ],
+   "raw": "[\"[\\\"\\\\u5907\\\\u6ce8\\\", [\\\"file-id-1\\\", \\\"file-id-2\\\"]]\", \"\\u5b50\\u4efb\\u52a11\"]",
+   "remark": "备注",
+   "subtasks": [
+    "子任务1"
+   ]
+  },
+  {
+   "attachments": [],
+   "raw": "[]",
+   "remark": "",
+   "subtasks": []
+  },
+  {
+   "attachments": [],
+   "raw": "[1,2]",
+   "remark": "[1,2]",
+   "subtasks": []
+  },
+  {
+   "attachments": [],
+   "raw": "null",
+   "remark": "null",
+   "subtasks": []
+  },
+  {
+   "attachments": [],
+   "raw": "[\"x\", 1]",
+   "remark": "[\"x\", 1]",
+   "subtasks": []
+  },
+  {
+   "attachments": [],
+   "raw": "{\"a\":1}",
+   "remark": "{\"a\":1}",
+   "subtasks": []
+  },
+  {
+   "attachments": [],
+   "raw": "[\"[\\\"n\\\", [1]]\", \"s\"]",
+   "remark": "[\"n\", [1]]",
+   "subtasks": [
+    "s"
+   ]
+  },
+  {
+   "attachments": [],
+   "raw": "[\"[\\\"only\\\"]\", \"s\"]",
+   "remark": "[\"only\"]",
+   "subtasks": [
+    "s"
+   ]
+  },
+  {
+   "attachments": [],
+   "raw": "[\"123\"]",
+   "remark": "123",
+   "subtasks": []
+  },
+  {
+   "attachments": [],
+   "raw": "[\"a\\\"b\",\"c/d\"]",
+   "remark": "a\"b",
+   "subtasks": [
+    "c/d"
+   ]
+  },
+  {
+   "attachments": [],
+   "raw": "not json [",
+   "remark": "not json [",
+   "subtasks": []
+  },
+  {
+   "attachments": [],
+   "raw": "[\"[\\\"n\\\", []]\", \"s\"]",
+   "remark": "n",
+   "subtasks": [
+    "s"
+   ]
+  }
+ ],
+ "content_encode": [
+  {
+   "attachments": [],
+   "js": "[\"出门前确认\",\"带钥匙\",\"带证件\"]",
+   "python": "[\"出门前确认\", \"带钥匙\", \"带证件\"]",
+   "remark": "出门前确认",
+   "subtasks": [
+    "带钥匙",
+    "带证件"
+   ]
+  },
+  {
+   "attachments": [],
+   "js": "[\"\"]",
+   "python": "[\"\"]",
+   "remark": "",
+   "subtasks": []
+  },
+  {
+   "attachments": [
+    "file-1"
+   ],
+   "js": "[\"[\\\"备注\\\",[\\\"file-1\\\"]]\",\"a\"]",
+   "python": "[\"[\\\"备注\\\", [\\\"file-1\\\"]]\", \"a\"]",
+   "remark": "备注",
+   "subtasks": [
+    "a"
+   ]
+  },
+  {
+   "attachments": [
+    "f"
+   ],
+   "js": "[\"[\\\"含\\\\\\\"引号\\\\\\\"和/斜杠\\\",[\\\"f\\\"]]\"]",
+   "python": "[\"[\\\"含\\\\\\\"引号\\\\\\\"和/斜杠\\\", [\\\"f\\\"]]\"]",
+   "remark": "含\"引号\"和/斜杠",
+   "subtasks": []
+  },
+  {
+   "attachments": [],
+   "js": "[\"中文 emoji 😀\",\"子任务\"]",
+   "python": "[\"中文 emoji 😀\", \"子任务\"]",
+   "remark": "中文 emoji 😀",
+   "subtasks": [
+    "子任务"
+   ]
+  }
+ ],
+ "form": [
+  {
+   "encoded": "scope=openid+profile&redirect_uri=https%3A%2F%2Fwww.biandangroup.com%2F%23%2Fbiandan_online&state=biandan-local-v1.Ab_-x~9&x=%E4%B8%AD%E6%96%87%26%3D%2B%3F%2F",
+   "pairs": [
+    [
+     "scope",
+     "openid profile"
+    ],
+    [
+     "redirect_uri",
+     "https://www.biandangroup.com/#/biandan_online"
+    ],
+    [
+     "state",
+     "biandan-local-v1.Ab_-x~9"
+    ],
+    [
+     "x",
+     "中文&=+?/"
+    ]
+   ]
+  }
+ ],
+ "occurrence_ids": [
+  {
+   "id": "3585663132593501",
+   "start": "2030-06-03",
+   "task_id": "1800000000000001"
+  },
+  {
+   "id": "3084121108906579",
+   "start": "2026-11-20",
+   "task_id": "1"
+  },
+  {
+   "id": "4018971829615063",
+   "start": "2027-01-01",
+   "task_id": "1763600000000000"
+  },
+  {
+   "id": "3332757474831977",
+   "start": "detached",
+   "task_id": "456"
+  }
+ ],
+ "pkce": [
+  {
+   "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+   "verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+  },
+  {
+   "challenge": "ypeBEsobvcr6wjGzmiPcTaeG7_gUfE5yuYB3ha_uSLs",
+   "verifier": "a"
+  },
+  {
+   "challenge": "fOEAlx9k5wAej-WlGXPs3-HO1Cvv5-6NX9YhlQa1OTw",
+   "verifier": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  }
+ ],
+ "progress": [
+  {
+   "completedCount": 0,
+   "completed_count": 0,
+   "completed_subtask_indices": [],
+   "isFinish": 0,
+   "status": "pending",
+   "target_count": 1,
+   "unitTimeNumber": 1
+  },
+  {
+   "completedCount": 1,
+   "completed_count": 1,
+   "completed_subtask_indices": [],
+   "isFinish": 1,
+   "status": "completed",
+   "target_count": 1,
+   "unitTimeNumber": 1
+  },
+  {
+   "completedCount": 2,
+   "completed_count": 2,
+   "completed_subtask_indices": [],
+   "isFinish": 0,
+   "status": "pending",
+   "target_count": 3,
+   "unitTimeNumber": 3
+  },
+  {
+   "completedCount": 100,
+   "completed_count": 1,
+   "completed_subtask_indices": [
+    0
+   ],
+   "isFinish": 0,
+   "status": "pending",
+   "target_count": 2,
+   "unitTimeNumber": 300
+  },
+  {
+   "completedCount": 500,
+   "completed_count": 2,
+   "completed_subtask_indices": [
+    0,
+    2
+   ],
+   "isFinish": 0,
+   "status": "pending",
+   "target_count": 3,
+   "unitTimeNumber": 700
+  },
+  {
+   "completedCount": 700,
+   "completed_count": 3,
+   "completed_subtask_indices": [
+    0,
+    1,
+    2
+   ],
+   "isFinish": 1,
+   "status": "completed",
+   "target_count": 3,
+   "unitTimeNumber": 700
+  },
+  {
+   "completedCount": -1,
+   "completed_count": 0,
+   "completed_subtask_indices": [],
+   "isFinish": 0,
+   "status": "abandoned",
+   "target_count": 2,
+   "unitTimeNumber": 300
+  },
+  {
+   "completedCount": 0,
+   "completed_count": 0,
+   "completed_subtask_indices": [],
+   "isFinish": 0,
+   "status": "pending",
+   "target_count": 1,
+   "unitTimeNumber": 0
+  },
+  {
+   "completedCount": 99,
+   "completed_count": 99,
+   "completed_subtask_indices": [],
+   "isFinish": 1,
+   "status": "completed",
+   "target_count": 99,
+   "unitTimeNumber": 99
+  },
+  {
+   "completedCount": 400,
+   "completed_count": 1,
+   "completed_subtask_indices": [
+    2
+   ],
+   "isFinish": 0,
+   "status": "pending",
+   "target_count": 2,
+   "unitTimeNumber": 500
+  },
+  {
+   "completedCount": 1100,
+   "completed_count": 3,
+   "completed_subtask_indices": [
+    0,
+    1,
+    3
+   ],
+   "isFinish": 0,
+   "status": "pending",
+   "target_count": 4,
+   "unitTimeNumber": 1500
+  }
+ ],
+ "recurrence": [
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "weekly_mon_wed",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-12-31",
+    "loopBaseNumber": 1,
+    "loopDate": "1,3",
+    "loopSet": 1,
+    "loopUnit": 1,
+    "startTime": "2026-11-23",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-11-23",
+     "startTime": "2026-11-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-25",
+     "startTime": "2026-11-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-30",
+     "startTime": "2026-11-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-02",
+     "startTime": "2026-12-02",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-07",
+     "startTime": "2026-12-07",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-09",
+     "startTime": "2026-12-09",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-14",
+     "startTime": "2026-12-14",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-16",
+     "startTime": "2026-12-16",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-21",
+     "startTime": "2026-12-21",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-23",
+     "startTime": "2026-12-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-28",
+     "startTime": "2026-12-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-30",
+     "startTime": "2026-12-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "weekly_mon_wed_ws1",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-12-31",
+    "loopBaseNumber": 1,
+    "loopDate": "1,3",
+    "loopSet": 1,
+    "loopUnit": 1,
+    "startTime": "2026-11-23",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 1,
+   "windows": [
+    {
+     "endTime": "2026-11-23",
+     "startTime": "2026-11-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-25",
+     "startTime": "2026-11-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-30",
+     "startTime": "2026-11-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-02",
+     "startTime": "2026-12-02",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-07",
+     "startTime": "2026-12-07",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-09",
+     "startTime": "2026-12-09",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-14",
+     "startTime": "2026-12-14",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-16",
+     "startTime": "2026-12-16",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-21",
+     "startTime": "2026-12-21",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-23",
+     "startTime": "2026-12-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-28",
+     "startTime": "2026-12-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-30",
+     "startTime": "2026-12-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "weekly_sun_sat_ws1_from_sunday",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-12-20",
+    "loopBaseNumber": 1,
+    "loopDate": "0,6",
+    "loopSet": 1,
+    "loopUnit": 1,
+    "startTime": "2026-11-22",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 1,
+   "windows": [
+    {
+     "endTime": "2026-11-28",
+     "startTime": "2026-11-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-29",
+     "startTime": "2026-11-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-05",
+     "startTime": "2026-12-05",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-06",
+     "startTime": "2026-12-06",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-12",
+     "startTime": "2026-12-12",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-13",
+     "startTime": "2026-12-13",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-19",
+     "startTime": "2026-12-19",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-20",
+     "startTime": "2026-12-20",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "biweekly_fri",
+   "row": {
+    "duration": 1,
+    "endTime": "2027-02-28",
+    "loopBaseNumber": 2,
+    "loopDate": "5",
+    "loopSet": 1,
+    "loopUnit": 1,
+    "startTime": "2026-11-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-11-06",
+     "startTime": "2026-11-06",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-20",
+     "startTime": "2026-11-20",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-04",
+     "startTime": "2026-12-04",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-18",
+     "startTime": "2026-12-18",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-01-01",
+     "startTime": "2027-01-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-01-15",
+     "startTime": "2027-01-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-01-29",
+     "startTime": "2027-01-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-02-12",
+     "startTime": "2027-02-12",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-02-26",
+     "startTime": "2027-02-26",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "every_2_days",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-12-20",
+    "loopBaseNumber": 2,
+    "loopDate": "",
+    "loopSet": 1,
+    "loopUnit": 0,
+    "startTime": "2026-11-20",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-11-20",
+     "startTime": "2026-11-20",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-22",
+     "startTime": "2026-11-22",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-24",
+     "startTime": "2026-11-24",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-26",
+     "startTime": "2026-11-26",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-28",
+     "startTime": "2026-11-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-30",
+     "startTime": "2026-11-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-02",
+     "startTime": "2026-12-02",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-04",
+     "startTime": "2026-12-04",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-06",
+     "startTime": "2026-12-06",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-08",
+     "startTime": "2026-12-08",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-10",
+     "startTime": "2026-12-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-12",
+     "startTime": "2026-12-12",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-14",
+     "startTime": "2026-12-14",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-16",
+     "startTime": "2026-12-16",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-18",
+     "startTime": "2026-12-18",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-20",
+     "startTime": "2026-12-20",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "monthly_1_15_end",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-12-31",
+    "loopBaseNumber": 1,
+    "loopDate": "1,15,32",
+    "loopSet": 1,
+    "loopUnit": 2,
+    "startTime": "2026-01-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-01-01",
+     "startTime": "2026-01-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-01-15",
+     "startTime": "2026-01-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-01-31",
+     "startTime": "2026-01-31",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-02-01",
+     "startTime": "2026-02-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-02-15",
+     "startTime": "2026-02-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-02-28",
+     "startTime": "2026-02-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-03-01",
+     "startTime": "2026-03-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-03-15",
+     "startTime": "2026-03-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-03-31",
+     "startTime": "2026-03-31",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-04-01",
+     "startTime": "2026-04-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-04-15",
+     "startTime": "2026-04-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-04-30",
+     "startTime": "2026-04-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-05-01",
+     "startTime": "2026-05-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-05-15",
+     "startTime": "2026-05-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-05-31",
+     "startTime": "2026-05-31",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-06-01",
+     "startTime": "2026-06-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-06-15",
+     "startTime": "2026-06-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-06-30",
+     "startTime": "2026-06-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-07-01",
+     "startTime": "2026-07-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-07-15",
+     "startTime": "2026-07-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-07-31",
+     "startTime": "2026-07-31",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-08-01",
+     "startTime": "2026-08-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-08-15",
+     "startTime": "2026-08-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-08-31",
+     "startTime": "2026-08-31",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-01",
+     "startTime": "2026-09-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-15",
+     "startTime": "2026-09-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-30",
+     "startTime": "2026-09-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-01",
+     "startTime": "2026-10-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-15",
+     "startTime": "2026-10-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-31",
+     "startTime": "2026-10-31",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-01",
+     "startTime": "2026-11-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-15",
+     "startTime": "2026-11-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-30",
+     "startTime": "2026-11-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-01",
+     "startTime": "2026-12-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-15",
+     "startTime": "2026-12-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-31",
+     "startTime": "2026-12-31",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "monthly_31_30_overflow",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-07-31",
+    "loopBaseNumber": 1,
+    "loopDate": "30,31",
+    "loopSet": 1,
+    "loopUnit": 2,
+    "startTime": "2026-01-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-01-30",
+     "startTime": "2026-01-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-01-31",
+     "startTime": "2026-01-31",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-03-02",
+     "startTime": "2026-03-02",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-03-03",
+     "startTime": "2026-03-03",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-03-30",
+     "startTime": "2026-03-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-03-31",
+     "startTime": "2026-03-31",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-04-30",
+     "startTime": "2026-04-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-05-01",
+     "startTime": "2026-05-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-05-30",
+     "startTime": "2026-05-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-05-31",
+     "startTime": "2026-05-31",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-06-30",
+     "startTime": "2026-06-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-07-01",
+     "startTime": "2026-07-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-07-30",
+     "startTime": "2026-07-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-07-31",
+     "startTime": "2026-07-31",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "quarterly_10",
+   "row": {
+    "duration": 1,
+    "endTime": "2027-12-31",
+    "loopBaseNumber": 3,
+    "loopDate": "10",
+    "loopSet": 1,
+    "loopUnit": 2,
+    "startTime": "2026-02-10",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-02-10",
+     "startTime": "2026-02-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-05-10",
+     "startTime": "2026-05-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-08-10",
+     "startTime": "2026-08-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-10",
+     "startTime": "2026-11-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-02-10",
+     "startTime": "2027-02-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-05-10",
+     "startTime": "2027-05-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-08-10",
+     "startTime": "2027-08-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-11-10",
+     "startTime": "2027-11-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "yearly_leap",
+   "row": {
+    "duration": 1,
+    "endTime": "2032-12-31",
+    "loopBaseNumber": 2,
+    "loopDate": "02-29,12-25",
+    "loopSet": 1,
+    "loopUnit": 3,
+    "startTime": "2024-01-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2024-02-29",
+     "startTime": "2024-02-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2024-12-25",
+     "startTime": "2024-12-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-25",
+     "startTime": "2026-12-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2028-02-29",
+     "startTime": "2028-02-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2028-12-25",
+     "startTime": "2028-12-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2030-12-25",
+     "startTime": "2030-12-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2032-02-29",
+     "startTime": "2032-02-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2032-12-25",
+     "startTime": "2032-12-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "lunar_month",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-12-31",
+    "loopBaseNumber": 1,
+    "loopDate": "1,15,30",
+    "loopSet": 1,
+    "loopUnit": 4,
+    "startTime": "2026-01-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-01-03",
+     "startTime": "2026-01-03",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-01-18",
+     "startTime": "2026-01-18",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-01-19",
+     "startTime": "2026-01-19",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-02-02",
+     "startTime": "2026-02-02",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-02-17",
+     "startTime": "2026-02-17",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-03-03",
+     "startTime": "2026-03-03",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-03-18",
+     "startTime": "2026-03-18",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-03-19",
+     "startTime": "2026-03-19",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-04-02",
+     "startTime": "2026-04-02",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-04-17",
+     "startTime": "2026-04-17",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-05-01",
+     "startTime": "2026-05-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-05-16",
+     "startTime": "2026-05-16",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-05-17",
+     "startTime": "2026-05-17",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-05-31",
+     "startTime": "2026-05-31",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-06-15",
+     "startTime": "2026-06-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-06-29",
+     "startTime": "2026-06-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-07-14",
+     "startTime": "2026-07-14",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-07-28",
+     "startTime": "2026-07-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-08-12",
+     "startTime": "2026-08-12",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-08-13",
+     "startTime": "2026-08-13",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-08-27",
+     "startTime": "2026-08-27",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-11",
+     "startTime": "2026-09-11",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-25",
+     "startTime": "2026-09-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-10",
+     "startTime": "2026-10-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-24",
+     "startTime": "2026-10-24",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-08",
+     "startTime": "2026-11-08",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-09",
+     "startTime": "2026-11-09",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-23",
+     "startTime": "2026-11-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-08",
+     "startTime": "2026-12-08",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-09",
+     "startTime": "2026-12-09",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-23",
+     "startTime": "2026-12-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "lunar_month_interval2",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-12-31",
+    "loopBaseNumber": 2,
+    "loopDate": "1",
+    "loopSet": 1,
+    "loopUnit": 4,
+    "startTime": "2025-06-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2025-08-23",
+     "startTime": "2025-08-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2025-10-21",
+     "startTime": "2025-10-21",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2025-12-20",
+     "startTime": "2025-12-20",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-02-17",
+     "startTime": "2026-02-17",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-04-17",
+     "startTime": "2026-04-17",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-06-15",
+     "startTime": "2026-06-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-08-13",
+     "startTime": "2026-08-13",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-10",
+     "startTime": "2026-10-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-09",
+     "startTime": "2026-12-09",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "lunar_year",
+   "row": {
+    "duration": 1,
+    "endTime": "2030-12-31",
+    "loopBaseNumber": 1,
+    "loopDate": "01-01,08-15",
+    "loopSet": 1,
+    "loopUnit": 5,
+    "startTime": "2024-01-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2024-02-10",
+     "startTime": "2024-02-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2024-09-17",
+     "startTime": "2024-09-17",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2025-01-29",
+     "startTime": "2025-01-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2025-10-06",
+     "startTime": "2025-10-06",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-02-17",
+     "startTime": "2026-02-17",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-25",
+     "startTime": "2026-09-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-02-06",
+     "startTime": "2027-02-06",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-09-15",
+     "startTime": "2027-09-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2028-01-26",
+     "startTime": "2028-01-26",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2028-10-03",
+     "startTime": "2028-10-03",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2029-02-13",
+     "startTime": "2029-02-13",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2029-09-22",
+     "startTime": "2029-09-22",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2030-02-03",
+     "startTime": "2030-02-03",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2030-09-12",
+     "startTime": "2030-09-12",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": true,
+   "from_date": null,
+   "name": "workdays_makeup",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-10-15",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 2,
+    "loopUnit": 0,
+    "startTime": "2026-09-15",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-09-15",
+     "startTime": "2026-09-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-16",
+     "startTime": "2026-09-16",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-17",
+     "startTime": "2026-09-17",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-18",
+     "startTime": "2026-09-18",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-20",
+     "startTime": "2026-09-20",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-21",
+     "startTime": "2026-09-21",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-22",
+     "startTime": "2026-09-22",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-23",
+     "startTime": "2026-09-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-24",
+     "startTime": "2026-09-24",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-28",
+     "startTime": "2026-09-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-29",
+     "startTime": "2026-09-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-30",
+     "startTime": "2026-09-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-08",
+     "startTime": "2026-10-08",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-09",
+     "startTime": "2026-10-09",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-10",
+     "startTime": "2026-10-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-12",
+     "startTime": "2026-10-12",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-13",
+     "startTime": "2026-10-13",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-14",
+     "startTime": "2026-10-14",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-15",
+     "startTime": "2026-10-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "workdays_plain",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-10-15",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 2,
+    "loopUnit": 0,
+    "startTime": "2026-09-15",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-09-15",
+     "startTime": "2026-09-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-16",
+     "startTime": "2026-09-16",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-17",
+     "startTime": "2026-09-17",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-18",
+     "startTime": "2026-09-18",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-21",
+     "startTime": "2026-09-21",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-22",
+     "startTime": "2026-09-22",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-23",
+     "startTime": "2026-09-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-24",
+     "startTime": "2026-09-24",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-25",
+     "startTime": "2026-09-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-28",
+     "startTime": "2026-09-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-29",
+     "startTime": "2026-09-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-30",
+     "startTime": "2026-09-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-01",
+     "startTime": "2026-10-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-02",
+     "startTime": "2026-10-02",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-05",
+     "startTime": "2026-10-05",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-06",
+     "startTime": "2026-10-06",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-07",
+     "startTime": "2026-10-07",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-08",
+     "startTime": "2026-10-08",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-09",
+     "startTime": "2026-10-09",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-12",
+     "startTime": "2026-10-12",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-13",
+     "startTime": "2026-10-13",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-14",
+     "startTime": "2026-10-14",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-15",
+     "startTime": "2026-10-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": true,
+   "from_date": null,
+   "name": "days_off_makeup",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-10-15",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 3,
+    "loopUnit": 0,
+    "startTime": "2026-09-15",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-09-19",
+     "startTime": "2026-09-19",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-25",
+     "startTime": "2026-09-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-26",
+     "startTime": "2026-09-26",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-27",
+     "startTime": "2026-09-27",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-01",
+     "startTime": "2026-10-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-02",
+     "startTime": "2026-10-02",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-03",
+     "startTime": "2026-10-03",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-04",
+     "startTime": "2026-10-04",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-05",
+     "startTime": "2026-10-05",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-06",
+     "startTime": "2026-10-06",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-07",
+     "startTime": "2026-10-07",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-11",
+     "startTime": "2026-10-11",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": true,
+   "from_date": null,
+   "name": "custom_week_filter_workdays",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-10-12",
+    "loopBaseNumber": 1,
+    "loopDate": "0,1,2,3,4,5,6",
+    "loopSet": 1,
+    "loopUnit": 201,
+    "startTime": "2026-09-28",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-09-28",
+     "startTime": "2026-09-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-29",
+     "startTime": "2026-09-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-09-30",
+     "startTime": "2026-09-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-08",
+     "startTime": "2026-10-08",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-09",
+     "startTime": "2026-10-09",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-10",
+     "startTime": "2026-10-10",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-10-12",
+     "startTime": "2026-10-12",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "daily_duration3",
+   "row": {
+    "duration": 3,
+    "endTime": "2026-12-05",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 4,
+    "loopUnit": 0,
+    "startTime": "2026-11-20",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-11-22",
+     "startTime": "2026-11-20",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-23",
+     "startTime": "2026-11-21",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-24",
+     "startTime": "2026-11-22",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-25",
+     "startTime": "2026-11-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-26",
+     "startTime": "2026-11-24",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-27",
+     "startTime": "2026-11-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-28",
+     "startTime": "2026-11-26",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-29",
+     "startTime": "2026-11-27",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-30",
+     "startTime": "2026-11-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-01",
+     "startTime": "2026-11-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-02",
+     "startTime": "2026-11-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-03",
+     "startTime": "2026-12-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-04",
+     "startTime": "2026-12-02",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-05",
+     "startTime": "2026-12-03",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-06",
+     "startTime": "2026-12-04",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-07",
+     "startTime": "2026-12-05",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "ebbinghaus",
+   "row": {
+    "duration": 1,
+    "endTime": "2027-03-01",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 5,
+    "loopUnit": 0,
+    "startTime": "2026-11-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-11-01",
+     "startTime": "2026-11-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-02",
+     "startTime": "2026-11-02",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-03",
+     "startTime": "2026-11-03",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-05",
+     "startTime": "2026-11-05",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-07",
+     "startTime": "2026-11-07",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-15",
+     "startTime": "2026-11-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-30",
+     "startTime": "2026-11-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-15",
+     "startTime": "2026-12-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-30",
+     "startTime": "2026-12-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-01-14",
+     "startTime": "2027-01-14",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-01-29",
+     "startTime": "2027-01-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-02-13",
+     "startTime": "2027-02-13",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-02-28",
+     "startTime": "2027-02-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "weekly_period_ws0",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-12-31",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 6,
+    "loopUnit": 0,
+    "startTime": "2026-11-04",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-11-07",
+     "startTime": "2026-11-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-14",
+     "startTime": "2026-11-08",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-21",
+     "startTime": "2026-11-15",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-28",
+     "startTime": "2026-11-22",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-05",
+     "startTime": "2026-11-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-12",
+     "startTime": "2026-12-06",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-19",
+     "startTime": "2026-12-13",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-26",
+     "startTime": "2026-12-20",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-01-02",
+     "startTime": "2026-12-27",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "weekly_period_ws1",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-12-31",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 6,
+    "loopUnit": 0,
+    "startTime": "2026-11-04",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 1,
+   "windows": [
+    {
+     "endTime": "2026-11-08",
+     "startTime": "2026-11-02",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-15",
+     "startTime": "2026-11-09",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-22",
+     "startTime": "2026-11-16",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-29",
+     "startTime": "2026-11-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-06",
+     "startTime": "2026-11-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-13",
+     "startTime": "2026-12-07",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-20",
+     "startTime": "2026-12-14",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-27",
+     "startTime": "2026-12-21",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-01-03",
+     "startTime": "2026-12-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "monthly_period",
+   "row": {
+    "duration": 1,
+    "endTime": "2027-03-01",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 7,
+    "loopUnit": 0,
+    "startTime": "2026-11-15",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-11-30",
+     "startTime": "2026-11-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-31",
+     "startTime": "2026-12-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-01-31",
+     "startTime": "2027-01-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-02-28",
+     "startTime": "2027-02-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-03-31",
+     "startTime": "2027-03-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "yearly_period",
+   "row": {
+    "duration": 1,
+    "endTime": "2029-01-01",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 8,
+    "loopUnit": 0,
+    "startTime": "2026-06-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-12-31",
+     "startTime": "2026-01-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2027-12-31",
+     "startTime": "2027-01-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2028-12-31",
+     "startTime": "2028-01-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2029-12-31",
+     "startTime": "2029-01-01",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": "2026-11-25",
+   "name": "from_date",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-11-30",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 4,
+    "loopUnit": 0,
+    "startTime": "2026-11-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-11-25",
+     "startTime": "2026-11-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-26",
+     "startTime": "2026-11-26",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-27",
+     "startTime": "2026-11-27",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-28",
+     "startTime": "2026-11-28",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-29",
+     "startTime": "2026-11-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-30",
+     "startTime": "2026-11-30",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": true,
+   "china_makeup": false,
+   "from_date": "2026-12-01",
+   "name": "from_date_allow_empty",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-11-10",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 4,
+    "loopUnit": 0,
+    "startTime": "2026-11-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": []
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "error": "The selected rule produces no occurrences in this date range.",
+   "from_date": "2026-12-01",
+   "name": "err_empty",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-11-10",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 4,
+    "loopUnit": 0,
+    "startTime": "2026-11-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": true,
+   "error": "Bundled Chinese make-up day data covers 2024–2026. Use regular weekends for other dates.",
+   "from_date": null,
+   "name": "err_makeup_2027",
+   "row": {
+    "duration": 1,
+    "endTime": "2027-02-01",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 2,
+    "loopUnit": 0,
+    "startTime": "2027-01-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "error": "A single operation can generate at most 1000 occurrences. Shorten the date range.",
+   "from_date": null,
+   "name": "err_too_many",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-12-31",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 4,
+    "loopUnit": 0,
+    "startTime": "2020-01-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "error": "At least one occurrence ends before it starts.",
+   "from_date": null,
+   "name": "err_end_before_start",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-11-05",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 4,
+    "loopUnit": 0,
+    "startTime": "2026-11-01",
+    "validEndTime": "09:00:00",
+    "validStartTime": "10:00:00"
+   },
+   "week_start": 0
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "error": "Repeat dates must be between 1900-01-31 and 2100-12-31.",
+   "from_date": null,
+   "name": "err_range",
+   "row": {
+    "duration": 1,
+    "endTime": "1890-02-01",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 4,
+    "loopUnit": 0,
+    "startTime": "1890-01-01",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "raw_unknown_mode",
+   "row": {
+    "duration": 1,
+    "endTime": "2026-11-26",
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 9,
+    "loopUnit": 0,
+    "startTime": "2026-11-20",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-11-20",
+     "startTime": "2026-11-20",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-21",
+     "startTime": "2026-11-21",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-22",
+     "startTime": "2026-11-22",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-23",
+     "startTime": "2026-11-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-24",
+     "startTime": "2026-11-24",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-25",
+     "startTime": "2026-11-25",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-26",
+     "startTime": "2026-11-26",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "raw_unknown_unit",
+   "row": {
+    "duration": 2,
+    "endTime": "2026-12-05",
+    "loopBaseNumber": 3,
+    "loopDate": "",
+    "loopSet": 1,
+    "loopUnit": 7,
+    "startTime": "2026-11-20",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-11-21",
+     "startTime": "2026-11-20",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-24",
+     "startTime": "2026-11-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-27",
+     "startTime": "2026-11-26",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-30",
+     "startTime": "2026-11-29",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-03",
+     "startTime": "2026-12-02",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-12-06",
+     "startTime": "2026-12-05",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  },
+  {
+   "allow_empty": false,
+   "china_makeup": false,
+   "from_date": null,
+   "name": "raw_zero_fields",
+   "row": {
+    "duration": 0,
+    "endTime": "2026-11-24",
+    "loopBaseNumber": 0,
+    "loopDate": "",
+    "loopSet": 4,
+    "loopUnit": 0,
+    "startTime": "2026-11-20",
+    "validEndTime": "10:00:00",
+    "validStartTime": "09:00:00"
+   },
+   "week_start": 0,
+   "windows": [
+    {
+     "endTime": "2026-11-20",
+     "startTime": "2026-11-20",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-21",
+     "startTime": "2026-11-21",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-22",
+     "startTime": "2026-11-22",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-23",
+     "startTime": "2026-11-23",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    },
+    {
+     "endTime": "2026-11-24",
+     "startTime": "2026-11-24",
+     "validEndTime": "10:00:00",
+     "validStartTime": "09:00:00"
+    }
+   ]
+  }
+ ],
+ "rules": [
+  {
+   "encoded": {
+    "duration": 1,
+    "loopBaseNumber": 1,
+    "loopDate": "1,3",
+    "loopSet": 1,
+    "loopUnit": 1
+   },
+   "rule": {
+    "dates": [
+     "3",
+     "1"
+    ],
+    "mode": "custom",
+    "unit": "week"
+   }
+  },
+  {
+   "encoded": {
+    "duration": 1,
+    "loopBaseNumber": 2,
+    "loopDate": "1,15,32",
+    "loopSet": 1,
+    "loopUnit": 2
+   },
+   "rule": {
+    "dates": [
+     "15",
+     "1",
+     "32"
+    ],
+    "interval": 2,
+    "mode": "custom",
+    "unit": "month"
+   }
+  },
+  {
+   "encoded": {
+    "duration": 2,
+    "loopBaseNumber": 3,
+    "loopDate": "",
+    "loopSet": 1,
+    "loopUnit": 0
+   },
+   "rule": {
+    "duration_days": 2,
+    "interval": 3,
+    "mode": "custom",
+    "unit": "day"
+   }
+  },
+  {
+   "encoded": {
+    "duration": 1,
+    "loopBaseNumber": 1,
+    "loopDate": "1",
+    "loopSet": 1,
+    "loopUnit": 201
+   },
+   "rule": {
+    "dates": [
+     "1"
+    ],
+    "day_filter": "workdays",
+    "mode": "custom",
+    "unit": "week"
+   }
+  },
+  {
+   "encoded": {
+    "duration": 1,
+    "loopBaseNumber": 1,
+    "loopDate": "01-01,08-15",
+    "loopSet": 1,
+    "loopUnit": 5
+   },
+   "rule": {
+    "dates": [
+     "08-15",
+     "01-01"
+    ],
+    "mode": "custom",
+    "unit": "lunar_year"
+   }
+  },
+  {
+   "encoded": {
+    "duration": 1,
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 2,
+    "loopUnit": 0
+   },
+   "rule": {
+    "mode": "workdays"
+   }
+  },
+  {
+   "encoded": {
+    "duration": 5,
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 4,
+    "loopUnit": 0
+   },
+   "rule": {
+    "duration_days": 5,
+    "mode": "daily"
+   }
+  },
+  {
+   "encoded": {
+    "duration": 1,
+    "loopBaseNumber": 1,
+    "loopDate": "",
+    "loopSet": 6,
+    "loopUnit": 0
+   },
+   "rule": {
+    "mode": "weekly_period"
+   }
+  },
+  {
+   "error": "Unit, interval, dates and day_filter apply to custom repeat rules.",
+   "rule": {
+    "interval": 2,
+    "mode": "daily"
+   }
+  },
+  {
+   "error": "Selected dates are required for weekly, monthly and yearly custom rules.",
+   "rule": {
+    "mode": "custom",
+    "unit": "week"
+   }
+  },
+  {
+   "error": "Selected dates are required for weekly, monthly and yearly custom rules.",
+   "rule": {
+    "dates": [
+     "1"
+    ],
+    "mode": "custom",
+    "unit": "day"
+   }
+  },
+  {
+   "error": "Selected dates are out of range for this repeat unit.",
+   "rule": {
+    "dates": [
+     "7"
+    ],
+    "mode": "custom",
+    "unit": "week"
+   }
+  },
+  {
+   "error": "Selected dates are out of range for this repeat unit.",
+   "rule": {
+    "dates": [
+     "01"
+    ],
+    "mode": "custom",
+    "unit": "week"
+   }
+  },
+  {
+   "error": "day is out of range for month",
+   "rule": {
+    "dates": [
+     "02-30"
+    ],
+    "mode": "custom",
+    "unit": "year"
+   }
+  },
+  {
+   "error": "Yearly dates use MM-DD.",
+   "rule": {
+    "dates": [
+     "2-3"
+    ],
+    "mode": "custom",
+    "unit": "year"
+   }
+  },
+  {
+   "error": "Invalid lunar month or day.",
+   "rule": {
+    "dates": [
+     "13-01"
+    ],
+    "mode": "custom",
+    "unit": "lunar_year"
+   }
+  },
+  {
+   "error": "Invalid repeat unit, interval, day filter or duration.",
+   "rule": {
+    "interval": 0,
+    "mode": "custom",
+    "unit": "day"
+   }
+  },
+  {
+   "error": "Invalid repeat unit, interval, day filter or duration.",
+   "rule": {
+    "duration_days": 367,
+    "mode": "daily"
+   }
+  },
+  {
+   "error": "Unsupported repeat mode.",
+   "rule": {
+    "mode": "hourly"
+   }
+  }
+ ],
+ "source": "biandan-mcp-preview-0.4.2-python.zip"
+}

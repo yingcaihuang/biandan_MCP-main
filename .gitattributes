@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.swift diff=swift
+*.zip binary
+*.png binary
+*.app binary
