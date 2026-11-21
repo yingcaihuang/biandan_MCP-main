@@ -324,6 +324,12 @@ final class AppModel {
         didSet { UserDefaults.standard.set(showMenuBarExtra, forKey: MenuBarDefaults.showKey) }
     }
     /// 桌面浮窗球（默认显示）：单击框选识别日程，右键更多。
+    /// 识别日程时，情景对应的分类不存在就建议新建（关掉后只在已有分类里选）。
+    var autoCreateCaptureCategory: Bool =
+        UserDefaults.standard.object(forKey: "biandan.capture.autoCreateCategory") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(autoCreateCaptureCategory, forKey: "biandan.capture.autoCreateCategory") }
+    }
+
     var showFloatingBall: Bool = UserDefaults.standard.object(forKey: "biandan.showFloatingBall") as? Bool ?? true {
         didSet {
             UserDefaults.standard.set(showFloatingBall, forKey: "biandan.showFloatingBall")

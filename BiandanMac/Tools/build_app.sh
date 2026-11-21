@@ -6,6 +6,10 @@
 #   CONFIG                 release（默认）或 debug
 #   VERSION / BUILD_NUMBER 版本号 / 构建号（HEAD 在 vX.Y.Z tag 上时版本号取 tag，不能另指定）
 #   TIMESTAMP=0            离线时跳过 Apple 时间戳服务器
+#   以下供 Tools/dev_run.sh 使用（组装开发版），正式打包不用设置：
+#   BUNDLE_ID / DISPLAY_NAME / DIST / APP_FILE / ENTITLEMENTS  标识符、显示名、输出目录、.app 文件名、权限文件
+#   HARDENED=0             不启用 Hardened Runtime（方便调试器附加）
+#   PACKAGE=0              不打 zip
 # 产物：dist/Biandan.app，以及带版本号的 dist/Biandan-<版本>.zip 和 .zip.sha256。
 set -euo pipefail
 
@@ -15,10 +19,11 @@ CONFIG="${CONFIG:-release}"
 # 不在 tag 上构建时的默认版本号。
 DEFAULT_VERSION="0.6.2"
 BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
-BUNDLE_ID="ai.racore.BiandanMac"
-DIST="$ROOT/dist"
-APP="$DIST/Biandan.app"
-ENTITLEMENTS="$ROOT/Tools/BiandanMac.entitlements"
+BUNDLE_ID="${BUNDLE_ID:-ai.racore.BiandanMac}"
+DISPLAY_NAME="${DISPLAY_NAME:-便单}"
+DIST="${DIST:-$ROOT/dist}"
+APP="$DIST/${APP_FILE:-Biandan}.app"
+ENTITLEMENTS="${ENTITLEMENTS:-$ROOT/Tools/BiandanMac.entitlements}"
 
 cd "$ROOT"
 
@@ -89,8 +94,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <dict>
     <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
     <key>CFBundleExecutable</key><string>BiandanMac</string>
-    <key>CFBundleName</key><string>便单</string>
-    <key>CFBundleDisplayName</key><string>便单</string>
+    <key>CFBundleName</key><string>${DISPLAY_NAME}</string>
+    <key>CFBundleDisplayName</key><string>${DISPLAY_NAME}</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
@@ -126,14 +131,15 @@ if ! probe_sign; then
     if ! probe_sign; then
         cat >&2 <<'HELP'
 
-签名失败：codesign 仍然无法使用 Developer ID 证书的私钥（errSecInternalComponent）。
+签名失败：codesign 仍然无法使用所选签名证书的私钥（errSecInternalComponent）。
 请任选一种方式处理后重新运行 Tools/build_app.sh：
 
   1. 在系统自带的「终端.app」里运行脚本（不要在 IDE 内置终端或 SSH 里运行）。
      弹出「codesign 想要使用钥匙串中的密钥」时，输入登录密码，点「始终允许」。
 
   2. 打开「钥匙串访问」→ 登录 → 我的证书，展开
-     「Developer ID Application: Wuxi Chaorong Technology Co., Ltd.」下面的私钥，
+     所选证书下面的私钥（正式版是「Developer ID Application: Wuxi Chaorong Technology Co., Ltd.」，
+     开发版是 Tools/setup_signing.sh 里选的那张，可用 Tools/setup_signing.sh --show 查看），
      双击 → 访问控制 → 把 /usr/bin/codesign 加入「始终允许这些应用程序访问」→ 存储更改。
 
   3. 命令行一次性授权（会作用于登录钥匙串里的所有私钥）：
@@ -147,7 +153,9 @@ fi
 echo "==> 签名"
 TS_FLAG="--timestamp"
 [ "${TIMESTAMP:-1}" = "0" ] && TS_FLAG="--timestamp=none"
-codesign --force --options runtime $TS_FLAG \
+RUNTIME_FLAG="--options runtime"
+[ "${HARDENED:-1}" = "0" ] && RUNTIME_FLAG=""
+codesign --force $RUNTIME_FLAG $TS_FLAG \
     --entitlements "$ENTITLEMENTS" \
     --identifier "$BUNDLE_ID" \
     --sign "$IDENTITY" "$APP"
@@ -160,13 +168,14 @@ codesign -d -r- "$APP" 2>&1 | sed -n 's/^designated => /  /p'
 echo "--- Gatekeeper（未公证时显示 Unnotarized 属正常）"
 spctl --assess --type execute -vv "$APP" 2>&1 || true
 
-echo "==> 打包"
-ZIP="$DIST/$ARTIFACT.zip"
-rm -f "$ZIP" "$ZIP.sha256"
-ditto -c -k --keepParent --sequesterRsrc "$APP" "$ZIP"
-(cd "$DIST" && shasum -a 256 "$ARTIFACT.zip" > "$ARTIFACT.zip.sha256")
-
 echo ""
-echo "完成：$APP  （版本 $VERSION / 构建 ${BUILD_NUMBER}）"
-echo "      $ZIP"
-echo "      SHA-256 $(awk '{print $1}' "$ZIP.sha256")"
+echo "完成：${APP}  （版本 ${VERSION} / 构建 ${BUILD_NUMBER}）"
+if [ "${PACKAGE:-1}" != "0" ]; then
+    echo "==> 打包"
+    ZIP="$DIST/${ARTIFACT}.zip"
+    rm -f "$ZIP" "$ZIP.sha256"
+    ditto -c -k --keepParent --sequesterRsrc "$APP" "$ZIP"
+    (cd "$DIST" && shasum -a 256 "${ARTIFACT}.zip" > "${ARTIFACT}.zip.sha256")
+    echo "      ${ZIP}"
+    echo "      SHA-256 $(awk '{print $1}' "$ZIP.sha256")"
+fi

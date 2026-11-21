@@ -139,6 +139,56 @@ final class SentenceScheduleParserTests: XCTestCase {
         XCTAssertFalse(found[1].include)
     }
 
+    func testDurationSetsEnd() {
+        let ball = parse("下下周五下午3点打球 时间为2小时")
+        XCTAssertEqual(ball.map(\.title), ["打球"])
+        XCTAssertEqual(ball[0].date, day(12, 4))
+        XCTAssertEqual(ball[0].start, clock(15))
+        XCTAssertEqual(ball[0].end, clock(17))
+        XCTAssertEqual(ball[0].durationMinutes, 120)
+
+        let review = parse("明天上午10点评审，大概一个半小时")
+        XCTAssertEqual(review.map(\.title), ["评审"])
+        XCTAssertEqual(review[0].end, clock(11, 30))
+
+        let dinner = parse("今晚7点吃饭 90分钟")
+        XCTAssertEqual(dinner.map(\.title), ["吃饭"])
+        XCTAssertEqual(dinner[0].end, clock(20, 30))
+
+        let meeting = parse("周五下午3点开会半小时")
+        XCTAssertEqual(meeting.map(\.title), ["开会"])
+        XCTAssertEqual(meeting[0].end, clock(15, 30))
+
+        let mixed = parse("明天下午2点开会1小时20分")
+        XCTAssertEqual(mixed[0].end, clock(15, 20))
+    }
+
+    func testExplicitRangeWinsOverDuration() {
+        let found = parse("下午3点到5点开会，时长1小时")
+        XCTAssertEqual(found.map(\.title), ["开会"])
+        XCTAssertEqual(found[0].start, clock(15))
+        XCTAssertEqual(found[0].end, clock(17))
+    }
+
+    func testSingleTimeHasNoEnd() {
+        // 只写了开始时刻：结束留空，添加时按默认 30 分钟。
+        XCTAssertNil(parse("明天下午三点开会").first?.end)
+        // 没写开始时刻时，时长只从标题里去掉。
+        let found = parse("明天打球2小时")
+        XCTAssertEqual(found.map(\.title), ["打球"])
+        XCTAssertNil(found[0].start)
+        XCTAssertNil(found[0].end)
+    }
+
+    func testChineseNumber() {
+        XCTAssertEqual(SentenceScheduleParser.chineseNumber("两"), 2)
+        XCTAssertEqual(SentenceScheduleParser.chineseNumber("十五"), 15)
+        XCTAssertEqual(SentenceScheduleParser.chineseNumber("二十"), 20)
+        XCTAssertEqual(SentenceScheduleParser.chineseNumber("四十五"), 45)
+        XCTAssertEqual(SentenceScheduleParser.chineseNumber("90"), 90)
+        XCTAssertNil(SentenceScheduleParser.chineseNumber("半"))
+    }
+
     func testCleanTitle() {
         XCTAssertEqual(SentenceScheduleParser.cleanTitle("  记得的会议吧～"), "会议")
         XCTAssertEqual(SentenceScheduleParser.cleanTitle("会议时间：（）"), "")

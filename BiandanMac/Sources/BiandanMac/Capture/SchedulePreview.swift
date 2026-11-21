@@ -95,7 +95,8 @@ enum ScheduleCaptureFlow {
         let lists = model.snapshot.lists.map { (id: $0.id3, name: $0.displayName) }
         let extraction = await ScheduleExtractor.extract(annotated, today: model.today, weekStart: model.weekStart,
                                                          lists: lists)
-        state.candidates = extraction.candidates
+        state.candidates = ScheduleCategorizer.apply(extraction.candidates, lists: lists, fallback: state.listID,
+                                                     allowNew: model.autoCreateCaptureCategory)
         state.source = extraction.source
         state.note = extraction.note
         state.loading = false

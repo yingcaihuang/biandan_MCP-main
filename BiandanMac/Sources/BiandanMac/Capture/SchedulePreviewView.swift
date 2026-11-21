@@ -187,12 +187,6 @@ struct SchedulePreviewView: View {
         let signedIn = model.authState == .signedIn
         let disabled = chosen.isEmpty || state.saving || !signedIn
         return HStack(spacing: 10) {
-            if !state.candidates.isEmpty {
-                Text("分类")
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(Color(hex: 0x4A453C))
-                ThemedListPicker(selection: $state.listID)
-            }
             Spacer(minLength: 6)
             if !signedIn {
                 Text("请先在便单主窗口登录").font(.system(size: 11)).foregroundStyle(Theme.overdue)
@@ -218,22 +212,40 @@ struct SchedulePreviewView: View {
 
     /// 逐条新建；成功的从列表里移掉，失败的留下可以重试。全部成功后稍等片刻自动关闭。
     private func add() {
-        let listID = state.listID
+        let fallback = state.listID
         let chosen = state.candidates.filter(\.include)
         state.saving = true
         state.result = nil
         state.error = nil
         Task { @MainActor in
             var added: [UUID] = []
+            // 同一批里同名的新分类只建一次。
+            var created: [String: String] = [:]
             for candidate in chosen {
+                var listID = fallback
+                switch candidate.category {
+                case .existing(let id):
+                    listID = id
+                case .new(let name, let colorIndex):
+                    if let id = created[name] ?? model.snapshot.lists.first(where: { $0.displayName == name })?.id3 {
+                        listID = id
+                    } else if let id = await model.createList(name: name, colorIndex: colorIndex, select: false) {
+                        created[name] = id
+                        listID = id
+                    } else {
+                        continue
+                    }
+                }
                 guard let input = candidate.input(listID: listID) else { continue }
                 if await model.createTask(input) { added.append(candidate.id) }
             }
+            let newLists = created.keys.sorted().map { "「\($0)」" }.joined()
+            let suffix = newLists.isEmpty ? "" : "，新建分类" + newLists
             state.candidates.removeAll { added.contains($0.id) }
             state.saving = false
             let failed = chosen.count - added.count
             if failed == 0 {
-                state.result = "已添加 \(added.count) 条日程"
+                state.result = "已添加 \(added.count) 条日程" + suffix
                 try? await Task.sleep(for: .milliseconds(1200))
                 if state.candidates.isEmpty { onClose() }
             } else {
@@ -283,6 +295,7 @@ struct ScheduleCandidateRow: View {
             if candidate.date != nil {
                 ThemedRow("时刻") { timeControls }
             }
+            ThemedRow("分类") { CandidateCategoryPicker(category: categoryBinding, tint: candidate.quadrant.tint) }
             details
         }
         .padding(.leading, 4)
@@ -440,6 +453,13 @@ struct ScheduleCandidateRow: View {
                 set: { candidate.end = $0 })
     }
 
+    private var categoryBinding: Binding<CandidateCategory> {
+        Binding(get: { candidate.category }, set: { value in
+            if value != candidate.category { candidate.categoryReason = nil }
+            candidate.category = value
+        })
+    }
+
     // MARK: 提示与原文
 
     private var details: some View {
@@ -454,6 +474,9 @@ struct ScheduleCandidateRow: View {
             if let end = candidate.endDate, candidate.date != nil {
                 Label("跨天：到 " + DateText.title(end, today: today), systemImage: "arrow.right")
                     .foregroundStyle(Theme.subtext)
+            }
+            if let reason = candidate.categoryReason {
+                Label(reason, systemImage: "sparkles").foregroundStyle(Theme.subtext)
             }
             if let conflict {
                 Text(verbatim: conflict).foregroundStyle(Theme.overdue)
@@ -474,5 +497,174 @@ struct ScheduleCandidateRow: View {
         .overlay(alignment: .top) {
             Rectangle().fill(Color(hex: 0xF0EADD)).frame(height: 1)
         }
+    }
+}
+
+// MARK: - 一条日程的分类
+
+/// 分类选择：已有分类，或按情景建议的新分类（点「添加选中」时才真正新建）；也可以输入名字新建。
+struct CandidateCategoryPicker: View {
+    @Environment(AppModel.self) private var model
+    @Binding var category: CandidateCategory
+    var tint: Color = Theme.accent
+    @State private var open = false
+    @State private var draft = ""
+
+    private var current: (name: String, swatch: Color, isNew: Bool) {
+        switch category {
+        case .existing(let id):
+            let list = model.snapshot.list(id)
+            return (list?.displayName ?? "未分类", list?.swatch ?? Theme.fieldName, false)
+        case .new(let name, let colorIndex):
+            return (name, ListColor(sortIndex: 0, colorIndex: colorIndex).color, true)
+        }
+    }
+
+    var body: some View {
+        let label = current
+        Button {
+            open.toggle()
+        } label: {
+            HStack(spacing: 6) {
+                Circle().fill(label.swatch).frame(width: 10, height: 10)
+                Text(verbatim: label.name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(1)
+                if label.isNew { NewCategoryTag() }
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Theme.subtext)
+            }
+            .fieldChrome(active: open, tint: tint)
+        }
+        .buttonStyle(.plain)
+        .help(label.isNew ? "点「添加选中」时会新建这个分类" : "选择分类")
+        .popover(isPresented: $open, arrowEdge: .bottom) {
+            menu
+                .frame(width: 250, alignment: .leading)
+                .popoverBackground(Theme.panel)
+        }
+    }
+
+    @ViewBuilder
+    private var menu: some View {
+        let lists = model.snapshot.lists
+        let suggested = ScheduleCategorizer.missingScenes(existing: lists.map(\.displayName))
+        VStack(alignment: .leading, spacing: 0) {
+            ThemedMenuCaption("分类")
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
+            // 手动输入的新分类（不在内置常用分类里）放在最上面。
+            if case .new(let name, let colorIndex) = category, !suggested.contains(where: { $0.name == name }) {
+                option(name: name, swatch: ListColor(sortIndex: 0, colorIndex: colorIndex).color,
+                       selected: true, isNew: true) { open = false }
+            }
+            if lists.count + suggested.count > 9 {
+                ScrollView { allOptions(lists, suggested) }.frame(height: 320)
+            } else {
+                allOptions(lists, suggested)
+            }
+            Rectangle().fill(Theme.line).frame(height: 1).padding(.vertical, 4)
+            HStack(spacing: 6) {
+                TextField("", text: $draft, prompt: Text("新分类名称"))
+                    .themedField()
+                    .onSubmit(createDraft)
+                Button("新建", action: createDraft)
+                    .buttonStyle(.themed)
+                    .disabled(trimmedDraft.isEmpty)
+            }
+            .padding(.horizontal, 10)
+            Text("新分类在点「添加选中」时才会建好")
+                .font(.system(size: 10.5))
+                .foregroundStyle(Theme.subtext)
+                .padding(.horizontal, 12)
+                .padding(.top, 4)
+                .padding(.bottom, 10)
+        }
+    }
+
+    /// 已有分类，下面是还没建过的内置常用分类（选中后点「添加选中」时新建）。
+    private func allOptions(_ lists: [TodoList], _ suggested: [ScheduleCategorizer.Scene]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            listOptions(lists)
+            if !suggested.isEmpty {
+                ThemedMenuCaption("常用分类（添加时新建）")
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                    .padding(.bottom, 4)
+                ForEach(suggested, id: \.name) { scene in
+                    let value = CandidateCategory.new(name: scene.name, colorIndex: scene.colorIndex)
+                    option(name: scene.name, swatch: ListColor(sortIndex: 0, colorIndex: scene.colorIndex).color,
+                           selected: category == value, isNew: true) {
+                        category = value
+                        open = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func listOptions(_ lists: [TodoList]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(lists) { list in
+                option(name: list.displayName, swatch: list.swatch,
+                       selected: category == .existing(list.id3), isNew: false) {
+                    category = .existing(list.id3)
+                    open = false
+                }
+            }
+        }
+    }
+
+    private func option(name: String, swatch: Color, selected: Bool, isNew: Bool,
+                        action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Circle().fill(swatch).frame(width: 10, height: 10)
+                Text(verbatim: name)
+                    .font(.system(size: 13, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(1)
+                if isNew { NewCategoryTag() }
+                Spacer(minLength: 12)
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(tint)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var trimmedDraft: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private func createDraft() {
+        let name = trimmedDraft
+        guard !name.isEmpty else { return }
+        if let list = model.snapshot.lists.first(where: { $0.displayName == name }) {
+            category = .existing(list.id3)
+        } else {
+            category = .new(name: name, colorIndex: ScheduleCategorizer.colorIndex(for: name))
+        }
+        draft = ""
+        open = false
+    }
+}
+
+/// 「新建」小标签：这个分类还不存在，添加时才会建。
+private struct NewCategoryTag: View {
+    var body: some View {
+        Text("新建")
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(Color(hex: 0x9A7400))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(Theme.selectionFill))
     }
 }

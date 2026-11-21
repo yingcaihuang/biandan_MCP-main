@@ -486,9 +486,10 @@ extension AppModel {
     // MARK: - 待办单
 
     @discardableResult
-    func createList(name: String, colorIndex: Int) async -> String? {
+    /// select 为 false 时不切换侧栏（识别日程时顺带新建分类，不打扰主窗口）。
+    func createList(name: String, colorIndex: Int, select: Bool = true) async -> String? {
         let identifier = await perform("新建分类") { try await $0.createList(name: name, colorIndex: colorIndex) }
-        if let identifier { sidebarSelection = .list(identifier) }
+        if select, let identifier { sidebarSelection = .list(identifier) }
         return identifier
     }
 

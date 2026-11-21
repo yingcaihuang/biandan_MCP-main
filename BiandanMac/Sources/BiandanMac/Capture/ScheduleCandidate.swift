@@ -145,6 +145,10 @@ struct ScheduleCandidate: Identifiable, Equatable {
     var quadrant: Quadrant = .neither
     /// 原文只说了「下午」「晚上」这类时段、没写具体时刻时记下这个词，卡片里提示补时刻。
     var vagueTime: String?
+    /// 分类：识别后按情景自动选（见 ScheduleCategorizer），确认卡片里可以逐条改。
+    var category: CandidateCategory = .existing(TodoList.defaultID)
+    /// 自动选分类的依据，卡片里提示；手动改过就清掉。
+    var categoryReason: String?
 
     init(title: String) {
         self.title = title

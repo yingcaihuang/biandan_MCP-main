@@ -2,7 +2,8 @@ import SwiftUI
 
 // MARK: - 主题选择组件：日期、时刻、待办单（遵循 DESIGN.md，替代系统 DatePicker / Picker）
 
-private struct FieldChrome: ViewModifier {
+/// 主题输入框外观（米色底、细描边，展开时用强调色描边）；确认卡片的分类选择也用它。
+struct FieldChrome: ViewModifier {
     let active: Bool
     let tint: Color
 
@@ -17,7 +18,7 @@ private struct FieldChrome: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
     func fieldChrome(active: Bool, tint: Color) -> some View {
         modifier(FieldChrome(active: active, tint: tint))
     }

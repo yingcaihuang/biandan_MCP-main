@@ -811,6 +811,9 @@ private struct ReminderSettingsSection: View {
             ThemedRow("桌面浮窗球") { ThemedSwitch(isOn: $model.showFloatingBall) }
             NoteRow(icon: "text.viewfinder",
                     text: "单击小球框选屏幕上的聊天记录，在本机识别文字并提取日程，确认后再添加；右键可识别剪贴板，也可以把文字或图片拖到球上。框选需要「屏幕录制」权限，识别剪贴板和拖入不需要。macOS 26 起用系统端侧模型提取，其他情况用规则识别。")
+            ThemedRow("识别日程时自动新建分类") { ThemedSwitch(isOn: $model.autoCreateCaptureCategory) }
+            NoteRow(icon: "folder.badge.plus",
+                    text: "识别出的日程会按情景自动选分类，例如「开会」归到工作、「打球」归到运动。没有对应的分类时，打开这一项会建议新建，点「添加选中」时才真正建好；关掉后只在已有分类里选。每条都可以在卡片里改。")
             ThemedRow("全局快速添加") {
                 ThemedSegmented(selection: $model.quickAddHotKey,
                                 options: QuickAddHotKey.allCases.map { ThemeOption(value: $0, title: $0.title) })

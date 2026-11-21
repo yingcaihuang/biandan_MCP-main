@@ -107,10 +107,41 @@
 
 ## 开发
 
+### 开发版签名（每台 Mac 初始化一次）
+
+Xcode ⌘R 和 `swift run` 编出来的是临时签名（adhoc）的裸可执行文件，每次编译签名都会变。系统按签名识别 App，所以钥匙串「始终允许」、屏幕录制、通知这些授权每次都要重新给。改用固定证书签名的开发版，就只用授权一次。
+
+```bash
+# 在 BiandanMac 目录执行
+
+# 1. 初始化：从钥匙串里的代码签名证书中选一张，保存到 .signing.local（只在本机，已加入 .gitignore）
+Tools/setup_signing.sh            # 列出证书，按序号选择
+Tools/setup_signing.sh --list     # 只列出证书
+Tools/setup_signing.sh --show     # 查看当前设置
+Tools/setup_signing.sh 2          # 直接按序号或 SHA-1 指定
+
+# 2. 以后开发都用这个：编译 debug 版，组装成 .build/dev/BiandanDev.app，用选好的证书签名后启动
+Tools/dev_run.sh
+Tools/dev_run.sh --no-open        # 只编译签名，不启动
+Tools/dev_run.sh --offline        # 以 BIANDAN_DEBUG_OFFLINE=1 启动
+Tools/dev_run.sh BIANDAN_DEBUG_SELECT=腾讯分享会   # 传环境变量给 App
+```
+
+说明：
+
+- 开发版叫「便单 Dev」，标识符是 `ai.racore.BiandanMac.dev`，和正式版分开授权，互不影响。
+- 建议选「Apple Development」证书；「Developer ID Application」也可以用。
+- 开发版和正式版共用钥匙串里的登录凭据和 `~/Library/Application Support/BiandanMac` 下的本地数据。第一次读钥匙串时会问一次，点「始终允许」即可。
+- 两个版本不要同时开着，否则 MCP 端口和全局快捷键会冲突。`dev_run.sh` 检测到正式版在运行时会提醒。
+- 第一次初始化时如果提示 codesign 用不了私钥，请在系统自带的「终端.app」里重新运行，弹窗里输入登录密码，然后点「始终允许」。
+- 要断点调试：先用 `Tools/dev_run.sh` 启动，再在 Xcode 里选 Debug → Attach to Process →「便单 Dev」。开发版没有开 Hardened Runtime，并且带有 `get-task-allow`，调试器可以附加。
+
 ### 用 Xcode 运行
 
 1. 用 Xcode 打开 `BiandanMac/Package.swift`，首次打开会自动拉取 GRDB。
 2. 选择 scheme `BiandanMac` 和 `My Mac`，按 ⌘R 运行。
+
+这样跑出来的是临时签名，涉及钥匙串、屏幕录制、通知的功能每次编译后都会重新弹授权。只看界面时可以在 scheme 的环境变量里加 `BIANDAN_DEBUG_OFFLINE=1`；要用完整功能请用上面的 `Tools/dev_run.sh`。
 
 ### 打包签名
 
@@ -134,6 +165,9 @@ Tools/build_app.sh
 | `CONFIG` | `release`（默认）或 `debug` |
 | `VERSION` / `BUILD_NUMBER` | 版本号（在 tag 上时取 tag，否则默认 0.6.2）/ 构建号（默认当前时间 `yyyyMMddHHmm`） |
 | `TIMESTAMP=0` | 离线时跳过 Apple 时间戳服务器 |
+| `BUNDLE_ID` / `DISPLAY_NAME` / `DIST` / `APP_FILE` / `ENTITLEMENTS` | 标识符、显示名、输出目录、`.app` 文件名、权限文件。供 `Tools/dev_run.sh` 组装开发版用，正式打包不用设 |
+| `HARDENED=0` | 不启用 Hardened Runtime（开发版用，方便调试器附加） |
+| `PACKAGE=0` | 只生成 `.app`，不打 zip |
 
 ### 测试
 

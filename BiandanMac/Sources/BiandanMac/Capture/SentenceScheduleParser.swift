@@ -13,6 +13,8 @@ enum SentenceScheduleParser {
         var date: LocalDate?
         var start: LocalTime?
         var end: LocalTime?
+        /// 原文写的时长（分钟），例如「时间为2小时」；只写了开始时刻时用它算结束时刻。
+        var durationMinutes: Int?
         /// 只说了「下午」「晚上」、没写具体时刻时记下这个词。
         var vagueTime: String?
         /// 像是在询问（「明天有空吗？」），还没定下来。
@@ -34,6 +36,14 @@ enum SentenceScheduleParser {
     /// 第 1 组是时段词（可以没有），第 2 组是第一个时刻。「第1点」不算时刻。
     private static let timeRegex = regex("(?<!第)(" + period + ")?\\s*(" + clock + ")(?:" + separator + period + "?" + clock + ")?")
     private static let periodRegex = regex(period)
+    /// 时长：「时间为2小时」「一个半小时」「1.5h」「90分钟」「半小时」「1小时20分」。
+    /// 第 1 组小时数，第 2 组「半」，第 3 组小时后面的分钟，第 4 组单独的「半小时」，第 5 组单独的分钟数。
+    private static let durationRegex = regex(
+        #"(?:(?:时间|时长|用时|耗时|持续|大概|大约|约|共|一共)\s*(?:为|是|[:：])?\s*)*"# +
+        #"(?:(\d+(?:\.\d+)?|[零一二两三四五六七八九十]+)\s*个?\s*(半)?\s*(?:小时|钟头|h(?![a-zA-Z]))"# +
+        #"(?:\s*(\d{1,2}|[零一二三四五六七八九十]+)\s*分钟?)?"# +
+        #"|(半)\s*个?\s*(?:小时|钟头)"# +
+        #"|(\d{1,3}|[零一二两三四五六七八九十]+)\s*(?:分钟|min))"#)
     private static let dateRegex = regex(
         #"\d{4}[年/.\-]\d{1,2}[月/.\-]\d{1,2}[日号]?"# +
         #"|\d{1,2}月\d{1,2}[日号]?"# +
@@ -146,6 +156,8 @@ enum SentenceScheduleParser {
         var timeRange: Range<String.Index>?
         var start: LocalTime?
         var end: LocalTime?
+        var durationRange: Range<String.Index>?
+        var duration: Int?
         var hasDate: Bool { date != nil }
         var hasTime: Bool { start != nil }
     }
@@ -174,7 +186,16 @@ enum SentenceScheduleParser {
             }
             found.timeRange = match.range
             found.start = range.start
-            found.end = range.end
+            // 只有写成时间段（「3:00-4:30」「3点到5点」）时才算明确的结束时刻。
+            let explicitEnd = body.contains { "-~～—到至".contains($0) }
+            found.end = explicitEnd ? range.end : nil
+            break
+        }
+        for match in find(durationRegex, text) {
+            if let time = found.timeRange, match.range.overlaps(time) { continue }
+            guard let minutes = durationMinutes(match.groups), minutes > 0, minutes <= 24 * 60 else { continue }
+            found.durationRange = match.range
+            found.duration = minutes
             break
         }
         return found
@@ -204,6 +225,7 @@ enum SentenceScheduleParser {
         guard found.hasDate || found.hasTime else { return nil }
         var removed = found.dateRanges
         if let range = found.timeRange { removed.append(range) }
+        if let range = found.durationRange { removed.append(range) }
         var vague: String?
         if !found.hasTime, let match = find(periodRegex, text).first {
             vague = match.groups[0]
@@ -213,7 +235,14 @@ enum SentenceScheduleParser {
         var event = Event(title: cleanTitle(removing(removed, from: text)), source: source)
         event.date = found.date ?? inherited ?? base
         event.start = found.start
-        if let start = found.start, let end = found.end, end > start { event.end = end }
+        if let start = found.start, let end = found.end, end > start {
+            event.end = end
+        } else if let start = found.start, let minutes = found.duration {
+            // 「下午3点打球 时间为2小时」：结束 = 开始 + 时长，最晚到当天 23:59。
+            let total = min(start.hour * 60 + start.minute + minutes, 23 * 60 + 59)
+            event.end = LocalTime(hour: total / 60, minute: total % 60)
+        }
+        event.durationMinutes = found.duration
         event.vagueTime = vague
         event.question = question || source.hasSuffix("吗")
         event.cancelled = cancelWords.contains { text.contains($0) }
@@ -242,6 +271,56 @@ enum SentenceScheduleParser {
             }
         }
         return title
+    }
+
+    // MARK: 时长
+
+    private static func durationMinutes(_ groups: [String]) -> Int? {
+        guard groups.count > 5 else { return nil }
+        if !groups[1].isEmpty {
+            let hours: Double
+            if let value = Double(groups[1]) {
+                hours = value
+            } else if let value = chineseNumber(groups[1]) {
+                hours = Double(value)
+            } else {
+                return nil
+            }
+            var minutes = Int((hours * 60).rounded())
+            if !groups[2].isEmpty { minutes += 30 }
+            if !groups[3].isEmpty {
+                guard let extra = chineseNumber(groups[3]) else { return nil }
+                minutes += extra
+            }
+            return minutes
+        }
+        if !groups[4].isEmpty { return 30 }
+        if !groups[5].isEmpty { return chineseNumber(groups[5]) }
+        return nil
+    }
+
+    /// 「2」「两」「十五」「二十」「二十五」→ 数字。
+    static func chineseNumber(_ text: String) -> Int? {
+        if let value = Int(text) { return value }
+        let digits: [Character: Int] = [
+            "零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9,
+        ]
+        var total = 0
+        var current = 0
+        var seen = false
+        for character in text {
+            if character == "十" {
+                total += (current == 0 ? 1 : current) * 10
+                current = 0
+                seen = true
+            } else if let digit = digits[character] {
+                current = digit
+                seen = true
+            } else {
+                return nil
+            }
+        }
+        return seen ? total + current : nil
     }
 
     // MARK: 工具
