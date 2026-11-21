@@ -57,7 +57,8 @@ extension ListColor {
 
 extension TodoList {
     var swatch: Color { color.color }
-    var displayName: String { favoritesName.isEmpty ? (isDefault ? "未分类" : "未命名") : favoritesName }
+    /// 默认待办单不能改名，云端存的可能是「默认」，统一显示为「未分类」。
+    var displayName: String { isDefault ? "未分类" : (favoritesName.isEmpty ? "未命名" : favoritesName) }
 }
 
 extension OccurrenceStatus {

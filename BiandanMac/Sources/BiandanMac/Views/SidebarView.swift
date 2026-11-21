@@ -39,6 +39,9 @@ struct SidebarView: View {
                     .themedContextMenu { close in
                         ListContextMenu(list: list, close: close).environment(model)
                     }
+                    // ForEach 会按待办单编号（String）给行加隐式标签，外层的拖放和右键菜单又盖住了
+                    // NavigationLink 自带的标签，导致选中值变成 nil、内容区回退到「全部待办」。这里显式标注。
+                    .tag(SidebarItem.list(list.id3))
                 }
                 .onMove { source, destination in
                     var ordered = model.snapshot.lists
