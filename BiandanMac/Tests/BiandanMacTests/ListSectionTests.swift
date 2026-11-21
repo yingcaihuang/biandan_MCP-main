@@ -78,21 +78,30 @@ final class ListSectionTests: XCTestCase {
         XCTAssertEqual(ListCompletion.title(for: .all), "近 7 天已完成")
     }
 
-    func testTodayProgress() {
-        // 今天待办 1、逾期待办 1（11/18）、今天已完成 1；11/10、11/16 完成的不算，无日期不算。
+    /// 按计划日期统计：今天只算安排在今天的（任务 1、4），逾期的 2 和更早完成的 5、6 不算，无日期不算。
+    func testProgressByRange() {
         let items = snapshot().items(OccurrenceQuery(status: .all))
-        let progress = TodayProgress.make(items, today: today)
-        XCTAssertEqual(progress, TodayProgress(done: 1, total: 3, overdue: 1))
-        XCTAssertEqual(progress.percentText, "33%")
-        XCTAssertEqual(TodayProgress(done: 0, total: 0).ratio, 0)
-        XCTAssertEqual(Greeting.subtitle(TodayProgress(done: 0, total: 0)), "今天还没有安排，享受轻松的一天")
-        XCTAssertEqual(Greeting.subtitle(TodayProgress(done: 3, total: 3)), "今天的 3 项待办都完成了")
-        XCTAssertEqual(Greeting.subtitle(progress), "今天还有 2 项待办（含 1 项逾期），已完成 1 项")
-        XCTAssertEqual(Greeting.subtitle(TodayProgress(done: 1, total: 2)), "今天还有 1 项待办，已完成 1 项")
+        let todayRange = ProgressRange.today.bounds(today: today)
+        let progress = TodayProgress.make(items, start: todayRange.start, end: todayRange.end)
+        XCTAssertEqual(progress, TodayProgress(done: 1, total: 2))
+        XCTAssertEqual(progress.percentText, "50%")
+
+        let week = ProgressRange.next7.bounds(today: today)
+        XCTAssertEqual(TodayProgress.make(items, start: week.start, end: week.end), TodayProgress(done: 1, total: 2))
+        let month = ProgressRange.month.bounds(today: today)
+        XCTAssertEqual(TodayProgress.make(items, start: month.start, end: month.end), TodayProgress(done: 3, total: 5))
+        var undated = OccurrenceQuery(status: .all)
+        undated.includeUndated = true
+        XCTAssertEqual(TodayProgress.makeUndated(snapshot().items(undated)), TodayProgress(done: 0, total: 1))
+
+        var important = OccurrenceQuery(status: .all)
+        important.important = true
+        XCTAssertEqual(TodayProgress.make(snapshot().items(important), start: todayRange.start, end: todayRange.end),
+                       TodayProgress(done: 1, total: 1))
     }
 
-    /// 今天完成逾期任务、提前完成以后的任务，都计入完成；以后的待办不计入分母。
-    func testTodayProgressCountsWorkDoneToday() {
+    /// 分母固定：完成一项分子加 1。逾期补做、提前完成的不改变今天的统计，只计入各自计划日期所在的范围。
+    func testProgressUsesScheduledDate() {
         let data = DataSnapshot(lists: [], tasks: [
             task("1", start: "2026-11-18", end: "2026-11-18"),
             task("2", start: "2026-11-25", end: "2026-11-25"),
@@ -102,9 +111,18 @@ final class ListSectionTests: XCTestCase {
             occurrence("2", start: "2026-11-25", end: "2026-11-25", finishedAt: "2026-11-21 10:00:00"),
             occurrence("3", start: "2026-11-27", end: "2026-11-27"),
         ], focus: [], lastPulledAt: nil)
-        let progress = TodayProgress.make(data.items(OccurrenceQuery(status: .all)), today: today)
-        XCTAssertEqual(progress, TodayProgress(done: 2, total: 2))
-        XCTAssertEqual(progress.percentText, "100%")
+        let items = data.items(OccurrenceQuery(status: .all))
+        XCTAssertEqual(TodayProgress.make(items, start: today, end: today), TodayProgress(done: 0, total: 0))
+        let week = ProgressRange.next7.bounds(today: today)
+        XCTAssertEqual(TodayProgress.make(items, start: week.start, end: week.end), TodayProgress(done: 1, total: 2))
+    }
+
+    func testProgressSubtitle() {
+        XCTAssertEqual(Greeting.subtitle(TodayProgress(done: 0, total: 0), label: "今天"), "今天没有安排")
+        XCTAssertEqual(Greeting.subtitle(TodayProgress(done: 2, total: 2), label: "今天"), "今天的 2 项都完成了")
+        XCTAssertEqual(Greeting.subtitle(TodayProgress(done: 1, total: 2), label: "「工作」· 今天"),
+                       "「工作」· 今天共 2 项，已完成 1 项，还剩 1 项")
+        XCTAssertEqual(TodayProgress(done: 0, total: 0).ratio, 0)
     }
 
     func testYearDayCounts() {

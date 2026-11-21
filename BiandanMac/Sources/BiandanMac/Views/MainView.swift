@@ -77,7 +77,7 @@ struct ContentArea: View {
             ContentHeader(item: item)
             // 问候卡片与今日完成率在所有任务视图顶部显示（统计始终是今天），记录页不显示。
             if !item.isRecordPage {
-                TodaySummaryCard()
+                TodaySummaryCard(item: item)
             }
             if !item.isRecordPage {
                 QuickAddBar()
