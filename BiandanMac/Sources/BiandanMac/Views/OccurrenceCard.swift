@@ -88,7 +88,7 @@ struct OccurrenceCard: View {
         .padding(.horizontal, 10)
         .padding(.vertical, compact ? 5 : 8)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
-            .fill(multi ? Color(hex: 0xFFF4CC) : Theme.card.opacity(0.92)))
+            .fill(multi ? Theme.selectionFill : Theme.card.opacity(0.92)))
         .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
             .stroke(selected ? Theme.accent : Color.clear, lineWidth: 2))
         .shadow(color: .black.opacity(0.05), radius: 1, y: 1)

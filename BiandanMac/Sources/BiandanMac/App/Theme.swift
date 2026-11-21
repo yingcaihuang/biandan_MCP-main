@@ -20,6 +20,8 @@ enum Theme {
     static let subtext = Color(hex: 0x8A8273)
     static let fieldName = Color(hex: 0xB3AA97)
     static let accent = Color(hex: 0xF5B800)
+    /// 多选卡片的浅黄底色（配合 accent 描边）。
+    static let selectionFill = Color(hex: 0xFFF4CC)
     static let huawei = Color(hex: 0xCE0E2D)
     static let done = Color(hex: 0x5DB65A)
     static let overdue = Color(hex: 0xD93025)

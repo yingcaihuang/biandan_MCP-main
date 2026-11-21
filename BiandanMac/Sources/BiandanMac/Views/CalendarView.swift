@@ -30,12 +30,9 @@ struct CalendarView: View {
             HStack(spacing: 8) {
                 Text(verbatim: title(days: days))
                     .font(.system(size: 17, weight: .bold))
-                Picker("范围", selection: $model.calendarScope) {
-                    ForEach(CalendarScope.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 176)
+                ThemedSegmented(selection: $model.calendarScope,
+                                options: CalendarScope.allCases.map { ThemeOption(value: $0, title: $0.title) })
+                    .help("日历显示范围")
                 Spacer()
                 Text("拖动任务到其他日期即可改期")
                     .font(.system(size: 11))

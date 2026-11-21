@@ -131,14 +131,9 @@ struct ContentHeader: View {
             }
             Spacer(minLength: 8)
             if !item.isRecordPage {
-                Picker("视图", selection: Binding(get: { model.effectiveMode }, set: { model.setMode($0) })) {
-                    ForEach(ContentMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 210)
+                ThemedSegmented(selection: Binding(get: { model.effectiveMode }, set: { model.setMode($0) }),
+                                options: ContentMode.allCases.map { ThemeOption(value: $0, title: $0.title) })
+                    .help("切换视图（⌘1 – ⌘3）")
 
                 if model.effectiveMode == .quadrant {
                     ThemedSegmented(selection: Binding(get: { model.quadrantRange },

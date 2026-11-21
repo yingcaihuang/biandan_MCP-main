@@ -49,19 +49,12 @@ struct FocusListView: View {
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                Picker("范围", selection: $range) {
-                    ForEach(FocusRange.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 200)
-                Picker("显示", selection: $byDay) {
-                    Text("明细").tag(false)
-                    Text("按日").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 120)
+                ThemedSegmented(selection: $range,
+                                options: FocusRange.allCases.map { ThemeOption(value: $0, title: $0.title) })
+                    .help("专注记录的时间范围")
+                ThemedSegmented(selection: $byDay,
+                                options: [ThemeOption(value: false, title: "明细"), ThemeOption(value: true, title: "按日")])
+                    .help("逐条明细或按日汇总")
                 Text(verbatim: "\(records.count) 条 · 合计 \(Int(minutes)) 分钟 · 🍅 \(good) / \(bad)")
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(Color(hex: 0x4A453C))

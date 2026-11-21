@@ -11,6 +11,7 @@
 | 卡片 | `Theme.card` `#FFFDF8`，描边 `Theme.line` `#E6DFCF`，行分隔线 `#F0EADD` |
 | 正文 / 次要文字 / 字段名 | `Theme.text` / `Theme.subtext` / `Theme.fieldName` |
 | 强调色（主按钮、开关、选中） | 只用 `Theme.accent` `#F5B800` 黄色 |
+| 多选底色 | `Theme.selectionFill` `#FFF4CC`，配合 `Theme.accent` 2pt 描边 |
 | 危险操作 | `Theme.overdue` `#D93025` |
 | 和象限相关的颜色 | 只用 `Quadrant.tint`（边框）/ `.fill`（底色）/ `.titleColor`（文字） |
 
@@ -42,7 +43,9 @@
 | 设置窗口 / 多分区窗口 | 左侧 `Theme.panel` 侧栏（彩色图标块 + 标题，选中为白卡片）+ 右侧米色内容区，每页顶部是彩色图标 + heavy 标题 + 说明；分区颜色用四象限色。参考 SettingsView.swift |
 | 概览大卡片 | 顶部 `QuadrantStrip` 色带 + 头像或状态图标 + heavy 标题 + `StatusPill`，下方一排统计（参考设置 → 账户、同步） |
 | 点击弹出的菜单 | 按钮 + `.popover`，内容用 `ThemedMenuRow` 分组放进 `.themedCard()`（参考 AccountMenu.swift 的账户面板） |
-| 确认操作 | `ThemedSheet` 弹窗（参考 `SignOutSheet`、`DeleteTaskSheet`） |
+| 确认操作 | `ThemedSheet` 弹窗（参考 `SignOutSheet`、`DeleteTaskSheet`、`BatchDeleteSheet`） |
+| 多选与批量操作 | ⌘ 点击卡片调用 `model.tapSelect(item)`；有多选时内容区底部浮出 `BatchActionBar`（白卡片 + 黄色描边，按钮用 `.themed` / `.themedDestructive`，二级选项用 `.popover` + `ThemedMenuPanel`）。整批修改在 `AppModel+Batch.swift` 里合并成一步撤销 |
+| 数值加减 | 系统 `Stepper` 可以用，标签文字自己放 `Text` 并用主题字体 |
 | 右键菜单 | `.themedContextMenu(onOpen:) { close in ThemedMenuPanel { ThemedMenuGroup { ThemedMenuRow … } } }`，二级选项直接平铺（`QuadrantMiniGrid`、`ThemedMenuListRow`），不做子菜单；破坏性操作单独一组。见 ThemedContextMenu.swift |
 
 ## 浏览器里的页面
@@ -57,8 +60,9 @@ App 自己返回给浏览器的 HTML 页面也要遵守这套主题，比如华�
 ## 禁止
 
 - `.formStyle(.grouped)`、系统默认灰色分组背景。
-- `.buttonStyle(.borderedProminent)`、系统蓝色强调色、`.pickerStyle(.radioGroup)`。
-- 系统 `DatePicker`、下拉 `Picker`。日期、时刻、待办单用上表的主题组件。
+- `.buttonStyle(.borderedProminent)`、`.buttonStyle(.bordered)`、系统蓝色强调色、`.pickerStyle(.radioGroup)`。
+- 系统 `DatePicker`、下拉 `Picker`、`.pickerStyle(.segmented)`。日期、时刻、待办单、分段选择用上表的主题组件。
+- 带文字的系统 `Toggle`，改用「`Text` + `Spacer` + `ThemedSwitch`」或 `ThemedRow`。
 - 系统 `TabView` 标签栏（灰色工具栏、蓝色选中），多分区窗口改用上表的主题侧栏。
 - 点击触发的系统 `Menu`、`confirmationDialog`、`alert`。系统右键菜单 `.contextMenu` 也不要用。
 - 新增未在上表列出的颜色值。确实需要时，先加到 `Theme` 并更新本文件。
