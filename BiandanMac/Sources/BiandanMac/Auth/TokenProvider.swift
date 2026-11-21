@@ -36,6 +36,8 @@ struct CredentialStore: Sendable {
     }
 
     func load() throws -> StoredCredential? {
+        // 排查用离线模式不碰钥匙串（每次 swift build 签名不同，会弹授权框）。
+        if DebugFlags.offline { return nil }
         var query = baseQuery
         query[kSecReturnData as String] = true
         query[kSecReturnAttributes as String] = true

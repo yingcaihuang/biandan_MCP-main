@@ -85,7 +85,12 @@ struct BiandanApp: App {
                 // 打开时铺满屏幕可用区域（菜单栏和 Dock 之外），不是全屏。
                 .background(WindowSetup(maximize: true))
                 .preferredColorScheme(.light)
-                .task { await model.bootstrap() }
+                .task {
+                    await model.bootstrap()
+                    #if DEBUG
+                    await model.debugAutoSelect()
+                    #endif
+                }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                     model.appBecameActive()
                 }

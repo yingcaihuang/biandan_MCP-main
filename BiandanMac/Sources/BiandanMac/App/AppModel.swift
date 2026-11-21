@@ -383,6 +383,13 @@ final class AppModel {
     func bootstrap() async {
         guard !bootstrapped else { return }
         bootstrapped = true
+        if DebugFlags.offline {
+            // 仅 Debug 排查：不读钥匙串、不联网、不启 MCP、不排提醒，只用本地库显示主界面。
+            reloadSnapshot()
+            profile = .placeholder
+            authState = .signedIn
+            return
+        }
         if mcpEnabled { startMCP() }
         installReminderObserver()
         applyQuickAddHotKey()

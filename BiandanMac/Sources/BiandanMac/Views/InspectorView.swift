@@ -5,19 +5,36 @@ struct InspectorView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Group {
-            if let focus = model.selectedFocus {
-                FocusInspector(record: focus)
-            } else if let item = model.selectedItem {
-                TaskInspector(item: item)
-            } else {
-                ContentUnavailableView("未选择", systemImage: "sidebar.trailing",
-                                       description: Text("点击任务卡片或专注记录查看全部字段"))
-            }
+        // 检查器挂在 detail 栏的 .inspector 里时，滚动区按顶部工具栏自动让出的那段空白只算进了画面、
+        // 没算进点击区域，整栏点击位置比画面高一个工具栏（按钮点不中、点「开始」落到「结束」）。
+        // 所以不让滚动区自己避让：整栏忽略顶部安全区，再用普通内边距把内容推到工具栏下方，
+        // 画面和点击区域一起移动。高度从安全区读取，不写死。
+        // 注意：上边距必须加在滚动内容里面。加在滚动区外面时，滚动区仍会自己再让一次（实测又错开 52pt）。
+        GeometryReader { proxy in
+            content
+                .environment(\.inspectorTopInset, proxy.safeAreaInsets.top)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Theme.panel)
+                .ignoresSafeArea(.container, edges: .top)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.panel)
     }
+
+    @ViewBuilder
+    private var content: some View {
+        if let focus = model.selectedFocus {
+            FocusInspector(record: focus)
+        } else if let item = model.selectedItem {
+            TaskInspector(item: item)
+        } else {
+            ContentUnavailableView("未选择", systemImage: "sidebar.trailing",
+                                   description: Text("点击任务卡片或专注记录查看全部字段"))
+        }
+    }
+}
+
+extension EnvironmentValues {
+    /// 检查器顶部被工具栏盖住的高度；滚动内容自己加这段上边距（见 InspectorView）。
+    @Entry var inspectorTopInset: CGFloat = 0
 }
 
 // MARK: - 通用组件
@@ -152,6 +169,7 @@ private func text(_ value: String?) -> String {
 struct TaskInspector: View {
     @Environment(AppModel.self) private var model
     @AppStorage("biandan.showReadonlyFields") private var showReadonly = false
+    @Environment(\.inspectorTopInset) private var topInset
     let item: OccurrenceItem
 
     var body: some View {
@@ -209,6 +227,7 @@ struct TaskInspector: View {
             // 内容宽度跟随检查器这一栏，不允许被子视图撑宽。
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
+            .padding(.top, topInset)
         }
     }
 
@@ -378,6 +397,7 @@ struct TaskInspector: View {
 
 struct FocusInspector: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.inspectorTopInset) private var topInset
     let record: FocusRecord
 
     var body: some View {
@@ -436,6 +456,7 @@ struct FocusInspector: View {
             // 内容宽度跟随检查器这一栏，不允许被子视图撑宽。
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
+            .padding(.top, topInset)
         }
     }
 
