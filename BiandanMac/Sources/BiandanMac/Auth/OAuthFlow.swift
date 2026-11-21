@@ -34,6 +34,10 @@ enum AuthError: Error, LocalizedError, Equatable {
     case timedOut
     case cancelled
     case portUnavailable
+    /// 42681 已被其他程序监听（最常见的是正在等待授权的 Python 版便单 MCP）。
+    case portInUse
+    /// 监听因其他原因失败，附系统错误。
+    case listenerFailed(String)
     case reauthorizationRequired
     case renewalUnavailable(status: Int?)
     case invalidResponse(String)
@@ -47,12 +51,57 @@ enum AuthError: Error, LocalizedError, Equatable {
         case .cancelled: return "已取消登录。"
         case .portUnavailable:
             return "无法在本机 127.0.0.1:42681 接收授权回调。请先关闭正在等待授权的便单 MCP，再重试。"
+        case .portInUse:
+            return "本机端口 42681 已被其他程序占用，最常见的是正在等待授权的 Python 版便单 MCP。"
+                + "请先关闭它再重试；可在终端运行 lsof -nP -iTCP:42681 -sTCP:LISTEN 查看占用的进程。"
+        case .listenerFailed(let detail):
+            return "无法在本机 127.0.0.1:42681 接收授权回调（\(detail)）。请稍后重试。"
         case .reauthorizationRequired: return "华为授权已过期或被撤销，请重新登录。"
         case .renewalUnavailable(let status):
             return "便单续期服务暂时不可用" + (status.map { "（HTTP \($0)）" } ?? "") + "，请稍后重试。"
         case .invalidResponse(let detail): return detail
         case .storage(let detail): return detail
         }
+    }
+}
+
+/// 回环端口探测。NWListener 开了 allowLocalEndpointReuse 时，端口被占用报的是 EINVAL 而不是 EADDRINUSE，
+/// 不能只看它的错误码，所以直接用 BSD socket 试绑一次。
+enum LoopbackPort {
+    /// 试绑 127.0.0.1:port（带 SO_REUSEADDR，TIME_WAIT 残留不算占用）；EADDRINUSE 表示已有程序在监听。
+    static func isInUse(_ port: UInt16) -> Bool {
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+        var on: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, socklen_t(MemoryLayout<Int32>.size))
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_addr.s_addr = inet_addr("127.0.0.1")
+        address.sin_port = port.bigEndian
+        let result = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        return result != 0 && errno == EADDRINUSE
+    }
+}
+
+extension AuthError {
+    /// 把回环监听的失败分类：端口被占用单独提示，其他错误附上系统描述。
+    /// 传入 port 时先实际探测端口，避免 NWListener 报 EINVAL 时漏判。
+    static func listenerFailure(_ error: Error?, port: UInt16? = nil) -> AuthError {
+        if let port, LoopbackPort.isInUse(port) { return .portInUse }
+        if let error = error as? NWError, case .posix(let code) = error {
+            return code == .EADDRINUSE ? .portInUse : .listenerFailed(error.localizedDescription)
+        }
+        if let code = (error as NSError?).flatMap({ $0.domain == NSPOSIXErrorDomain ? $0.code : nil }),
+           code == Int(EADDRINUSE) {
+            return .portInUse
+        }
+        return error.map { .listenerFailed($0.localizedDescription) } ?? .portUnavailable
     }
 }
 
@@ -150,6 +199,11 @@ final class LoopbackReceiver: @unchecked Sendable {
             return
         }
         self.continuation = continuation
+        // 先探测端口：被占用时直接提示，不打开浏览器。
+        if LoopbackPort.isInUse(OAuthConfig.relayPort) {
+            finish(.failure(AuthError.portInUse))
+            return
+        }
         do {
             let parameters = NWParameters.tcp
             parameters.allowLocalEndpointReuse = true
@@ -162,8 +216,8 @@ final class LoopbackReceiver: @unchecked Sendable {
                 switch state {
                 case .ready:
                     onReady()
-                case .failed, .waiting:
-                    self.finish(.failure(AuthError.portUnavailable))
+                case .failed(let error), .waiting(let error):
+                    self.finish(.failure(AuthError.listenerFailure(error, port: OAuthConfig.relayPort)))
                     self.stopListening()
                 default:
                     break
@@ -179,7 +233,7 @@ final class LoopbackReceiver: @unchecked Sendable {
                 self.stopListening()
             }
         } catch {
-            finish(.failure(AuthError.portUnavailable))
+            finish(.failure(AuthError.listenerFailure(error, port: OAuthConfig.relayPort)))
         }
     }
 
