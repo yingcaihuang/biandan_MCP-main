@@ -13,7 +13,7 @@ struct TodaySummaryCard: View {
         let greeting: String = name.isEmpty ? Greeting.text(hour: hour) : Greeting.text(hour: hour) + "，" + name
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 16) {
-                ProgressRing(progress: progress, label: label)
+                SummaryProgressRing(progress: progress, label: label)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(greeting)
                         .font(.system(size: 16, weight: .bold))
@@ -65,26 +65,3 @@ struct TodaySummaryCard: View {
     }
 }
 
-private struct ProgressRing: View {
-    let progress: TodayProgress
-    let label: String
-
-    var body: some View {
-        let complete = progress.total > 0 && progress.pending == 0
-        let tint: Color = complete ? Theme.done : Theme.accent
-        ZStack {
-            Circle()
-                .stroke(Theme.line, lineWidth: 6)
-            Circle()
-                .trim(from: 0, to: CGFloat(progress.ratio))
-                .stroke(tint, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(.easeInOut(duration: 0.3), value: progress.ratio)
-            Text(progress.percentText)
-                .font(.system(size: 12, weight: .heavy))
-                .foregroundStyle(Theme.text)
-        }
-        .frame(width: 52, height: 52)
-        .help("\(label)：已完成 \(progress.done) / \(progress.total)")
-    }
-}
