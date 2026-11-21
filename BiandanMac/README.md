@@ -163,7 +163,7 @@ Tools/build_app.sh
 |---|---|
 | `BIANDAN_SIGN_IDENTITY` | 签名证书的 SHA-1 或名称，默认使用 Developer ID Application 证书 |
 | `CONFIG` | `release`（默认）或 `debug` |
-| `VERSION` / `BUILD_NUMBER` | 版本号（在 tag 上时取 tag，否则默认 1.0.0）/ 构建号（默认当前时间 `yyyyMMddHHmm`） |
+| `VERSION` / `BUILD_NUMBER` | 版本号（在 tag 上时取 tag，否则默认 1.1.0）/ 构建号（默认当前时间 `yyyyMMddHHmm`） |
 | `TIMESTAMP=0` | 离线时跳过 Apple 时间戳服务器 |
 | `BUNDLE_ID` / `DISPLAY_NAME` / `DIST` / `APP_FILE` / `ENTITLEMENTS` | 标识符、显示名、输出目录、`.app` 文件名、权限文件。供 `Tools/dev_run.sh` 组装开发版用，正式打包不用设 |
 | `HARDENED=0` | 不启用 Hardened Runtime（开发版用，方便调试器附加） |

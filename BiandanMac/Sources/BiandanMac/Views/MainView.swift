@@ -93,6 +93,8 @@ struct ContentArea: View {
                     HabitListView()
                 } else if item == .stats {
                     StatsView()
+                } else if item == .importer {
+                    ImportView()
                 } else if item == .conflicts {
                     ConflictListView()
                 } else {

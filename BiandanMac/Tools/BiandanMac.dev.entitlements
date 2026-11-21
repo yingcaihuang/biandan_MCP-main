@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<!-- 只给 Tools/dev_run.sh 组装的开发版用：允许 Xcode / lldb 附加调试。正式版用 BiandanMac.entitlements。 -->
+<!-- 只给 Tools/dev_run.sh 组装的开发版用：允许 Xcode / lldb 附加调试。正式版用 BiandanMac.entitlements。
+     日历访问与正式版保持一致（导入邮箱账户日历）。 -->
 <dict>
     <key>com.apple.security.get-task-allow</key>
+    <true/>
+    <key>com.apple.security.personal-information.calendars</key>
     <true/>
 </dict>
 </plist>

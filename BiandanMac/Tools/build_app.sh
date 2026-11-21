@@ -17,7 +17,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IDENTITY="${BIANDAN_SIGN_IDENTITY:-963EFDD532CD44170CF91398025F08D5DB4ADA2F}"
 CONFIG="${CONFIG:-release}"
 # 不在 tag 上构建时的默认版本号。
-DEFAULT_VERSION="1.0.0"
+DEFAULT_VERSION="1.1.0"
 BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
 BUNDLE_ID="${BUNDLE_ID:-ai.racore.BiandanMac}"
 DISPLAY_NAME="${DISPLAY_NAME:-便单}"
@@ -106,6 +106,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSHumanReadableCopyright</key><string>© Wuxi Chaorong Technology Co., Ltd.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key><string>便单需要读取「互联网账户」里邮箱日历（Exchange、Google、QQ、163 等）的日程，导入为便单任务。只读取，不会修改你的日历。</string>
+    <key>NSCalendarsUsageDescription</key><string>便单需要读取「互联网账户」里邮箱日历的日程，导入为便单任务。只读取，不会修改你的日历。</string>
 </dict>
 </plist>
 PLIST

@@ -69,6 +69,8 @@ struct SidebarView: View {
                     .tag(SidebarItem.focus)
                 Label(SidebarItem.stats.title, systemImage: SidebarItem.stats.systemImage)
                     .tag(SidebarItem.stats)
+                Label(SidebarItem.importer.title, systemImage: SidebarItem.importer.systemImage)
+                    .tag(SidebarItem.importer)
             }
         }
         .listStyle(.sidebar)

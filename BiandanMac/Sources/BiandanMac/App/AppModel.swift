@@ -44,6 +44,7 @@ enum QuadrantRange: Int, CaseIterable, Identifiable {
 
 enum SidebarItem: Hashable {
     case today, next7, all, important, quadrant, calendar, undated, collected, completed, abandoned, focus, habits, stats
+    case importer
     case conflicts
     case list(String)
 
@@ -64,6 +65,7 @@ enum SidebarItem: Hashable {
         case .focus: return "专注记录"
         case .habits: return "习惯打卡"
         case .stats: return "统计"
+        case .importer: return "导入日程"
         case .conflicts: return "日程冲突"
         case .list: return "分类"
         }
@@ -84,6 +86,7 @@ enum SidebarItem: Hashable {
         case .focus: return "timer"
         case .habits: return "leaf"
         case .stats: return "chart.bar.xaxis"
+        case .importer: return "square.and.arrow.down.on.square"
         case .conflicts: return "calendar.badge.exclamationmark"
         case .list: return "list.bullet"
         }
@@ -110,7 +113,7 @@ enum SidebarItem: Hashable {
 
     /// 专注记录、习惯打卡是记录页：不显示快速添加栏和视图切换。
     /// 不是任务列表的独立页面（不显示问候卡片、快速添加栏和视图切换）。日程冲突页也算。
-    var isRecordPage: Bool { self == .focus || self == .habits || self == .stats || self == .conflicts }
+    var isRecordPage: Bool { self == .focus || self == .habits || self == .stats || self == .conflicts || self == .importer }
 
     /// 侧栏里的「四象限」「日历」固定使用对应视图，其余项可以切换视图。
     var fixedMode: ContentMode? {
@@ -125,6 +128,8 @@ enum SidebarItem: Hashable {
 private enum DefaultsKey {
     static let weekStart = "biandan.weekStart"
     static let syncInterval = "biandan.syncIntervalMinutes"
+    static let importSyncInterval = "biandan.importSyncIntervalMinutes"
+    static let importNotify = "biandan.importNotifyFailures"
     static let chinaMakeup = "biandan.chinaMakeup"
     static let showFieldNames = "biandan.showFieldNames"
     static let quadrantRange = "biandan.quadrantRange"
@@ -349,6 +354,34 @@ final class AppModel {
     /// 钥匙串里有没有 API Key（打开设置、开始识别时刷新）。
     var aiKeyConfigured = false
 
+    /// 导入日程：已连接的来源、待确认的导入预览、进行中的导入和结果提示。
+    var importSources: [ImportSource] = []
+    var importPreview: ImportPreview?
+    var importBusy = false
+    var importNotice: String?
+    /// 正在同步的来源；各来源上次同步失败的原因。
+    var importSyncing: Set<String> = []
+    var importSyncErrors: [String: String] = [:]
+    var caldavSheetShown = false
+    var urlSheetShown = false
+    var systemSheetShown = false
+    var importEditing: ImportSource?
+    var importLogShown = false
+    /// 导入来源同步失败、自动暂停、恢复时发系统通知。
+    var importNotifyFailures: Bool = UserDefaults.standard.object(forKey: DefaultsKey.importNotify) as? Bool ?? true {
+        didSet { UserDefaults.standard.set(importNotifyFailures, forKey: DefaultsKey.importNotify) }
+    }
+    /// 订阅类来源（CalDAV）的自动同步间隔（分钟）；0 表示只手动同步。改动后立即按新间隔重新计时。
+    var importSyncIntervalMinutes: Int = UserDefaults.standard.object(forKey: DefaultsKey.importSyncInterval) as? Int
+        ?? AppModel.defaultImportSyncMinutes {
+        didSet {
+            guard importSyncIntervalMinutes != oldValue else { return }
+            UserDefaults.standard.set(importSyncIntervalMinutes, forKey: DefaultsKey.importSyncInterval)
+            if authState == .signedIn { startImportAutoSync() }
+        }
+    }
+    @ObservationIgnored var importSyncTask: Task<Void, Never>?
+
     /// 打开设置时要滚动到的位置（用完即清）。
     var settingsAnchor: SettingsAnchor?
     /// 跳过去之后短暂高亮的分组。
@@ -538,6 +571,7 @@ final class AppModel {
     func expireSession() {
         autoSyncTask?.cancel()
         autoSyncTask = nil
+        stopImportAutoSync()
         syncStatus = .idle
         lastError = AuthError.reauthorizationRequired.localizedDescription
         authState = .signedOut
@@ -550,6 +584,7 @@ final class AppModel {
     func signOut(keepCache: Bool) async {
         autoSyncTask?.cancel()
         autoSyncTask = nil
+        stopImportAutoSync()
         await engine.cancel()
         do {
             try await tokens.signOut()
@@ -621,6 +656,7 @@ final class AppModel {
         } catch AuthError.reauthorizationRequired, AuthError.notSignedIn {
             autoSyncTask?.cancel()
             autoSyncTask = nil
+            stopImportAutoSync()
             syncStatus = .idle
             lastError = AuthError.reauthorizationRequired.localizedDescription
             authState = .signedOut
@@ -642,6 +678,7 @@ final class AppModel {
 
     private func startAutoSync() {
         autoSyncTask?.cancel()
+        startImportAutoSync()
         let minutes = max(syncIntervalMinutes, 1)
         autoSyncTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -726,7 +763,7 @@ final class AppModel {
         case .list(let id):
             query.listID = id
             query.includeUndated = true
-        case .focus, .habits, .stats, .conflicts:
+        case .focus, .habits, .stats, .conflicts, .importer:
             return nil
         }
         return query

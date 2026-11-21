@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<!-- Developer ID 分发，不启用 App Sandbox；Hardened Runtime 下不需要额外权限。 -->
-<dict/>
+<!-- Developer ID 分发，不启用 App Sandbox。Hardened Runtime 下读取系统日历（导入邮箱账户日历）需要声明日历访问。 -->
+<dict>
+    <key>com.apple.security.personal-information.calendars</key>
+    <true/>
+</dict>
 </plist>

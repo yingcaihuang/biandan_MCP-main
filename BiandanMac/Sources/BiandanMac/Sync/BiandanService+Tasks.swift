@@ -245,6 +245,10 @@ extension BiandanService {
                 throw ServiceError("指定的实例不属于这个任务。")
             }
         }
+        // 删掉重复任务的最后一个实例时连任务一起删，免得留下没有实例、哪里都看不到的空任务。
+        if repeating && scope == .occurrence && !chosen.isEmpty && chosen.count == instances.count {
+            deleteParent = true
+        }
         if scope == .futurePending {
             let start: (String, String) = fromDate.map { ($0.iso, "00:00:00") }
                 ?? (today().iso, formatted("HH:mm:ss"))

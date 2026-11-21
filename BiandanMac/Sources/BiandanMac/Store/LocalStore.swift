@@ -194,6 +194,14 @@ final class LocalStore: @unchecked Sendable {
                 )
                 """)
         }
+        // 导入日程：来源与「来源 + 日程键 → 任务」的对应关系，只在本机。
+        migrator.registerMigration("v2-import") { db in
+            try LocalStore.createImportTables(db)
+        }
+        // 导入来源的同步日志与失败退避。
+        migrator.registerMigration("v3-import-log") { db in
+            try LocalStore.createImportLogTables(db)
+        }
         return migrator
     }
 
