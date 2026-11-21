@@ -13,7 +13,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IDENTITY="${BIANDAN_SIGN_IDENTITY:-963EFDD532CD44170CF91398025F08D5DB4ADA2F}"
 CONFIG="${CONFIG:-release}"
 # 不在 tag 上构建时的默认版本号。
-DEFAULT_VERSION="0.6.1"
+DEFAULT_VERSION="0.6.2"
 BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
 BUNDLE_ID="ai.racore.BiandanMac"
 DIST="$ROOT/dist"

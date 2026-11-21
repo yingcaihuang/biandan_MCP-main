@@ -132,7 +132,7 @@ Tools/build_app.sh
 |---|---|
 | `BIANDAN_SIGN_IDENTITY` | 签名证书的 SHA-1 或名称，默认使用 Developer ID Application 证书 |
 | `CONFIG` | `release`（默认）或 `debug` |
-| `VERSION` / `BUILD_NUMBER` | 版本号（在 tag 上时取 tag，否则默认 0.6.1）/ 构建号（默认当前时间 `yyyyMMddHHmm`） |
+| `VERSION` / `BUILD_NUMBER` | 版本号（在 tag 上时取 tag，否则默认 0.6.2）/ 构建号（默认当前时间 `yyyyMMddHHmm`） |
 | `TIMESTAMP=0` | 离线时跳过 Apple 时间戳服务器 |
 
 ### 测试

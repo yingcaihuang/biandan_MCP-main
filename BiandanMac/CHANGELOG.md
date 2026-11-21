@@ -4,7 +4,7 @@
 
 打 tag 时用 `Tools/tag_release.sh <版本号>`，脚本会从这里取出对应版本的说明作为 tag 说明。
 
-## [Unreleased]
+## [0.6.2] - 2026-11-21
 
 ### 新功能
 
@@ -17,6 +17,10 @@
   - 象限标题旁的「● 当前象限」标签（带一点象限颜色）。
 
   macOS 14 / 15 上保持原来的样式不变。设置页、编辑器里的分段按钮也没有改。
+
+### 开发者
+
+- `Tools/build_app.sh` 每次构建都会自动打出带版本号的 zip 和 `.sha256`，文件名和 git tag 一致：HEAD 正好在 `vX.Y.Z` tag 上且没有未提交改动时产出 `dist/Biandan-X.Y.Z.zip`（和 Release 附件同名），`VERSION` 和 tag 不一致会直接报错；其他情况产出 `Biandan-X.Y.Z-dev.<提交号>[.dirty].zip`，不会覆盖正式版的包。`dist/Biandan.app` 名字不变。
 
 ## [0.6.1] - 2026-11-21
 
