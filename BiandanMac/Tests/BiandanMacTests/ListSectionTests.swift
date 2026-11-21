@@ -77,4 +77,23 @@ final class ListSectionTests: XCTestCase {
         XCTAssertEqual(ListCompletion.title(for: .today), "已完成")
         XCTAssertEqual(ListCompletion.title(for: .all), "近 7 天已完成")
     }
+
+    func testTodayProgress() {
+        let items = snapshot().items(OccurrenceQuery(start: today, end: today, status: .all))
+        let progress = TodayProgress.make(items)
+        XCTAssertEqual(progress, TodayProgress(done: 1, total: 2))
+        XCTAssertEqual(progress.percentText, "50%")
+        XCTAssertEqual(TodayProgress(done: 0, total: 0).ratio, 0)
+        XCTAssertEqual(Greeting.subtitle(TodayProgress(done: 0, total: 0)), "今天还没有安排，享受轻松的一天")
+        XCTAssertEqual(Greeting.subtitle(TodayProgress(done: 3, total: 3)), "今天的 3 项待办都完成了")
+        XCTAssertEqual(Greeting.subtitle(progress), "今天还有 1 项待办，已完成 1 项")
+    }
+
+    func testGreetingByHour() {
+        XCTAssertEqual(Greeting.text(hour: 7), "早上好")
+        XCTAssertEqual(Greeting.text(hour: 12), "中午好")
+        XCTAssertEqual(Greeting.text(hour: 15), "下午好")
+        XCTAssertEqual(Greeting.text(hour: 21), "晚上好")
+        XCTAssertEqual(Greeting.text(hour: 2), "晚上好")
+    }
 }
