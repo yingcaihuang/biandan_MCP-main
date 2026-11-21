@@ -2,12 +2,18 @@ import Charts
 import SwiftUI
 
 enum StatsSubject: String, CaseIterable, Hashable {
-    case tasks, ai
+    case tasks, ai, imports
 
-    var title: String { self == .tasks ? "任务" : "AI 识别" }
+    var title: String {
+        switch self {
+        case .tasks: return "任务"
+        case .ai: return "AI 识别"
+        case .imports: return "导入同步"
+        }
+    }
 }
 
-/// 统计：任务（完成趋势、按期完成率、象限与分类分布、专注时长）和 AI 识别（用时、token、费用）。
+/// 统计：任务（完成趋势、按期完成率、象限与分类分布、专注时长）、AI 识别（用时、token、费用）和导入同步（同步次数、写入条数、失败原因、来源健康）。
 struct StatsView: View {
     @Environment(AppModel.self) private var model
     @State private var range: StatsRange = .month
@@ -26,6 +32,8 @@ struct StatsView: View {
             .padding(.bottom, 10)
             if subject == .ai {
                 AIUsageStatsView()
+            } else if subject == .imports {
+                ImportSyncStatsView()
             } else if model.snapshot.tasks.isEmpty && model.snapshot.focus.isEmpty {
                 ContentUnavailableView("还没有可统计的数据", systemImage: "chart.bar.xaxis",
                                        description: Text("同步完成后，这里会显示完成趋势和分布"))
@@ -161,6 +169,17 @@ private struct StatsTrendChart: View {
 
     private var color: Color { metric == .completed ? Theme.accent : Quadrant.importantUrgent.tint }
     private var label: String { metric == .completed ? "完成" : "分钟" }
+    private var days: Int { unit == .weekOfYear ? 7 : 1 }
+
+    private func tip(_ index: Int) -> ChartTip? {
+        guard buckets.indices.contains(index) else { return nil }
+        let bucket = buckets[index]
+        let name: String = metric == .completed ? "完成" : "专注"
+        let text: String = metric == .completed
+            ? "\(bucket.completed) 个" : String(format: "%.0f 分钟", bucket.focusMinutes)
+        return ChartTip(title: ChartHover.title(bucket.start, days: days),
+                        rows: [ChartTipRow(name: name, value: text, color: color)])
+    }
 
     private func value(_ bucket: StatsBucket) -> Double {
         metric == .completed ? Double(bucket.completed) : bucket.focusMinutes.rounded()
@@ -174,6 +193,7 @@ private struct StatsTrendChart: View {
                 .cornerRadius(3)
         }
         .chartYAxis { AxisMarks(position: .leading) }
+        .chartHoverTip(hit: ChartHover.dates(buckets.map { $0.start.date() }, spanDays: days), tip: tip)
         .frame(height: 170)
     }
 }

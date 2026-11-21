@@ -90,10 +90,7 @@ struct SchedulePreviewView: View {
     private var messages: some View {
         VStack(alignment: .leading, spacing: 6) {
             if state.loading {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text("正在识别文字并提取日程，都在本机处理…").foregroundStyle(Theme.subtext)
-                }
+                CaptureStageRow(state: state)
             }
             if let result = state.result {
                 Label(result, systemImage: "checkmark.circle.fill").foregroundStyle(Theme.done)
@@ -111,6 +108,13 @@ struct SchedulePreviewView: View {
                 Label(note, systemImage: "info.circle")
                     .foregroundStyle(Theme.subtext)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            if !state.loading && !state.timings.isEmpty {
+                Label("耗时：" + state.timingText, systemImage: "stopwatch")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.subtext)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .help(CaptureTimingLog.summary())
             }
             if let usage = state.usage, !state.loading {
                 AIUsageTiles(usage: usage)

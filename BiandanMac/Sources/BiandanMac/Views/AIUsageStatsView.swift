@@ -369,7 +369,29 @@ private struct AITrendChart: View {
                     AxisValueLabel { Text(verbatim: axisLabel(value)) }
                 }
             }
+            .chartHoverTip(hit: ChartHover.dates(dates, spanDays: days), tip: tip)
             .frame(height: 210)
+    }
+
+    private var days: Int { unit == .weekOfYear ? 7 : 1 }
+    private var dates: [Date] { ChartHover.distinctDates(trend.points) }
+
+    private func tip(_ index: Int) -> ChartTip? {
+        let all = dates
+        guard all.indices.contains(index) else { return nil }
+        return ChartHover.seriesTip(trend.points, at: all[index], series: trend.series, colors: colors, days: days,
+                                    total: metric.stackable, share: style == .normalized, format: valueText)
+    }
+
+    private func valueText(_ value: Double) -> String {
+        switch metric {
+        case .calls: return "\(Int(value.rounded())) 次"
+        case .events: return "\(Int(value.rounded())) 条"
+        case .tokens, .tokensPerCall: return AIUsageFormat.tokens(Int(value.rounded()))
+        case .latency: return String(format: "%.1f 秒", value)
+        case .cost, .cumulativeCost: return value == 0 ? "$0" : String(format: "$%.4f", value)
+        case .successRate: return AIUsageFormat.percent(value)
+        }
     }
 
     private func axisLabel(_ value: AxisValue) -> String {
@@ -403,6 +425,8 @@ private struct AIShareDonut: View {
     let slices: [AIShareSlice]
     let center: String
     let caption: String
+    @State private var hovered: String?
+    @State private var location: CGPoint = .zero
 
     var body: some View {
         let total = slices.reduce(0) { $0 + $1.value }
@@ -413,34 +437,99 @@ private struct AIShareDonut: View {
                 .frame(height: 116)
         } else {
             HStack(alignment: .center, spacing: 14) {
-                Chart(slices) { slice in
-                    SectorMark(angle: .value("占比", slice.value), innerRadius: .ratio(0.62), angularInset: 1.5)
-                        .foregroundStyle(slice.color)
-                        .cornerRadius(3)
-                }
-                .frame(width: 116, height: 116)
-                .overlay {
-                    VStack(spacing: 0) {
-                        Text(verbatim: center)
-                            .font(.system(size: 14, weight: .heavy))
-                            .monospacedDigit()
-                            .foregroundStyle(Theme.text)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                        Text(verbatim: caption)
-                            .font(.system(size: 10))
-                            .foregroundStyle(Theme.subtext)
-                    }
-                    .frame(width: 64)
-                }
+                donut(total: total)
+                    .zIndex(1)
                 VStack(alignment: .leading, spacing: 7) {
                     ForEach(slices) { slice in
                         legend(slice, share: slice.value / total)
+                            .opacity(fade(slice))
                     }
                 }
                 Spacer(minLength: 0)
             }
         }
+    }
+
+    private func outer(_ slice: AIShareSlice) -> CGFloat { hovered == slice.id ? 1 : 0.94 }
+
+    private func fade(_ slice: AIShareSlice) -> Double { hovered == nil || hovered == slice.id ? 1 : 0.4 }
+
+    private func donut(total: Double) -> some View {
+        Chart(slices) { slice in
+            SectorMark(angle: .value("占比", slice.value), innerRadius: .ratio(0.62),
+                       outerRadius: .ratio(outer(slice)), angularInset: 1.5)
+                .foregroundStyle(slice.color)
+                .opacity(fade(slice))
+                .cornerRadius(3)
+        }
+        .frame(width: 116, height: 116)
+        .overlay { centerLabel }
+        .overlay { hoverLayer(total: total) }
+    }
+
+    private var centerLabel: some View {
+        VStack(spacing: 0) {
+            Text(verbatim: center)
+                .font(.system(size: 14, weight: .heavy))
+                .monospacedDigit()
+                .foregroundStyle(Theme.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(verbatim: caption)
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.subtext)
+        }
+        .frame(width: 64)
+        .allowsHitTesting(false)
+    }
+
+    private func hoverLayer(total: Double) -> some View {
+        GeometryReader { geometry in
+            Rectangle()
+                .fill(Color.clear)
+                .contentShape(Rectangle())
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let point):
+                        location = point
+                        hovered = sliceID(at: point, size: geometry.size, total: total)
+                    case .ended:
+                        hovered = nil
+                    }
+                }
+                .overlay(alignment: .topLeading) {
+                    if let id = hovered, let slice = slices.first(where: { $0.id == id }) {
+                        ChartTipView(tip: tip(slice, total: total))
+                            .chartTipPlacement(at: location, in: geometry.size, clamp: false)
+                    }
+                }
+        }
+    }
+
+    /// 扇区从 12 点方向开始、按数据顺序顺时针排列。
+    private func sliceID(at point: CGPoint, size: CGSize, total: Double) -> String? {
+        let dx = point.x - size.width / 2
+        let dy = point.y - size.height / 2
+        let radius = hypot(dx, dy)
+        let outerRadius = min(size.width, size.height) / 2
+        guard radius >= outerRadius * 0.55, radius <= outerRadius + 2 else { return nil }
+        var angle = atan2(dx, -dy)
+        if angle < 0 { angle += 2 * .pi }
+        let target = Double(angle / (2 * .pi)) * total
+        var sum = 0.0
+        for slice in slices {
+            sum += slice.value
+            if target < sum { return slice.id }
+        }
+        return slices.last?.id
+    }
+
+    private func tip(_ slice: AIShareSlice, total: Double) -> ChartTip {
+        let rows: [ChartTipRow] = [
+            ChartTipRow(name: "占比", value: AIUsageFormat.percent(slice.value / total), color: slice.color),
+            ChartTipRow(name: "明细", value: slice.detail, color: slice.color),
+        ]
+        return ChartTip(title: slice.title, rows: rows)
     }
 
     private func legend(_ slice: AIShareSlice, share: Double) -> some View {
@@ -476,7 +565,18 @@ private struct AILatencyHistogram: View {
                 .cornerRadius(3)
         }
         .chartYAxis { AxisMarks(position: .leading) }
+        .chartHoverTip(hit: ChartHover.categories(bins.map(\.title)), tip: tip)
         .frame(height: 150)
+    }
+
+    private func tip(_ index: Int) -> ChartTip? {
+        guard bins.indices.contains(index) else { return nil }
+        let bin = bins[index]
+        let total = bins.reduce(0) { $0 + $1.count }
+        var value = "\(bin.count) 次"
+        if total > 0 { value += "（" + AIUsageFormat.percent(Double(bin.count) / Double(total)) + "）" }
+        let row = ChartTipRow(name: "成功调用", value: value, color: Quadrant.notImportantUrgent.tint)
+        return ChartTip(title: "用时 " + bin.title, rows: [row])
     }
 }
 
@@ -491,7 +591,15 @@ private struct AIHourChart: View {
         }
         .chartXAxis { AxisMarks(values: ["0时", "6时", "12时", "18时", "23时"]) }
         .chartYAxis { AxisMarks(position: .leading) }
+        .chartHoverTip(hit: ChartHover.categories(hours.map(\.label)), tip: tip)
         .frame(height: 150)
+    }
+
+    private func tip(_ index: Int) -> ChartTip? {
+        guard hours.indices.contains(index) else { return nil }
+        let item = hours[index]
+        let title = String(format: "%02d:00–%02d:59", item.hour, item.hour)
+        return ChartTip(title: title, rows: [ChartTipRow(name: "调用", value: "\(item.count) 次", color: Theme.accent)])
     }
 }
 
@@ -510,7 +618,26 @@ private struct AIScatterChart: View {
         .chartXAxisLabel("Token")
         .chartYAxisLabel("用时（秒）")
         .chartYAxis { AxisMarks(position: .leading) }
+        .chartHoverTip(hit: ChartHover.nearest(points), tip: tip)
         .frame(height: 190)
+    }
+
+    private var points: [ChartValuePoint] {
+        records.map { ChartValuePoint(x: Double($0.totalTokens), y: $0.seconds) }
+    }
+
+    private func tip(_ index: Int) -> ChartTip? {
+        guard records.indices.contains(index) else { return nil }
+        typealias F = AIUsageFormat
+        let record = records[index]
+        let color = AIUsagePalette.color(models.firstIndex(of: record.model) ?? 0)
+        let rows: [ChartTipRow] = [
+            ChartTipRow(name: "模型", value: record.model, color: color),
+            ChartTipRow(name: "Token", value: F.tokens(record.totalTokens), color: Quadrant.notImportantUrgent.tint),
+            ChartTipRow(name: "用时", value: F.seconds(record.seconds), color: Theme.accent),
+            ChartTipRow(name: "识别日程", value: "\(record.events) 条", color: Color(hex: 0x8E5BD6)),
+        ]
+        return ChartTip(title: F.time(record.date), rows: rows)
     }
 }
 

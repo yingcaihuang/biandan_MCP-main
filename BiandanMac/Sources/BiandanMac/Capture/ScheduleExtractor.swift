@@ -54,9 +54,12 @@ enum FallbackNotice {
 enum ScheduleExtractor {
     static func extract(_ lines: [CaptureLine], today: LocalDate, weekStart: Int,
                         lists: [(id: String, name: String)],
-                        ai: AIExtractionSettings = .disabled) async -> ScheduleExtraction {
+                        ai: AIExtractionSettings = .disabled,
+                        onStage: (@MainActor @Sendable (CaptureStage, Bool?) -> Void)? = nil,
+                        onSkip: (@MainActor @Sendable (CaptureStage, String) -> Void)? = nil) async -> ScheduleExtraction {
         var note: String?
         if ai.isReady && ai.mode == .always {
+            await onStage?(.ai, nil)
             do {
                 let result = try await AIScheduleExtractor.extract(lines, today: today, lists: lists,
                                                                    settings: ai, trigger: .always)
@@ -68,15 +71,22 @@ enum ScheduleExtractor {
         }
         #if canImport(FoundationModels)
         if #available(macOS 26, *) {
-            do {
-                let (candidates, modelNote) = try await ModelScheduleExtractor.extract(lines, today: today)
-                if !candidates.isEmpty || !(ai.isReady && ai.mode == .fallback) {
-                    return ScheduleExtraction(candidates: candidates, source: .model, note: note ?? modelNote)
+            if let reason = ModelScheduleExtractor.unavailableReason() {
+                // 用不了就不进这个阶段，免得耗时里出现一段 0 毫秒。
+                await onSkip?(.model, reason)
+                note = note ?? FallbackNotice.once("端侧模型暂不可用（\(reason)），当前用规则识别")
+            } else {
+                await onStage?(.model, ModelWarmup.shared.isWarm)
+                do {
+                    let (candidates, modelNote) = try await ModelScheduleExtractor.extract(lines, today: today)
+                    if !candidates.isEmpty || !(ai.isReady && ai.mode == .fallback) {
+                        return ScheduleExtraction(candidates: candidates, source: .model, note: note ?? modelNote)
+                    }
+                } catch let failure as ScheduleExtractionFailure {
+                    note = note ?? FallbackNotice.once("端侧模型暂不可用（\(failure.message)），当前用规则识别")
+                } catch {
+                    note = note ?? "端侧模型没能处理这段文字（\(error.localizedDescription)），已改用规则识别"
                 }
-            } catch let failure as ScheduleExtractionFailure {
-                note = note ?? FallbackNotice.once("端侧模型暂不可用（\(failure.message)），当前用规则识别")
-            } catch {
-                note = note ?? "端侧模型没能处理这段文字（\(error.localizedDescription)），已改用规则识别"
             }
         } else {
             note = note ?? FallbackNotice.once("端侧模型需要 macOS 26 及以上，当前用规则识别")
@@ -84,8 +94,10 @@ enum ScheduleExtractor {
         #else
         note = note ?? FallbackNotice.once("当前版本没有端侧模型，用规则识别")
         #endif
+        await onStage?(.rules, nil)
         let candidates = RuleScheduleExtractor.extract(lines, today: today, weekStart: weekStart, lists: lists)
         if candidates.isEmpty && ai.isReady && ai.mode == .fallback {
+            await onStage?(.ai, nil)
             do {
                 let result = try await AIScheduleExtractor.extract(lines, today: today, lists: lists,
                                                                    settings: ai, trigger: .fallback)
@@ -146,21 +158,20 @@ enum ModelScheduleExtractor {
     4. 标题要简短，不包含日期和时间。
     """
 
-    static func extract(_ lines: [CaptureLine], today: LocalDate) async throws -> ([ScheduleCandidate], String?) {
+    /// 端侧模型用不了时的原因；能用时为 nil。
+    static func unavailableReason() -> String? {
         switch SystemLanguageModel.default.availability {
-        case .available:
-            break
-        case .unavailable(.deviceNotEligible):
-            throw ScheduleExtractionFailure(message: "这台 Mac 暂不支持 Apple 智能")
-        case .unavailable(.appleIntelligenceNotEnabled):
-            throw ScheduleExtractionFailure(message: "没有开启 Apple 智能（系统设置 → Apple 智能与 Siri）")
-        case .unavailable(.modelNotReady):
-            throw ScheduleExtractionFailure(message: "端侧模型还在下载或准备中")
-        case .unavailable:
-            throw ScheduleExtractionFailure(message: "端侧模型暂时不可用")
-        @unknown default:
-            throw ScheduleExtractionFailure(message: "端侧模型暂时不可用")
+        case .available: return nil
+        case .unavailable(.deviceNotEligible): return "这台 Mac 不支持 Apple 智能"
+        case .unavailable(.appleIntelligenceNotEnabled): return "没有开启 Apple 智能（系统设置 → Apple 智能与 Siri）"
+        case .unavailable(.modelNotReady): return "端侧模型还在下载或准备中"
+        case .unavailable: return "端侧模型暂时不可用"
+        @unknown default: return "端侧模型暂时不可用"
         }
+    }
+
+    static func extract(_ lines: [CaptureLine], today: LocalDate) async throws -> ([ScheduleCandidate], String?) {
+        if let reason = unavailableReason() { throw ScheduleExtractionFailure(message: reason) }
 
         var body = ChatTimestamp.promptText(lines)
         var note: String?
@@ -171,7 +182,9 @@ enum ModelScheduleExtractor {
         let weekday = LocalDate.weekdayNames[today.weekday]
         let prompt = "今天是 \(today.iso)（\(weekday)）。\n\n以下是要识别的文字：\n\(body)"
 
-        let session = LanguageModelSession(instructions: instructions)
+        // 优先用预热好的对话（模型已在内存里），没有时现建。
+        let session = (ModelWarmup.shared.take() as? LanguageModelSession)
+            ?? LanguageModelSession(instructions: instructions)
         let response = try await session.respond(to: prompt, generating: GeneratedSchedules.self)
         let candidates = response.content.events.compactMap { event in
             ScheduleCandidate.fromModel(title: event.title, startDate: event.startDate, startTime: event.startTime,

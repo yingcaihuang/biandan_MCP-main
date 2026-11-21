@@ -30,6 +30,7 @@ final class FloatingBallController {
     private let state = FloatingBallState()
     private weak var model: AppModel?
     private var screenObserver: NSObjectProtocol?
+    private var warmupScheduled = false
 
     /// 球当前的位置（隐藏时为 nil），确认卡片据此摆在球旁边。
     var frame: NSRect? { panel?.isVisible == true ? panel?.frame : nil }
@@ -38,6 +39,7 @@ final class FloatingBallController {
         self.model = model
         if model.showFloatingBall {
             show()
+            scheduleWarmup()
         } else {
             FloatingBallMenuController.shared.close()
             panel?.orderOut(nil)
@@ -46,6 +48,23 @@ final class FloatingBallController {
 
     func setBusy(_ busy: Bool) {
         state.busy = busy
+    }
+
+    /// 提前加载文字识别和端侧模型，第一次识别不用等。「总是用 AI」时不用端侧模型，只预热文字识别。
+    func warmUpRecognizer() {
+        ModelWarmup.shared.warmOCROnce()
+        guard model?.aiExtractionMode != .always else { return }
+        ModelWarmup.shared.prewarm()
+    }
+
+    /// 启动后等便单自己的同步先跑一会儿，再在后台预热。
+    private func scheduleWarmup() {
+        guard !warmupScheduled else { return }
+        warmupScheduled = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            self?.warmUpRecognizer()
+        }
     }
 
     private func show() {
@@ -194,7 +213,10 @@ final class FloatingBallView: NSView {
                                        owner: self, userInfo: nil))
     }
 
-    override func mouseEntered(with event: NSEvent) { state.hovering = true }
+    override func mouseEntered(with event: NSEvent) {
+        state.hovering = true
+        FloatingBallController.shared.warmUpRecognizer()
+    }
     override func mouseExited(with event: NSEvent) { state.hovering = false }
 
     override func mouseDown(with event: NSEvent) {

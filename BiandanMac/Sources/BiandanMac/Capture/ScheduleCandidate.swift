@@ -244,6 +244,9 @@ struct ScheduleCandidate: Identifiable, Equatable {
 /// 不用大模型时的规则识别：在整句里找日期和时刻（见 SentenceScheduleParser），
 /// 「明天」「周一」按这一行所属消息的日期换算。「主题：」「地点：」这类行补到附近的日程上。
 enum RuleScheduleExtractor {
+    /// 没有时刻时，标题超过这么多字就默认不勾选。
+    static let longTitle = 30
+
     static func extract(_ lines: [CaptureLine], today: LocalDate, weekStart: Int,
                         lists: [(id: String, name: String)]) -> [ScheduleCandidate] {
         var topics: [(index: Int, text: String)] = []
@@ -286,6 +289,10 @@ enum RuleScheduleExtractor {
             } else if event.question {
                 candidate.include = false
                 candidate.note = "像是在询问，还没定下来，默认不勾选"
+            } else if event.start == nil && title.count > RuleScheduleExtractor.longTitle {
+                // 没有具体时刻、标题又很长：多半是把一整段文字当成了日程。
+                candidate.include = false
+                candidate.note = "没有具体时刻，标题也很长，可能不是日程，默认不勾选"
             }
             result.append(candidate)
         }

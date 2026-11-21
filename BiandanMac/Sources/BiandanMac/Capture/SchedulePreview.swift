@@ -12,12 +12,16 @@ enum ScheduleCaptureFlow {
     static func startRegion(model: AppModel, anchor: NSRect?) {
         guard !RegionSelector.shared.isActive else { return }
         guard ensureScreenPermission(model: model, anchor: anchor) else { return }
+        // 框选要一两秒，正好在后台加载模型。
+        FloatingBallController.shared.warmUpRecognizer()
         RegionSelector.shared.begin { result in
             guard let result else { return }
             begin(model: model, anchor: anchor)
             Task { @MainActor in
                 do {
+                    stage(.capture)
                     let image = try await ScreenRegionCapture.capture(result.rect, on: result.screen)
+                    stage(.ocr)
                     let lines = try await TextRecognizer.recognize(image)
                     await finish(lines: lines, model: model)
                 } catch {
@@ -42,7 +46,9 @@ enum ScheduleCaptureFlow {
         let rect = screen.visibleFrame
         Task { @MainActor in
             do {
+                stage(.capture)
                 let image = try await ScreenRegionCapture.capture(rect, on: screen)
+                stage(.ocr)
                 let lines = try await TextRecognizer.recognize(image)
                 await finish(lines: lines, model: model)
             } catch {
@@ -76,7 +82,9 @@ enum ScheduleCaptureFlow {
         begin(model: model, anchor: anchor)
         Task { @MainActor in
             do {
-                await finish(lines: try await TextRecognizer.recognize(image), model: model)
+                stage(.ocr)
+                let lines = try await TextRecognizer.recognize(image)
+                await finish(lines: lines, model: model)
             } catch {
                 fail("文字识别失败：\(error.localizedDescription)")
             }
@@ -131,6 +139,8 @@ enum ScheduleCaptureFlow {
         state.result = nil
         state.usage = nil
         state.candidates = []
+        state.resetTiming()
+        state.enter(.ai)
         FloatingBallController.shared.setBusy(true)
         Task { @MainActor in
             do {
@@ -141,6 +151,7 @@ enum ScheduleCaptureFlow {
                 state.source = .ai
                 state.note = result.note(prefix: nil)
                 state.usage = result.usage
+                state.finishTiming(source: "ai")
                 if model.autoLocateCapturePlace { locatePlaces() }
                 state.loading = false
                 FloatingBallController.shared.setBusy(false)
@@ -151,6 +162,10 @@ enum ScheduleCaptureFlow {
     }
 
     // MARK: 步骤
+
+    private static func stage(_ next: CaptureStage) {
+        SchedulePreviewController.shared.state.enter(next)
+    }
 
     /// 第一次框选时系统会弹出授权；还没授权时在卡片里说明怎么打开。
     private static func ensureScreenPermission(model: AppModel, anchor: NSRect?) -> Bool {
@@ -164,6 +179,8 @@ enum ScheduleCaptureFlow {
     private static func begin(model: AppModel, anchor: NSRect?) {
         let controller = SchedulePreviewController.shared
         controller.reset()
+        controller.state.resetTiming()
+        controller.state.model = model
         controller.state.lines = []
         controller.state.usage = nil
         model.refreshAIKeyStatus()
@@ -183,13 +200,54 @@ enum ScheduleCaptureFlow {
         }
         state.lines = annotated
         let lists = model.snapshot.lists.map { (id: $0.id3, name: $0.displayName) }
-        let extraction = await ScheduleExtractor.extract(annotated, today: model.today, weekStart: model.weekStart,
-                                                         lists: lists, ai: model.aiExtractionSettings())
+        let settings = model.aiExtractionSettings()
+        let today = model.today
+        let weekStart = model.weekStart
+        let run = UUID()
+        state.runID = run
+        let task = Task { @MainActor in
+            let extraction = await ScheduleExtractor.extract(annotated, today: today, weekStart: weekStart,
+                                                             lists: lists, ai: settings) { stage, warm in
+                let current = SchedulePreviewController.shared.state
+                guard current.runID == run else { return }
+                current.enter(stage, warm: warm)
+            } onSkip: { stage, reason in
+                let current = SchedulePreviewController.shared.state
+                guard current.runID == run else { return }
+                current.skip(stage, reason: reason)
+            }
+            guard SchedulePreviewController.shared.state.runID == run else { return }
+            apply(extraction, lists: lists, model: model)
+        }
+        state.extractionTask = task
+        await task.value
+    }
+
+    /// 端侧模型或 AI 迟迟不返回时点「改用规则识别」：丢掉还在进行的提取，直接用规则识别这次的文字。
+    static func useRules() {
+        let state = SchedulePreviewController.shared.state
+        guard state.canSkipToRules, let model = state.model else { return }
+        let skipped = state.stage?.title ?? "端侧模型"
+        state.runID = UUID()
+        state.extractionTask?.cancel()
+        state.extractionTask = nil
+        state.enter(.rules, interruptPrevious: true)
+        let lists = model.snapshot.lists.map { (id: $0.id3, name: $0.displayName) }
+        let candidates = RuleScheduleExtractor.extract(state.lines, today: model.today, weekStart: model.weekStart,
+                                                       lists: lists)
+        apply(ScheduleExtraction(candidates: candidates, source: .rules, note: skipped + "迟迟没有返回，已改用规则识别"),
+              lists: lists, model: model)
+    }
+
+    private static func apply(_ extraction: ScheduleExtraction, lists: [(id: String, name: String)], model: AppModel) {
+        let state = SchedulePreviewController.shared.state
+        state.extractionTask = nil
         state.candidates = ScheduleCategorizer.apply(extraction.candidates, lists: lists, fallback: state.listID,
                                                      allowNew: model.autoCreateCaptureCategory)
         state.source = extraction.source
         state.note = extraction.note
         state.usage = extraction.usage
+        state.finishTiming(source: String(describing: extraction.source))
         if model.autoLocateCapturePlace { locatePlaces() }
         state.loading = false
         FloatingBallController.shared.setBusy(false)
@@ -198,6 +256,7 @@ enum ScheduleCaptureFlow {
     private static func fail(_ message: String) {
         let state = SchedulePreviewController.shared.state
         state.error = message
+        state.finishTiming(source: "failed")
         state.loading = false
         FloatingBallController.shared.setBusy(false)
     }
@@ -221,6 +280,15 @@ final class SchedulePreviewState {
     var loading = false
     var saving = false
     var result: String?
+    /// 当前阶段与计时（见 CaptureTiming.swift）。
+    var stage: CaptureStage?
+    var stageStart = Date()
+    var timings: [CaptureStageTiming] = []
+    var modelWarm: Bool?
+    @ObservationIgnored var runID = UUID()
+    @ObservationIgnored var flowStart = Date()
+    @ObservationIgnored var extractionTask: Task<Void, Never>?
+    @ObservationIgnored weak var model: AppModel?
 }
 
 /// 能接收键盘输入、但不激活便单的浮动面板。点到别处不收起（方便回到聊天里核对），Esc 或「取消」关闭。
