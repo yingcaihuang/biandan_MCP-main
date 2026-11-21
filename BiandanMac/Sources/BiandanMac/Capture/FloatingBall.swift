@@ -71,6 +71,7 @@ final class FloatingBallController {
 
         let view = FloatingBallView(frame: NSRect(x: 0, y: 0, width: size, height: size), state: state)
         view.onClick = { [weak self] in self?.captureRegion() }
+        view.onDoubleClick = { [weak self] in self?.captureFullScreen() }
         view.onMenu = { [weak self] event, view in self?.showMenu(event, in: view) }
         view.onMoved = { [weak self] in self?.snap() }
         view.onDropText = { [weak self] text in
@@ -99,11 +100,18 @@ final class FloatingBallController {
         ScheduleCaptureFlow.startRegion(model: model, anchor: frame)
     }
 
+    /// 截取小球所在的整块屏幕。
+    private func captureFullScreen() {
+        guard let model else { return }
+        ScheduleCaptureFlow.startFullScreen(model: model, anchor: frame)
+    }
+
     /// 右键：主题菜单面板（和任务卡片的右键菜单同一套样式），贴在球旁边弹出。
     private func showMenu(_ event: NSEvent, in view: NSView) {
         guard let model, let anchor = frame else { return }
         let actions = FloatingBallMenu.Actions(
             region: { [weak self] in self?.captureRegion() },
+            fullScreen: { [weak self] in self?.captureFullScreen() },
             clipboard: { [weak self] in ScheduleCaptureFlow.fromClipboard(model: model, anchor: self?.frame) },
             quickAdd: { QuickAddPanelController.shared.show(model: model) },
             hide: { model.showFloatingBall = false })
@@ -141,6 +149,8 @@ final class FloatingBallController {
 /// 球的 AppKit 外壳：自己处理点击、拖动、右键和拖入；画面交给 SwiftUI。
 final class FloatingBallView: NSView {
     var onClick: (() -> Void)?
+    /// 双击：截取整块屏幕。
+    var onDoubleClick: (() -> Void)?
     var onMenu: ((NSEvent, NSView) -> Void)?
     var onMoved: (() -> Void)?
     var onDropText: ((String) -> Void)?
@@ -150,6 +160,8 @@ final class FloatingBallView: NSView {
     private var pressLocation: NSPoint?
     private var pressOrigin: NSPoint = .zero
     private var dragging = false
+    /// 单击要等过了双击间隔才执行，期间来了第二下就取消，改为双击。
+    private var pendingClick: DispatchWorkItem?
 
     init(frame: NSRect, state: FloatingBallState) {
         self.state = state
@@ -159,7 +171,7 @@ final class FloatingBallView: NSView {
         hosting.autoresizingMask = [.width, .height]
         addSubview(hosting)
         registerForDraggedTypes([.string, .fileURL, .tiff, .png])
-        toolTip = "单击框选识别日程 · 右键更多 · 可把文字或图片拖进来"
+        toolTip = "单击框选识别日程 · 双击截取整个屏幕 · 右键更多 · 可把文字或图片拖进来"
     }
 
     required init?(coder: NSCoder) {
@@ -209,9 +221,22 @@ final class FloatingBallView: NSView {
         pressLocation = nil
         if dragging {
             dragging = false
+            pendingClick?.cancel()
+            pendingClick = nil
             onMoved?()
         } else if wasPressed {
-            onClick?()
+            if event.clickCount >= 2 {
+                pendingClick?.cancel()
+                pendingClick = nil
+                onDoubleClick?()
+            } else {
+                let work = DispatchWorkItem { [weak self] in
+                    self?.pendingClick = nil
+                    self?.onClick?()
+                }
+                pendingClick = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + NSEvent.doubleClickInterval, execute: work)
+            }
         }
     }
 
@@ -246,7 +271,7 @@ final class FloatingBallView: NSView {
     }
 }
 
-/// 小球的画面：类似 Siri 的流动光球，用主题强调色和四象限的红、黄、蓝、绿。
+/// 小球的画面：类似 Siri 的流动光球，配色取自应用图标（深橙、橙、琥珀、亮黄、蜜桃）。
 /// 平时缓慢流动；悬停时变亮、加快；识别中转得更快并加一圈光弧；拖入时放大并显示「＋」。
 /// 系统开启「减弱动态效果」时静止。
 struct FloatingBallVisual: View {
@@ -287,17 +312,29 @@ private struct SiriOrb: View {
         let phase: Double
     }
 
+    /// 取自应用图标：便签的深橙到浅橙渐变、勾选圆的琥珀到亮黄、折角的蜜桃色。
+    private enum IconPalette {
+        static let deepOrange = Color(hex: 0xF76E19)
+        static let orange = Color(hex: 0xFA8B36)
+        static let lightOrange = Color(hex: 0xFCA45E)
+        static let amber = Color(hex: 0xFDB834)
+        static let yellow = Color(hex: 0xFFC550)
+        static let peach = Color(hex: 0xFDD3B0)
+    }
+
     private static let blobs: [Blob] = [
-        Blob(color: Quadrant.importantUrgent.tint, size: 26, radius: 10, rate: 0.9, phase: 0),
-        Blob(color: Quadrant.notImportantUrgent.tint, size: 24, radius: 11, rate: -0.7, phase: 2.1),
-        Blob(color: Quadrant.neither.tint, size: 22, radius: 9, rate: 1.15, phase: 4.2),
-        Blob(color: Theme.accent, size: 28, radius: 6, rate: -1.0, phase: 1.0),
+        Blob(color: IconPalette.deepOrange, size: 26, radius: 10, rate: 0.9, phase: 0),
+        Blob(color: IconPalette.yellow, size: 24, radius: 11, rate: -0.7, phase: 2.1),
+        Blob(color: IconPalette.peach, size: 20, radius: 9, rate: 1.15, phase: 4.2),
+        Blob(color: IconPalette.amber, size: 28, radius: 6, rate: -1.0, phase: 1.0),
     ]
 
     private static let ring: [Color] = [
-        Theme.accent, Color(hex: 0xF08A3C), Quadrant.importantUrgent.tint,
-        Quadrant.notImportantUrgent.tint, Quadrant.neither.tint, Theme.accent,
+        IconPalette.orange, IconPalette.deepOrange, IconPalette.lightOrange,
+        IconPalette.amber, IconPalette.yellow, IconPalette.orange,
     ]
+
+    private static let glow = Color(hex: 0xFA8B36)
 
     var body: some View {
         let spin = Angle.degrees(time * 24 * speed)
@@ -319,7 +356,7 @@ private struct SiriOrb: View {
         .frame(width: Self.diameter, height: Self.diameter)
         .clipShape(Circle())
         .drawingGroup()
-        .shadow(color: Theme.accent.opacity(lit ? 0.6 : 0.38), radius: lit ? 7 : 5)
+        .shadow(color: Self.glow.opacity(lit ? 0.6 : 0.38), radius: lit ? 7 : 5)
         .shadow(color: .black.opacity(0.16), radius: 2, y: 1)
     }
 
@@ -479,6 +516,7 @@ final class FloatingBallMenuController {
 struct FloatingBallMenu: View {
     struct Actions {
         var region: @MainActor () -> Void
+        var fullScreen: @MainActor () -> Void
         var clipboard: @MainActor () -> Void
         var quickAdd: @MainActor () -> Void
         var hide: @MainActor () -> Void
@@ -499,6 +537,9 @@ struct FloatingBallMenu: View {
             ThemedMenuGroup {
                 ThemedMenuRow(icon: "viewfinder", title: "框选识别日程", detail: "框住屏幕上的聊天记录",
                               tint: Theme.accent) { run(actions.region) }
+                ThemedMenuSeparator()
+                ThemedMenuRow(icon: "rectangle.dashed", title: "截取整个屏幕识别", detail: "双击小球也可以",
+                              tint: Color(hex: 0xF08A3C)) { run(actions.fullScreen) }
                 ThemedMenuSeparator()
                 ThemedMenuRow(icon: "doc.on.clipboard", title: "识别剪贴板里的日程", detail: "复制的文字或截图",
                               tint: Quadrant.notImportantUrgent.tint) { run(actions.clipboard) }

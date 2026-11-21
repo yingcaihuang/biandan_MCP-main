@@ -109,14 +109,19 @@ struct ContentArea: View {
         }
         .background(Theme.background)
         .overlay(alignment: .bottom) {
+            let showBar = model.selectionMode || !model.multiSelection.isEmpty
             VStack(spacing: 8) {
-                if !model.multiSelection.isEmpty {
+                if showBar {
                     BatchActionBar()
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 OperationBanner()
             }
-            .animation(.easeInOut(duration: 0.2), value: model.multiSelection.isEmpty)
+            .animation(.easeInOut(duration: 0.2), value: showBar)
+        }
+        // 换到别的视图时退出选择模式，免得批量操作作用到看不见的任务上。
+        .onChange(of: model.sidebarSelection) { _, _ in
+            if model.selectionMode { model.exitSelectionMode() }
         }
     }
 }
@@ -150,6 +155,9 @@ struct ContentHeader: View {
                                     glass: true)
                         .help("四象限显示的时间范围")
                 }
+            }
+            if !item.isRecordPage {
+                SelectionModeButton()
             }
             Button {
                 model.newTaskPreset = model.makeNewTaskPreset()

@@ -57,15 +57,21 @@ struct OccurrenceCard: View {
         let quick = showsQuickActions(selected: selected)
         let progress = item.progress
         HStack(alignment: .top, spacing: 9) {
-            Button {
-                Task { await model.toggleCompletion(item) }
-            } label: {
-                StatusCircle(status: item.status, tint: model.checkboxTint(for: item.task))
-                    .contentShape(Circle())
+            if model.selectionMode {
+                // 选择模式：完成圆圈换成勾选框，避免误点完成。
+                SelectionCheckbox(on: multi) { model.tapSelect(item) }
+                    .padding(.top, 2)
+            } else {
+                Button {
+                    Task { await model.toggleCompletion(item) }
+                } label: {
+                    StatusCircle(status: item.status, tint: model.checkboxTint(for: item.task))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+                .help(item.status == .pending ? "完成本次" : (item.status == .completed ? "撤销完成" : "恢复"))
             }
-            .buttonStyle(.plain)
-            .padding(.top, 2)
-            .help(item.status == .pending ? "完成本次" : (item.status == .completed ? "撤销完成" : "恢复"))
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.task.taskTitle.isEmpty ? "（无标题）" : item.task.taskTitle)
                     .font(.system(size: 13, weight: .semibold))

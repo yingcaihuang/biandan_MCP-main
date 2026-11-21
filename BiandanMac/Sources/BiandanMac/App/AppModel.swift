@@ -240,6 +240,8 @@ final class AppModel {
     var selectedFocusID: String?
     /// ⌘ 点击多选的执行实例 ID；非空时显示批量操作栏。
     var multiSelection: Set<String> = []
+    /// 选择模式：标题栏点「选择」进入。卡片显示勾选框，直接点击即可勾选（不用按 ⌘），底部常驻批量操作栏。
+    var selectionMode = false
     /// ⇧ 连选的起点（最近一次单选或 ⌘ 点击的那项）。
     @ObservationIgnored var selectionAnchor: String?
     /// 键盘移动选中后要滚动到的实例（只由键盘设置，鼠标点击不滚动）。
@@ -328,6 +330,42 @@ final class AppModel {
     var autoCreateCaptureCategory: Bool =
         UserDefaults.standard.object(forKey: "biandan.capture.autoCreateCategory") as? Bool ?? true {
         didSet { UserDefaults.standard.set(autoCreateCaptureCategory, forKey: "biandan.capture.autoCreateCategory") }
+    }
+
+    /// AI 识别日程（DeepSeek 或其他 OpenAI 兼容接口）。API Key 存在钥匙串里，见 AIKeyStore。
+    var aiExtractionMode: AIExtractionMode =
+        AIExtractionMode(rawValue: UserDefaults.standard.string(forKey: "biandan.ai.mode") ?? "") ?? .fallback {
+        didSet { UserDefaults.standard.set(aiExtractionMode.rawValue, forKey: "biandan.ai.mode") }
+    }
+
+    var aiModelName: String = UserDefaults.standard.string(forKey: "biandan.ai.model") ?? AIModelOption.flash.rawValue {
+        didSet { UserDefaults.standard.set(aiModelName, forKey: "biandan.ai.model") }
+    }
+
+    var aiBaseURL: String = UserDefaults.standard.string(forKey: "biandan.ai.baseURL") ?? AIExtractionSettings.defaultBaseURL {
+        didSet { UserDefaults.standard.set(aiBaseURL, forKey: "biandan.ai.baseURL") }
+    }
+
+    /// 钥匙串里有没有 API Key（打开设置、开始识别时刷新）。
+    var aiKeyConfigured = false
+
+    /// 打开设置时要滚动到的位置（用完即清）。
+    var settingsAnchor: SettingsAnchor?
+    /// 跳过去之后短暂高亮的分组。
+    var settingsHighlight: SettingsAnchor?
+
+    func refreshAIKeyStatus() {
+        aiKeyConfigured = AIKeyStore.load() != nil
+    }
+
+    func aiExtractionSettings() -> AIExtractionSettings {
+        AIExtractionSettings(mode: aiExtractionMode, model: aiModelName, baseURL: aiBaseURL, apiKey: AIKeyStore.load())
+    }
+
+    /// 识别出地点后自动在地图上查坐标（MapKit，查询词会发给 Apple 地图服务）。
+    var autoLocateCapturePlace: Bool =
+        UserDefaults.standard.object(forKey: "biandan.capture.autoLocate") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(autoLocateCapturePlace, forKey: "biandan.capture.autoLocate") }
     }
 
     var showFloatingBall: Bool = UserDefaults.standard.object(forKey: "biandan.showFloatingBall") as? Bool ?? true {

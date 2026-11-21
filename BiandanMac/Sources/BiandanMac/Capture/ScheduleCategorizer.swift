@@ -25,7 +25,8 @@ enum ScheduleCategorizer {
         Scene(name: "工作", aliases: ["工作", "公司", "会议", "项目", "办公"],
               keywords: ["开会", "会议", "周会", "例会", "晨会", "站会", "评审", "复盘", "汇报", "述职", "面试", "项目",
                          "需求", "上线", "发版", "客户", "对接", "培训", "加班", "出差", "周报", "日报", "月报", "报告",
-                         "方案", "合同", "签约", "提案", "排期", "OKR", "KPI", "PPT"],
+                         "方案", "合同", "签约", "提案", "排期", "OKR", "KPI", "PPT",
+                         "大会", "发布会", "峰会", "展会", "研讨会", "沙龙", "论坛"],
               colorIndex: 7),
         Scene(name: "财务", aliases: ["财务", "理财", "金融", "账单", "记账", "银行"],
               keywords: ["账户", "账号开通", "开户", "销户", "银行", "转账", "汇款", "转数快", "信用卡", "还款", "还信用卡",
@@ -108,12 +109,41 @@ enum ScheduleCategorizer {
             var result = candidate
             result.category = .existing(fallback)
             result.categoryReason = nil
-            if let found = suggest(title: candidate.title, source: candidate.source, lists: lists, allowNew: allowNew) {
+            if let name = candidate.suggestedCategory,
+               let found = resolve(named: name, lists: lists, allowNew: allowNew) {
+                result.category = found.category
+                result.categoryReason = found.reason
+            } else if let found = suggest(title: candidate.title, source: candidate.source, lists: lists,
+                                          allowNew: allowNew) {
                 result.category = found.category
                 result.categoryReason = found.reason
             }
             return result
         }
+    }
+
+    /// AI 给出的分类名 → 分类：先找同名的已有分类，再找内置常用分类（已有对应分类就用它，否则按设置建议新建）。
+    static func resolve(named raw: String, lists: [(id: String, name: String)],
+                        allowNew: Bool) -> (category: CandidateCategory, reason: String)? {
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name != "未分类" else { return nil }
+        let named = lists.filter { $0.id != TodoList.defaultID && !$0.name.isEmpty }
+        if let list = named.first(where: { $0.name == name }) {
+            return (.existing(list.id), "AI 归到「\(list.name)」")
+        }
+        guard let scene = scenes.first(where: { $0.name == name }) else { return nil }
+        if let list = list(for: scene, in: named) {
+            return (.existing(list.id), "AI 按情景「\(scene.name)」归到「\(list.name)」")
+        }
+        guard allowNew else { return nil }
+        return (.new(name: scene.name, colorIndex: scene.colorIndex),
+                "AI 建议新建分类「\(scene.name)」，点「添加选中」时才会新建")
+    }
+
+    /// 告诉 AI 的可选分类：已有分类，加上还没建过的内置常用分类。
+    static func promptCategories(lists: [(id: String, name: String)]) -> [String] {
+        let names = lists.filter { $0.id != TodoList.defaultID && !$0.name.isEmpty && $0.name != "未分类" }.map(\.name)
+        return names + missingScenes(existing: names).map(\.name)
     }
 
     /// 分类选择里「常用分类」：还没有对应分类的内置情景。

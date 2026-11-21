@@ -27,6 +27,30 @@ enum ScheduleCaptureFlow {
         }
     }
 
+    /// 截取整块屏幕识别（双击小球）：截小球所在的屏幕，没有小球时截主屏幕。
+    /// 只截可见区域（不含顶部菜单栏和 Dock），免得菜单栏时钟被当成日程；便单自己的窗口不截进去。
+    static func startFullScreen(model: AppModel, anchor: NSRect?) {
+        guard !RegionSelector.shared.isActive else { return }
+        guard ensureScreenPermission(model: model, anchor: anchor) else { return }
+        let screen = anchor.flatMap { rect in NSScreen.screens.first { $0.frame.intersects(rect) } }
+            ?? NSScreen.main ?? NSScreen.screens.first
+        begin(model: model, anchor: anchor)
+        guard let screen else {
+            fail("找不到要截取的屏幕")
+            return
+        }
+        let rect = screen.visibleFrame
+        Task { @MainActor in
+            do {
+                let image = try await ScreenRegionCapture.capture(rect, on: screen)
+                let lines = try await TextRecognizer.recognize(image)
+                await finish(lines: lines, model: model)
+            } catch {
+                fail("截图或识别失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
     /// 识别剪贴板：有文字用文字，否则有图片就做 OCR。
     static func fromClipboard(model: AppModel, anchor: NSRect?) {
         let pasteboard = NSPasteboard.general
@@ -64,6 +88,68 @@ enum ScheduleCaptureFlow {
         return image.cgImage(forProposedRect: nil, context: nil, hints: nil)
     }
 
+    /// 给有地点、还没坐标的日程在地图上查坐标（设置里可关）。
+    static func locatePlaces() {
+        let state = SchedulePreviewController.shared.state
+        for candidate in state.candidates where candidate.latitude == nil && candidate.lookup == .idle {
+            locate(id: candidate.id)
+        }
+    }
+
+    /// 查一条日程的坐标。查的过程中地点被改了，就丢掉这次的结果。
+    static func locate(id: UUID) {
+        let state = SchedulePreviewController.shared.state
+        guard let index = state.candidates.firstIndex(where: { $0.id == id }) else { return }
+        let query = state.candidates[index].locateQuery
+        guard !query.isEmpty else { return }
+        state.candidates[index].lookup = .locating
+        Task { @MainActor in
+            let place = await PlaceLocator.locate(query)
+            guard let current = state.candidates.firstIndex(where: { $0.id == id }),
+                  state.candidates[current].locateQuery == query else { return }
+            if let place {
+                state.candidates[current].latitude = place.latitude
+                state.candidates[current].longitude = place.longitude
+                state.candidates[current].placeTitle = place.name
+                state.candidates[current].lookup = .found
+            } else {
+                state.candidates[current].lookup = .notFound
+            }
+        }
+    }
+
+    /// 确认卡片里点「用 AI 识别」：把这次识别到的文字交给 AI 重新提取。
+    static func retryWithAI(model: AppModel) {
+        let state = SchedulePreviewController.shared.state
+        let lines = state.lines
+        guard !lines.isEmpty, !state.loading else { return }
+        let settings = model.aiExtractionSettings()
+        let lists = model.snapshot.lists.map { (id: $0.id3, name: $0.displayName) }
+        state.loading = true
+        state.error = nil
+        state.note = nil
+        state.result = nil
+        state.usage = nil
+        state.candidates = []
+        FloatingBallController.shared.setBusy(true)
+        Task { @MainActor in
+            do {
+                let result = try await AIScheduleExtractor.extract(lines, today: model.today, lists: lists,
+                                                                   settings: settings, trigger: .manual)
+                state.candidates = ScheduleCategorizer.apply(result.candidates, lists: lists, fallback: state.listID,
+                                                             allowNew: model.autoCreateCaptureCategory)
+                state.source = .ai
+                state.note = result.note(prefix: nil)
+                state.usage = result.usage
+                if model.autoLocateCapturePlace { locatePlaces() }
+                state.loading = false
+                FloatingBallController.shared.setBusy(false)
+            } catch {
+                fail("AI 识别没成功：\(error.localizedDescription)")
+            }
+        }
+    }
+
     // MARK: 步骤
 
     /// 第一次框选时系统会弹出授权；还没授权时在卡片里说明怎么打开。
@@ -78,6 +164,9 @@ enum ScheduleCaptureFlow {
     private static func begin(model: AppModel, anchor: NSRect?) {
         let controller = SchedulePreviewController.shared
         controller.reset()
+        controller.state.lines = []
+        controller.state.usage = nil
+        model.refreshAIKeyStatus()
         controller.state.listID = model.snapshot.lists.first?.id3 ?? TodoList.defaultID
         controller.state.loading = true
         FloatingBallController.shared.setBusy(true)
@@ -92,13 +181,16 @@ enum ScheduleCaptureFlow {
             fail("没有识别到文字，换一块区域再试试。")
             return
         }
+        state.lines = annotated
         let lists = model.snapshot.lists.map { (id: $0.id3, name: $0.displayName) }
         let extraction = await ScheduleExtractor.extract(annotated, today: model.today, weekStart: model.weekStart,
-                                                         lists: lists)
+                                                         lists: lists, ai: model.aiExtractionSettings())
         state.candidates = ScheduleCategorizer.apply(extraction.candidates, lists: lists, fallback: state.listID,
                                                      allowNew: model.autoCreateCaptureCategory)
         state.source = extraction.source
         state.note = extraction.note
+        state.usage = extraction.usage
+        if model.autoLocateCapturePlace { locatePlaces() }
         state.loading = false
         FloatingBallController.shared.setBusy(false)
     }
@@ -119,6 +211,10 @@ final class SchedulePreviewState {
     var source: ScheduleExtractionSource?
     var note: String?
     var recognizedText = ""
+    /// 识别到的文字（带消息时间），「用 AI 识别」时重新提取用。
+    var lines: [CaptureLine] = []
+    /// 这次 AI 识别的用量，卡片里用彩色小卡片显示。
+    var usage: AIUsageRecord?
     var error: String?
     var needsScreenPermission = false
     var listID = TodoList.defaultID

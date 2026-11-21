@@ -96,8 +96,8 @@ final class KeyMonitorView: NSView {
             model.keyboardEditTitle()
             return true
         case Key.escape:
-            guard flags.isEmpty, !model.multiSelection.isEmpty else { return false }
-            model.clearMultiSelection()
+            guard flags.isEmpty, !model.multiSelection.isEmpty || model.selectionMode else { return false }
+            model.exitSelectionMode()
             return true
         default:
             if flags == [.command], press.characters?.lowercased() == "a", !model.keyboardOrder.isEmpty {

@@ -11,6 +11,7 @@ private struct PreviewSizeKey: PreferenceKey {
 
 struct SchedulePreviewView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openSettings) private var openSettings
     @Bindable var state: SchedulePreviewState
     let onClose: () -> Void
     let onResize: (CGSize) -> Void
@@ -111,11 +112,48 @@ struct SchedulePreviewView: View {
                     .foregroundStyle(Theme.subtext)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if let usage = state.usage, !state.loading {
+                AIUsageTiles(usage: usage)
+            }
+            if let reason = aiSetupReason {
+                AISetupGuide(reason: reason, action: openAISettings)
+            }
             if !state.loading && state.error == nil && state.candidates.isEmpty && !state.recognizedText.isEmpty {
-                Text("可以核对下面识别到的文字，或换一块区域再试。").foregroundStyle(Theme.subtext)
+                Text(verbatim: emptyHint)
+                    .foregroundStyle(Theme.subtext)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .font(.system(size: 12))
+    }
+
+    private var aiReady: Bool { model.aiExtractionMode != .off && model.aiKeyConfigured }
+
+    private var emptyHint: String {
+        if state.source == .ai {
+            return "AI 也没找到明确的日程。可以核对下面识别到的文字，或只框住聊天内容再试。"
+        }
+        let rule = "规则识别只认带日期或时刻的句子，例如「明天下午3点」「下周二」「12月中旬」「11月24日 14:00」。"
+        return aiReady ? rule + "可以点下方「用 AI 识别」再试一次。" : rule
+    }
+
+    /// 需要 AI 兜底、但 AI 还没配置好（或 Key 失效）时的引导文字；不需要引导时为 nil。
+    private var aiSetupReason: String? {
+        guard !state.loading else { return nil }
+        let messages = (state.note ?? "") + (state.error ?? "")
+        if messages.contains("API Key") { return "AI 的 API Key 无效或已失效，请到设置里重新填写。" }
+        guard state.source != .ai, !aiReady, state.candidates.isEmpty, !state.lines.isEmpty else { return nil }
+        if model.aiExtractionMode == .off {
+            return "规则识别没找到日程，AI 识别目前是关闭的。打开后，这种情况会自动交给 AI 兜底。"
+        }
+        return "规则识别没找到日程。填入 DeepSeek API Key 后，这种情况会自动交给 AI 兜底。"
+    }
+
+    /// 打开「设置 → 高级」并滚动到「AI 识别日程」。卡片保持打开，配好后回来就能点「用 AI 识别」。
+    private func openAISettings() {
+        SettingsNavigator.prepare(model: model, anchor: .ai)
+        openSettings()
+        SettingsNavigator.ensureOpened()
     }
 
     // MARK: 候选列表
@@ -124,7 +162,8 @@ struct SchedulePreviewView: View {
     private var candidateList: some View {
         let rows = VStack(spacing: 10) {
             ForEach($state.candidates) { $candidate in
-                ScheduleCandidateRow(candidate: $candidate, today: model.today, conflict: conflictText(candidate))
+                ScheduleCandidateRow(candidate: $candidate, today: model.today, conflict: conflictText(candidate),
+                                     onLocate: { ScheduleCaptureFlow.locate(id: candidate.id) })
             }
         }
         if state.candidates.count > 2 {
@@ -187,6 +226,25 @@ struct SchedulePreviewView: View {
         let signedIn = model.authState == .signedIn
         let disabled = chosen.isEmpty || state.saving || !signedIn
         return HStack(spacing: 10) {
+            if state.source != .ai && !state.lines.isEmpty {
+                if aiReady {
+                    Button {
+                        ScheduleCaptureFlow.retryWithAI(model: model)
+                    } label: {
+                        Label("用 AI 识别", systemImage: "sparkles")
+                    }
+                    .buttonStyle(.themed)
+                    .disabled(state.saving)
+                    .help("把识别到的文字发给 \(model.aiModelName) 重新提取（不含截图）")
+                } else if aiSetupReason == nil {
+                    // 识别出了日程、但还没接入 AI：也给一个入口，想用 AI 再识别时去设置。
+                    Button(action: openAISettings) {
+                        Label("设置 AI 识别", systemImage: "gearshape")
+                    }
+                    .buttonStyle(.themed)
+                    .help("接入 DeepSeek 后，可以用 AI 识别这段文字")
+                }
+            }
             Spacer(minLength: 6)
             if !signedIn {
                 Text("请先在便单主窗口登录").font(.system(size: 11)).foregroundStyle(Theme.overdue)
@@ -261,15 +319,23 @@ private struct SourceTag: View {
     let source: ScheduleExtractionSource
 
     var body: some View {
-        let fill: Color = source == .model ? Theme.accent : Color(hex: 0xA79F8E)
+        let fill = fillColor
         Text(verbatim: source.title)
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.white)
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
             .background(Capsule().fill(fill))
-            .help(source == .model ? "用系统端侧模型提取"
-                                   : "端侧模型暂不可用，按规则从句子里找日期和时刻；识别结果可以逐条修改")
+            .help(source.help)
+    }
+
+    /// 端侧模型用琥珀色，AI 用蓝色，规则识别用灰色。
+    private var fillColor: Color {
+        switch source {
+        case .model: return Theme.accent
+        case .ai: return Quadrant.notImportantUrgent.tint
+        case .rules: return Color(hex: 0xA79F8E)
+        }
     }
 }
 
@@ -280,6 +346,8 @@ struct ScheduleCandidateRow: View {
     @Binding var candidate: ScheduleCandidate
     let today: LocalDate
     let conflict: String?
+    /// 点定位按钮或在地点框里回车时，在地图上查坐标。
+    var onLocate: () -> Void = {}
     @State private var pickQuadrant = false
 
     private static let defaultStart = LocalTime(hour: 9, minute: 0)!
@@ -296,6 +364,7 @@ struct ScheduleCandidateRow: View {
                 ThemedRow("时刻") { timeControls }
             }
             ThemedRow("分类") { CandidateCategoryPicker(category: categoryBinding, tint: candidate.quadrant.tint) }
+            ThemedRow("地点") { locationControls }
             details
         }
         .padding(.leading, 4)
@@ -420,6 +489,7 @@ struct ScheduleCandidateRow: View {
 
     private var dateBinding: Binding<LocalDate> {
         Binding(get: { candidate.date ?? today }, set: { day in
+            if day != candidate.date { candidate.vagueDate = nil }
             candidate.date = day
             if let end = candidate.endDate, end <= day { candidate.endDate = nil }
             candidate.review(today: today)
@@ -460,12 +530,69 @@ struct ScheduleCandidateRow: View {
         })
     }
 
+    // MARK: 地点
+
+    private var locationControls: some View {
+        let empty = candidate.locateQuery.isEmpty
+        let busy = candidate.lookup == .locating
+        return HStack(spacing: 6) {
+            TextField("", text: locationBinding, prompt: Text("没有地点"))
+                .themedField()
+                .frame(width: 230)
+                .onSubmit(onLocate)
+            Button(action: onLocate) {
+                Image(systemName: "location.magnifyingglass")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(.themed)
+            .disabled(empty || busy)
+            .help("在地图上查找坐标")
+        }
+    }
+
+    /// 改了地点就清掉旧坐标，等重新定位。
+    private var locationBinding: Binding<String> {
+        Binding(get: { candidate.location }, set: { value in
+            guard value != candidate.location else { return }
+            candidate.location = value
+            candidate.locationQuery = nil
+            candidate.latitude = nil
+            candidate.longitude = nil
+            candidate.placeTitle = nil
+            candidate.lookup = .idle
+        })
+    }
+
+    @ViewBuilder
+    private var placeStatus: some View {
+        switch candidate.lookup {
+        case .locating:
+            Label("正在地图上查找「\(candidate.locateQuery)」…", systemImage: "location.magnifyingglass")
+                .foregroundStyle(Theme.subtext)
+        case .found:
+            if let latitude = candidate.latitude, let longitude = candidate.longitude {
+                PlaceFoundRow(name: candidate.placeTitle ?? candidate.location, latitude: latitude, longitude: longitude)
+            }
+        case .notFound:
+            Label("地图上没找到「\(candidate.locateQuery)」，添加时只保存地点名称；可以写得更具体再点定位",
+                  systemImage: "mappin.slash")
+                .foregroundStyle(Color(hex: 0xA86B00))
+        case .idle:
+            EmptyView()
+        }
+    }
+
     // MARK: 提示与原文
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 3) {
             if let note = candidate.note {
                 Label(note, systemImage: "exclamationmark.circle").foregroundStyle(Color(hex: 0xA86B00))
+            }
+            if let vague = candidate.vagueDate, let date = candidate.date {
+                Label("原文只说了「\(vague)」，日期先按 \(DateText.title(date, today: today)) 填，可以改",
+                      systemImage: "calendar")
+                    .foregroundStyle(Color(hex: 0xA86B00))
             }
             if let vague = candidate.vagueTime, candidate.start == nil {
                 Label("原文只说了「\(vague)」，没写具体时刻，可以打开「时刻」补上", systemImage: "clock")
@@ -481,9 +608,7 @@ struct ScheduleCandidateRow: View {
             if let conflict {
                 Text(verbatim: conflict).foregroundStyle(Theme.overdue)
             }
-            if !candidate.location.isEmpty {
-                Label(candidate.location, systemImage: "mappin").foregroundStyle(Theme.subtext)
-            }
+            placeStatus
             if !candidate.source.isEmpty {
                 Text(verbatim: "原文：" + candidate.source)
                     .foregroundStyle(Theme.subtext)
@@ -654,6 +779,147 @@ struct CandidateCategoryPicker: View {
         }
         draft = ""
         open = false
+    }
+}
+
+// MARK: - AI 设置引导
+
+/// AI 兜底需要用到、但还没配置好时，在卡片里提示并一键打开设置。
+private struct AISetupGuide: View {
+    let reason: String
+    let action: () -> Void
+
+    var body: some View {
+        let tint = Color(hex: 0xFA8B36)
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        HStack(alignment: .top, spacing: 10) {
+            RoundedRectangle(cornerRadius: 7)
+                .fill(tint.opacity(0.16))
+                .frame(width: 30, height: 30)
+                .overlay(Image(systemName: "sparkles")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(tint))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("接入 AI 识别")
+                    .font(.system(size: 12.5, weight: .bold))
+                    .foregroundStyle(Theme.text)
+                Text(verbatim: reason)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Color(hex: 0x4A453C))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("申请 DeepSeek API Key → 在设置里粘贴保存 → 回到这里点「用 AI 识别」")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Theme.subtext)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    Button(action: action) {
+                        Label("打开 AI 设置", systemImage: "gearshape")
+                    }
+                    .buttonStyle(.themedPrimary)
+                    Link(destination: URL(string: "https://platform.deepseek.com/api_keys")!) {
+                        HStack(spacing: 3) {
+                            Text("申请 API Key")
+                            Image(systemName: "arrow.up.right")
+                        }
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(tint)
+                    }
+                }
+                .padding(.top, 2)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(shape.fill(tint.opacity(0.07)))
+        .overlay(shape.stroke(tint.opacity(0.35)))
+    }
+}
+
+// MARK: - 地图上找到的地点
+
+/// 「文三社区 · 30.2741, 120.1301  在地图中查看」
+private struct PlaceFoundRow: View {
+    let name: String
+    let latitude: Double
+    let longitude: Double
+
+    var body: some View {
+        let coordinate = GeoText.format(latitude) + ", " + GeoText.format(longitude)
+        HStack(spacing: 8) {
+            Label {
+                Text(verbatim: name + " · " + coordinate).lineLimit(1)
+            } icon: {
+                Image(systemName: "mappin.circle.fill")
+            }
+            .foregroundStyle(Theme.done)
+            .help("添加时地点名称和坐标一起写进任务（不开启地点提醒）")
+            if let url = PlaceLocator.mapsURL(name: name, latitude: latitude, longitude: longitude) {
+                Link("在地图中查看", destination: url)
+                    .foregroundStyle(Theme.accent)
+            }
+        }
+    }
+}
+
+// MARK: - AI 用量
+
+/// 这次 AI 识别的用量：用时、Token、费用、模型各一张不同颜色的小卡片，单独一行显示。
+struct AIUsageTiles: View {
+    let usage: AIUsageRecord
+
+    var body: some View {
+        typealias F = AIUsageFormat
+        let tokenDetail = "输入 \(F.tokens(usage.promptTokens)) · 输出 \(F.tokens(usage.completionTokens))"
+        let cacheHelp: String = usage.reportsCache
+            ? "缓存命中 \(F.tokens(usage.cacheHitTokens)) · 未命中 \(F.tokens(usage.cacheMissTokens)) · 发送 \(usage.inputCharacters) 字"
+            : "发送 \(usage.inputCharacters) 字"
+        let costValue: String = usage.costUSD.map { "约 " + F.cost($0) } ?? "—"
+        let costCaption: String = usage.costUSD == nil
+            ? "无法估算费用" : (AIPricing.isPeak(usage.date) ? "预估 · 高峰价" : "预估 · 非高峰价")
+        let modelName = AIModelOption(rawValue: usage.model)?.title ?? usage.model
+        // 两列两行、等宽：卡片宽 520，一行放四张时文字会被挤没。
+        let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+        return LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+            tile(icon: "clock", value: F.seconds(usage.seconds), caption: "识别用时 · 请求到解析完成",
+                 tint: Color(hex: 0xD99A00), help: "从发出请求到解析完结果")
+            tile(icon: "number", value: F.tokens(usage.totalTokens) + " tokens", caption: tokenDetail,
+                 tint: Quadrant.notImportantUrgent.tint, help: cacheHelp)
+            tile(icon: "dollarsign.circle", value: costValue, caption: costCaption, tint: Theme.done,
+                 help: "按 DeepSeek 官方价目估算，实际以账单为准")
+            tile(icon: "cpu", value: modelName, caption: usage.trigger.title, tint: Color(hex: 0x8E5BD6),
+                 help: usage.model)
+        }
+    }
+
+    private func tile(icon: String, value: String, caption: String, tint: Color, help: String) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        return HStack(alignment: .top, spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(tint)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(verbatim: value)
+                    .font(.system(size: 13, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Text(verbatim: caption)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Theme.subtext)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(shape.fill(tint.opacity(0.10)))
+        .overlay(shape.stroke(tint.opacity(0.30)))
+        .help(help)
     }
 }
 

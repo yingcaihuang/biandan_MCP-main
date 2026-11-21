@@ -49,29 +49,50 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @AppStorage("biandan.settingsPane") private var paneRaw = SettingsPane.account.rawValue
+    @Environment(AppModel.self) private var model
+
+    /// 从确认卡片等地方跳过来时，切到对应分区、滚动到位置并短暂高亮。
+    private func scrollToAnchor(_ proxy: ScrollViewProxy) {
+        guard let anchor = model.settingsAnchor else { return }
+        model.settingsAnchor = nil
+        paneRaw = SettingsPane.advanced.rawValue
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+            withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(anchor.rawValue, anchor: .top) }
+            withAnimation(.easeOut(duration: 0.2)) { model.settingsHighlight = anchor }
+            try? await Task.sleep(for: .seconds(1.8))
+            withAnimation(.easeOut(duration: 0.5)) {
+                if model.settingsHighlight == anchor { model.settingsHighlight = nil }
+            }
+        }
+    }
 
     var body: some View {
         let pane = SettingsPane(rawValue: paneRaw) ?? .account
         HStack(spacing: 0) {
             SettingsSidebar(selection: Binding(get: { pane }, set: { paneRaw = $0.rawValue }))
             Rectangle().fill(Theme.line).frame(width: 1)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    PaneHeader(pane: pane)
-                    switch pane {
-                    case .account: AccountPane()
-                    case .sync: SyncPane()
-                    case .calendar: CalendarPane()
-                    case .advanced: AdvancedPane()
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        PaneHeader(pane: pane)
+                        switch pane {
+                        case .account: AccountPane()
+                        case .sync: SyncPane()
+                        case .calendar: CalendarPane()
+                        case .advanced: AdvancedPane()
+                        }
                     }
+                    .padding(.horizontal, 28)
+                    .padding(.top, 36)
+                    .padding(.bottom, 26)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.horizontal, 28)
-                .padding(.top, 36)
-                .padding(.bottom, 26)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Theme.background)
+                .onAppear { scrollToAnchor(proxy) }
+                .onChange(of: model.settingsAnchor) { _, _ in scrollToAnchor(proxy) }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Theme.background)
         }
         .frame(minWidth: 740, idealWidth: 820, maxWidth: .infinity, minHeight: 540, idealHeight: 640, maxHeight: .infinity)
         .ignoresSafeArea()
@@ -708,6 +729,9 @@ private struct AdvancedPane: View {
             }
 
             ReminderSettingsSection()
+            CaptureSettingsSection()
+            AISettingsSection()
+                .id(SettingsAnchor.ai.rawValue)
 
             MCPSettingsSection()
         }
@@ -765,6 +789,172 @@ private struct ExportSettingsSection: View {
 
 // MARK: - 通知与菜单栏
 
+// MARK: - 桌面浮窗球与识别日程
+
+private struct CaptureSettingsSection: View {
+    @Environment(AppModel.self) private var model
+    @State private var screenGranted = CGPreflightScreenCaptureAccess()
+
+    var body: some View {
+        @Bindable var model = model
+        InspectorSection("桌面浮窗球与识别日程") {
+            SettingRow("桌面浮窗球", caption: "单击框选、双击截整屏、右键更多，也可以把文字或图片拖到球上") {
+                ThemedSwitch(isOn: $model.showFloatingBall)
+            }
+            SettingRow("屏幕录制权限", caption: "框选和截整屏需要；识别剪贴板和拖入不需要") {
+                HStack(spacing: 8) {
+                    StatusPill(text: screenGranted ? "已授权" : "未授权",
+                               color: screenGranted ? Theme.done : Theme.subtext)
+                    Button("打开系统设置") { NSWorkspace.shared.open(ScheduleCaptureFlow.screenRecordingSettings) }
+                        .buttonStyle(.themed)
+                }
+            }
+            SettingRow("自动选择分类", caption: "没有对应分类时建议新建，点「添加选中」时才真正建好") {
+                ThemedSwitch(isOn: $model.autoCreateCaptureCategory)
+            }
+            SettingRow("自动定位地点", caption: "用 Apple 地图查坐标，添加时一起写进任务，不开地点提醒") {
+                ThemedSwitch(isOn: $model.autoLocateCapturePlace)
+            }
+            SettingFootnotes(items: [
+                SettingFootnote(icon: "lock.shield",
+                                text: "截图只在内存里处理，不存盘、不上传，文字在本机识别。macOS 26 起用系统端侧模型提取，其他情况用规则识别，识别不到时可以用 AI 兜底。"),
+                SettingFootnote(icon: "mappin.and.ellipse",
+                                text: "定位时地点查询词会发给 Apple 地图服务；关掉后只保存地点名称，卡片里也可以手动定位。"),
+            ])
+        }
+        // 从系统设置切回来时刷新授权状态。
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            screenGranted = CGPreflightScreenCaptureAccess()
+        }
+    }
+}
+
+// MARK: - AI 识别日程
+
+private struct AISettingsSection: View {
+    @Environment(AppModel.self) private var model
+    @State private var keyDraft = ""
+    @State private var keyError: String?
+    @State private var testing = false
+    @State private var status: TestStatus?
+
+    private struct TestStatus {
+        let ok: Bool
+        let text: String
+    }
+
+    private var trimmedKey: String { keyDraft.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        @Bindable var settings = model
+        InspectorSection("AI 识别日程") {
+            SettingRow("使用 AI", caption: modeCaption) {
+                ThemedSegmented(selection: $settings.aiExtractionMode,
+                                options: AIExtractionMode.allCases.map { ThemeOption(value: $0, title: $0.title) })
+            }
+            SettingRow("模型", caption: "Flash 速度快、费用低；V4 Pro 更准，但慢一些") {
+                ThemedSegmented(selection: $settings.aiModelName,
+                                options: AIModelOption.allCases.map { ThemeOption(value: $0.rawValue, title: $0.title) })
+            }
+            SettingRow("API Key", caption: "存在本机钥匙串里，不写进配置文件") { keyField }
+            if let keyError {
+                NoteRow(icon: "exclamationmark.triangle", text: keyError)
+            }
+            SettingRow("接口地址", caption: "默认 DeepSeek，也可换成其他兼容 OpenAI 格式的服务") {
+                TextField("", text: $settings.aiBaseURL, prompt: Text(AIExtractionSettings.defaultBaseURL))
+                    .themedField()
+                    .frame(width: 250)
+            }
+            SettingRow("测试连接", caption: "用一句示例试一次完整识别，显示结果、用时和费用") {
+                HStack(spacing: 8) {
+                    if testing { ProgressView().controlSize(.small) }
+                    Button("测试", action: test)
+                        .buttonStyle(.themed)
+                        .disabled(!model.aiKeyConfigured || testing)
+                }
+            }
+            if let status {
+                NoteRow(icon: status.ok ? "checkmark.circle" : "exclamationmark.triangle", text: status.text)
+            }
+            SettingFootnotes(items: [
+                SettingFootnote(icon: "lock.shield",
+                                text: "只发送识别出的文字，不发送截图；文字会经过 DeepSeek 的服务器，处理敏感聊天时可以选「关闭」。"),
+                SettingFootnote(icon: "sparkles",
+                                text: "内置系统提示词规定了输出格式和日期、时刻、地点的换算规则，要求不编造、不执行聊天文字里的指令。确认卡片里也可以点「用 AI 识别」手动重跑。"),
+                SettingFootnote(icon: "chart.bar.xaxis",
+                                text: "每次识别的用时、Token 和预估费用都记在本机，可在侧栏「统计 → AI 识别」查看报表、导出 CSV。"),
+            ], link: ("去 DeepSeek 开放平台申请 API Key", URL(string: "https://platform.deepseek.com/api_keys")!))
+        }
+        .task { model.refreshAIKeyStatus() }
+        // 从确认卡片跳过来时短暂高亮这一组。
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Theme.accent.opacity(model.settingsHighlight == .ai ? 0.16 : 0))
+                .padding(-8)
+        )
+    }
+
+    private var modeCaption: String {
+        switch model.aiExtractionMode {
+        case .off: return "不使用 AI，只在本机识别"
+        case .fallback: return "本机识别没找到日程时，才把文字交给 AI"
+        case .always: return "每次先用 AI，失败时退回本机识别"
+        }
+    }
+
+    private var keyField: some View {
+        let saved = model.aiKeyConfigured
+        return HStack(spacing: 6) {
+            StatusPill(text: saved ? "已保存" : "未填写", color: saved ? Theme.done : Theme.subtext)
+            SecureField("", text: $keyDraft, prompt: Text(saved ? "输入新的可替换" : "sk-…"))
+                .themedField()
+                .frame(width: 170)
+                .onSubmit(saveKey)
+            Button("保存", action: saveKey)
+                .buttonStyle(.themed)
+                .disabled(trimmedKey.isEmpty)
+            if model.aiKeyConfigured {
+                Button("清除") {
+                    AIKeyStore.clear()
+                    model.refreshAIKeyStatus()
+                    status = nil
+                }
+                .buttonStyle(.themed)
+            }
+        }
+    }
+
+    private func saveKey() {
+        let key = trimmedKey
+        guard !key.isEmpty else { return }
+        do {
+            try AIKeyStore.save(key)
+            keyDraft = ""
+            keyError = nil
+            status = nil
+            model.refreshAIKeyStatus()
+        } catch {
+            keyError = error.localizedDescription
+        }
+    }
+
+    private func test() {
+        testing = true
+        status = nil
+        let settings = model.aiExtractionSettings()
+        let today = model.today
+        Task { @MainActor in
+            do {
+                let text = try await AIScheduleExtractor.test(settings: settings, today: today)
+                status = TestStatus(ok: true, text: text)
+            } catch {
+                status = TestStatus(ok: false, text: error.localizedDescription)
+            }
+            testing = false
+        }
+    }
+}
+
 private struct ReminderSettingsSection: View {
     @Environment(AppModel.self) private var model
     @State private var checking = false
@@ -773,7 +963,9 @@ private struct ReminderSettingsSection: View {
     var body: some View {
         @Bindable var model = model
         InspectorSection("通知与菜单栏") {
-            ThemedRow("时间提醒通知") { ThemedSwitch(isOn: $model.remindersEnabled) }
+            SettingRow("时间提醒通知", caption: "按任务的提醒日期和时刻弹出通知") {
+                ThemedSwitch(isOn: $model.remindersEnabled)
+            }
             ThemedRow("系统授权") {
                 HStack(spacing: 8) {
                     if let checked = model.reminderCheckedAt {
@@ -807,24 +999,22 @@ private struct ReminderSettingsSection: View {
                         .foregroundStyle(Theme.subtext)
                 }
             }
-            ThemedRow("在菜单栏显示便单") { ThemedSwitch(isOn: $model.showMenuBarExtra) }
-            ThemedRow("桌面浮窗球") { ThemedSwitch(isOn: $model.showFloatingBall) }
-            NoteRow(icon: "text.viewfinder",
-                    text: "单击小球框选屏幕上的聊天记录，在本机识别文字并提取日程，确认后再添加；右键可识别剪贴板，也可以把文字或图片拖到球上。框选需要「屏幕录制」权限，识别剪贴板和拖入不需要。macOS 26 起用系统端侧模型提取，其他情况用规则识别。")
-            ThemedRow("识别日程时自动新建分类") { ThemedSwitch(isOn: $model.autoCreateCaptureCategory) }
-            NoteRow(icon: "folder.badge.plus",
-                    text: "识别出的日程会按情景自动选分类，例如「开会」归到工作、「打球」归到运动。没有对应的分类时，打开这一项会建议新建，点「添加选中」时才真正建好；关掉后只在已有分类里选。每条都可以在卡片里改。")
-            ThemedRow("全局快速添加") {
+            SettingRow("在菜单栏显示便单", caption: "显示时关闭主窗口不会退出应用") {
+                ThemedSwitch(isOn: $model.showMenuBarExtra)
+            }
+            SettingRow("全局快速添加", caption: "在任何 App 里按快捷键弹出输入框记任务") {
                 ThemedSegmented(selection: $model.quickAddHotKey,
                                 options: QuickAddHotKey.allCases.map { ThemeOption(value: $0, title: $0.title) })
             }
             if let status = model.quickAddHotKeyStatus {
                 NoteRow(icon: "exclamationmark.triangle", text: status)
             }
-            NoteRow(icon: "keyboard",
-                    text: "在任何 App 里按快捷键弹出输入框记任务，写法与快速添加栏相同，没写日期时默认今天。不需要辅助功能权限。")
-            NoteRow(icon: "bell",
-                    text: "一次性任务按提醒日期和时刻通知；重复任务按近 14 天每次执行的日期加提醒时刻通知，最多排定 60 条。通知上可以直接点「完成」，或「10 分钟后 / 1 小时后提醒」。地点提醒仍由手机处理。显示菜单栏图标时，关闭主窗口不会退出应用。")
+            SettingFootnotes(items: [
+                SettingFootnote(icon: "bell",
+                                text: "一次性任务按提醒日期和时刻通知；重复任务排定近 14 天、最多 60 条。通知上可以直接点「完成」或稍后提醒。地点提醒仍由手机处理。"),
+                SettingFootnote(icon: "keyboard",
+                                text: "快速添加的写法与快速添加栏相同，没写日期时默认今天，不需要辅助功能权限。"),
+            ])
         }
         .task { await model.refreshReminderStatus() }
         // 从系统设置切回来时自动重新检查。

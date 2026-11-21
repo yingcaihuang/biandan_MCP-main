@@ -16,6 +16,7 @@ final class ScheduleCategorizerTests: XCTestCase {
         XCTAssertEqual(suggest("打球"), .existing("8"))
         XCTAssertEqual(suggest("去腾讯开会"), .existing("7"))
         XCTAssertEqual(suggest("项目周会"), .existing("7"))
+        XCTAssertEqual(suggest("参加腾讯开发大会"), .existing("7"))
     }
 
     func testListNameInText() {

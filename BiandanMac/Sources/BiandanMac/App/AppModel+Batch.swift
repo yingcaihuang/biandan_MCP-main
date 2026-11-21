@@ -12,7 +12,17 @@ extension AppModel {
     /// 点击后让窗口接管键盘焦点（离开搜索框、侧栏），方向键、空格才会作用到任务上。
     func tapSelect(_ item: OccurrenceItem) {
         let flags = NSEvent.modifierFlags
-        if flags.contains(.shift) {
+        if selectionMode && !flags.contains(.shift) {
+            // 选择模式：点一下勾选 / 取消，不带入原来的单选。
+            if multiSelection.contains(item.id) {
+                multiSelection.remove(item.id)
+            } else {
+                multiSelection.insert(item.id)
+            }
+            selectionAnchor = item.id
+            selectedOccurrenceID = item.id
+            selectedFocusID = nil
+        } else if flags.contains(.shift) {
             rangeSelect(to: item)
         } else if flags.contains(.command) {
             toggleMultiSelect(item)
@@ -51,11 +61,42 @@ extension AppModel {
         multiSelection.formUnion(keyboardOrder.map(\.id))
     }
 
+    /// 当前视图里的任务是否已经全部选中。
+    var allVisibleSelected: Bool {
+        let ids = keyboardOrder.map(\.id)
+        return !ids.isEmpty && ids.allSatisfy(multiSelection.contains)
+    }
+
+    /// 批量栏的「全选 / 全不选」。
+    func toggleSelectAllVisible() {
+        if allVisibleSelected {
+            multiSelection.subtract(keyboardOrder.map(\.id))
+        } else {
+            selectAllVisible()
+        }
+    }
+
+    func enterSelectionMode() {
+        selectionMode = true
+    }
+
+    /// 退出选择模式并清空多选（「完成」按钮、Esc、批量栏的 ×、切换左侧视图）。
+    func exitSelectionMode() {
+        selectionMode = false
+        multiSelection = []
+    }
+
     // MARK: - 批量操作
 
     func batchComplete() async {
         let targets = batchItems.filter { $0.status == .pending }
         await batch("完成", targets) { await self.toggleCompletion($0) }
+    }
+
+    /// 已完成的撤销完成、已放弃的恢复，都回到待完成；待完成的跳过。
+    func batchReopen() async {
+        let targets = batchItems.filter { $0.status != .pending }
+        await batch("标记未完成", targets) { await self.toggleCompletion($0) }
     }
 
     func batchAbandon() async {

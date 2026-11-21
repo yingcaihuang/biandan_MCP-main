@@ -135,6 +135,9 @@ struct BiandanCommands: Commands {
             Button("框选识别日程…") {
                 ScheduleCaptureFlow.startRegion(model: model, anchor: FloatingBallController.shared.frame)
             }
+            Button("截取整个屏幕识别日程") {
+                ScheduleCaptureFlow.startFullScreen(model: model, anchor: FloatingBallController.shared.frame)
+            }
             Button("识别剪贴板里的日程") {
                 ScheduleCaptureFlow.fromClipboard(model: model, anchor: FloatingBallController.shared.frame)
             }

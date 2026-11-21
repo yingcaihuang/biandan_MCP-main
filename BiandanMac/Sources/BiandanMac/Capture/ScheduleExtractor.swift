@@ -6,9 +6,23 @@ import FoundationModels
 // MARK: - 从识别出的文字里提取日程：macOS 26 起用系统端侧大模型，用不了时退回规则识别
 
 enum ScheduleExtractionSource: Sendable {
-    case model, rules
+    case model, rules, ai
 
-    var title: String { self == .model ? "端侧模型" : "规则识别" }
+    var title: String {
+        switch self {
+        case .model: return "端侧模型"
+        case .rules: return "规则识别"
+        case .ai: return "AI 识别"
+        }
+    }
+
+    var help: String {
+        switch self {
+        case .model: return "用系统端侧模型提取"
+        case .rules: return "按规则从句子里找日期和时刻；识别结果可以逐条修改"
+        case .ai: return "识别出的文字已发给 AI 大模型提取（不含截图）；识别结果可以逐条修改"
+        }
+    }
 }
 
 struct ScheduleExtraction {
@@ -16,6 +30,8 @@ struct ScheduleExtraction {
     var source: ScheduleExtractionSource
     /// 说明，例如为什么退回了规则识别、文字太长只识别了一部分。
     var note: String?
+    /// 用了 AI 时这次调用的用量（用时、token、费用）。
+    var usage: AIUsageRecord? = nil
 }
 
 struct ScheduleExtractionFailure: Error {
@@ -34,27 +50,53 @@ enum FallbackNotice {
     }
 }
 
+/// 顺序：「总是用 AI」时先用 AI；否则端侧模型 → 规则识别，都没找到日程时再用 AI 兜底（需要已填 API Key）。
 enum ScheduleExtractor {
     static func extract(_ lines: [CaptureLine], today: LocalDate, weekStart: Int,
-                        lists: [(id: String, name: String)]) async -> ScheduleExtraction {
+                        lists: [(id: String, name: String)],
+                        ai: AIExtractionSettings = .disabled) async -> ScheduleExtraction {
         var note: String?
+        if ai.isReady && ai.mode == .always {
+            do {
+                let result = try await AIScheduleExtractor.extract(lines, today: today, lists: lists,
+                                                                   settings: ai, trigger: .always)
+                return ScheduleExtraction(candidates: result.candidates, source: .ai, note: result.note(prefix: nil),
+                                          usage: result.usage)
+            } catch {
+                note = "AI 识别没成功（\(error.localizedDescription)），已改用本机识别"
+            }
+        }
         #if canImport(FoundationModels)
         if #available(macOS 26, *) {
             do {
                 let (candidates, modelNote) = try await ModelScheduleExtractor.extract(lines, today: today)
-                return ScheduleExtraction(candidates: candidates, source: .model, note: modelNote)
+                if !candidates.isEmpty || !(ai.isReady && ai.mode == .fallback) {
+                    return ScheduleExtraction(candidates: candidates, source: .model, note: note ?? modelNote)
+                }
             } catch let failure as ScheduleExtractionFailure {
-                note = FallbackNotice.once("端侧模型暂不可用（\(failure.message)），当前用规则识别")
+                note = note ?? FallbackNotice.once("端侧模型暂不可用（\(failure.message)），当前用规则识别")
             } catch {
-                note = "端侧模型没能处理这段文字（\(error.localizedDescription)），已改用规则识别"
+                note = note ?? "端侧模型没能处理这段文字（\(error.localizedDescription)），已改用规则识别"
             }
         } else {
-            note = FallbackNotice.once("端侧模型需要 macOS 26 及以上，当前用规则识别")
+            note = note ?? FallbackNotice.once("端侧模型需要 macOS 26 及以上，当前用规则识别")
         }
         #else
-        note = FallbackNotice.once("当前版本没有端侧模型，用规则识别")
+        note = note ?? FallbackNotice.once("当前版本没有端侧模型，用规则识别")
         #endif
         let candidates = RuleScheduleExtractor.extract(lines, today: today, weekStart: weekStart, lists: lists)
+        if candidates.isEmpty && ai.isReady && ai.mode == .fallback {
+            do {
+                let result = try await AIScheduleExtractor.extract(lines, today: today, lists: lists,
+                                                                   settings: ai, trigger: .fallback)
+                return ScheduleExtraction(candidates: result.candidates, source: .ai,
+                                          note: result.note(prefix: "规则识别没找到日程，已用 AI（\(ai.model)）识别"),
+                                          usage: result.usage)
+            } catch {
+                return ScheduleExtraction(candidates: [], source: .rules,
+                                          note: "规则识别没找到日程，AI 识别也没成功：\(error.localizedDescription)")
+            }
+        }
         return ScheduleExtraction(candidates: candidates, source: .rules, note: note)
     }
 }

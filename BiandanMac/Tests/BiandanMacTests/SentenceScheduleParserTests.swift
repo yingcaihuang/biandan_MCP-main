@@ -20,7 +20,8 @@ final class SentenceScheduleParserTests: XCTestCase {
     func testTimeInMiddleOfSentence() {
         let found = parse("我们明天下午三点在3楼开会")
         XCTAssertEqual(found.count, 1)
-        XCTAssertEqual(found[0].title, "3楼开会")
+        XCTAssertEqual(found[0].title, "开会")
+        XCTAssertEqual(found[0].location, "3楼")
         XCTAssertEqual(found[0].date, day(11, 21))
         XCTAssertEqual(found[0].start, clock(15))
     }
@@ -178,6 +179,80 @@ final class SentenceScheduleParserTests: XCTestCase {
         XCTAssertEqual(found.map(\.title), ["打球"])
         XCTAssertNil(found[0].start)
         XCTAssertNil(found[0].end)
+    }
+
+    func testFuzzyMonthDates() {
+        let conf = parse("12月中旬参加腾讯开发大会")
+        XCTAssertEqual(conf.map(\.title), ["参加腾讯开发大会"])
+        XCTAssertEqual(conf[0].date, day(12, 11))
+        XCTAssertEqual(conf[0].vagueDate, "12月中旬")
+        XCTAssertNil(conf[0].start)
+
+        XCTAssertEqual(parse("十二月底年会").first?.date, day(12, 31))
+        XCTAssertEqual(parse("月底交报告").first?.date, day(11, 30))
+        XCTAssertEqual(parse("下个月初去体检").first?.date, day(12, 1))
+        XCTAssertEqual(parse("本月下旬出差").first?.date, day(11, 21))
+        // 这段时间已经开始还没过完：取当天。
+        XCTAssertEqual(parse("这个月中旬开会").first?.date, today)
+        // 月份已经过去：算明年。
+        XCTAssertEqual(parse("1月上旬去旅行").first?.date, day(1, 1, 2027))
+        // 精确日期不算模糊。
+        XCTAssertNil(parse("11月24日 14:00 产品评审").first?.vagueDate)
+        // 「三个月中」不是日期。
+        XCTAssertTrue(parse("三个月中完成").isEmpty)
+    }
+
+    func testScreenshotSentenceWithPlaceAndYear() {
+        // 截图：编辑器第 3 行，OCR 带上了行号。
+        for text in ["阿里开发大会，明年5月15号，下午15:30在杭州西湖区文三社区举行",
+                     "3 阿里开发大会，明年5月15号，下午15:30在杭州西湖区文三社区举行"] {
+            let found = parse(text)
+            XCTAssertEqual(found.map(\.title), ["阿里开发大会"], text)
+            XCTAssertEqual(found.first?.date, day(5, 15, 2027))
+            XCTAssertEqual(found.first?.start, clock(15, 30))
+            XCTAssertEqual(found.first?.location, "杭州西湖区文三社区")
+            XCTAssertNil(found.first?.vagueDate)
+            XCTAssertFalse(found.first?.source.hasPrefix("3") ?? true)
+        }
+        let trip = parse("明年5月去旅行")
+        XCTAssertEqual(trip.first?.date, day(5, 1, 2027))
+        XCTAssertEqual(trip.first?.vagueDate, "明年5月")
+        XCTAssertEqual(parse("后年3月中旬搬家").first?.date, day(3, 11, 2028))
+        // 数字后面紧跟「点」时不当行号去掉；OCR 多出的空格不影响（没写上下午的 3 点按快速添加规则算下午）。
+        XCTAssertNotNil(parse("明天3 点开会").first?.start)
+        XCTAssertEqual(parse("明天3 点开会").first?.start, parse("明天3点开会").first?.start)
+        XCTAssertEqual(parse("明天3 点开会").first?.title, "开会")
+    }
+
+    func testPlaces() {
+        XCTAssertEqual(SentenceScheduleParser.extractPlace("在家吃饭")?.place, "家")
+        XCTAssertEqual(SentenceScheduleParser.extractPlace("在家吃饭")?.rest, "吃饭")
+        XCTAssertEqual(SentenceScheduleParser.extractPlace("在公司见客户")?.rest, "见客户")
+        XCTAssertEqual(SentenceScheduleParser.extractPlace("开会，在腾讯滨海大厦")?.place, "腾讯滨海大厦")
+        XCTAssertNil(SentenceScheduleParser.extractPlace("现在开会"))
+        XCTAssertNil(SentenceScheduleParser.extractPlace("正在吃饭"))
+        XCTAssertNil(SentenceScheduleParser.extractPlace("我在想办法"))
+
+        let found = parse("周五下午3点在3楼302会议室开会")
+        XCTAssertEqual(found.first?.title, "开会")
+        XCTAssertEqual(found.first?.location, "3楼302会议室")
+    }
+
+    func testCandidateLocationInput() {
+        var candidate = ScheduleCandidate(title: "阿里开发大会")
+        candidate.location = "杭州西湖区文三社区"
+        XCTAssertEqual(candidate.input(listID: "1")?.location?.name, "杭州西湖区文三社区")
+        XCTAssertNil(candidate.input(listID: "1")?.location?.latitude)
+        candidate.latitude = 30.28
+        candidate.longitude = 120.13
+        let input = candidate.input(listID: "1")!
+        XCTAssertEqual(input.location?.latitude, 30.28)
+        XCTAssertEqual(input.location?.longitude, 120.13)
+        XCTAssertNil(input.location?.remind)
+        XCTAssertEqual(candidate.locateQuery, "杭州西湖区文三社区")
+        candidate.locationQuery = "杭州市西湖区文三社区"
+        XCTAssertEqual(candidate.locateQuery, "杭州市西湖区文三社区")
+        XCTAssertNil(ScheduleCandidate(title: "买礼物").input(listID: "1")?.location)
     }
 
     func testChineseNumber() {

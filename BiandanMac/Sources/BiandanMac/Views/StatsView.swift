@@ -1,17 +1,38 @@
 import Charts
 import SwiftUI
 
-/// 统计：完成趋势、按期完成率、象限与分类分布、专注时长。只读，数据都来自本地快照。
+enum StatsSubject: String, CaseIterable, Hashable {
+    case tasks, ai
+
+    var title: String { self == .tasks ? "任务" : "AI 识别" }
+}
+
+/// 统计：任务（完成趋势、按期完成率、象限与分类分布、专注时长）和 AI 识别（用时、token、费用）。
 struct StatsView: View {
     @Environment(AppModel.self) private var model
     @State private var range: StatsRange = .month
+    @AppStorage("biandan.stats.subject") private var subjectRaw = StatsSubject.tasks.rawValue
 
     var body: some View {
-        if model.snapshot.tasks.isEmpty && model.snapshot.focus.isEmpty {
-            ContentUnavailableView("还没有可统计的数据", systemImage: "chart.bar.xaxis",
-                                   description: Text("同步完成后，这里会显示完成趋势和分布"))
-        } else {
-            content
+        let subject = StatsSubject(rawValue: subjectRaw) ?? .tasks
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                ThemedSegmented(selection: Binding(get: { subject }, set: { subjectRaw = $0.rawValue }),
+                                options: StatsSubject.allCases.map { ThemeOption(value: $0, title: $0.title) })
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 10)
+            .padding(.bottom, 10)
+            if subject == .ai {
+                AIUsageStatsView()
+            } else if model.snapshot.tasks.isEmpty && model.snapshot.focus.isEmpty {
+                ContentUnavailableView("还没有可统计的数据", systemImage: "chart.bar.xaxis",
+                                       description: Text("同步完成后，这里会显示完成趋势和分布"))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                content
+            }
         }
     }
 
@@ -102,7 +123,7 @@ private struct StatsOverview: View {
     }
 }
 
-private struct StatsCard<Content: View>: View {
+struct StatsCard<Content: View>: View {
     let title: String
     let subtitle: String?
     let content: Content
@@ -165,7 +186,7 @@ struct StatsShareRow: Identifiable {
 }
 
 /// 横向比例条：名称 · 条 · 数量。
-private struct StatsShareBars: View {
+struct StatsShareBars: View {
     let rows: [StatsShareRow]
 
     var body: some View {

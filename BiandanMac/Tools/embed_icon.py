@@ -13,7 +13,7 @@ b64 = base64.b64encode(png).decode()
 digest = hashlib.sha256(png).hexdigest()
 out = root / 'Sources/BiandanMac/App/BrandIconData.swift'
 out.write_text(f'''// 由 Tools/embed_icon.py 生成，请勿手改。
-// 来源：https://www.biandangroup.com/appIcons/biandan.png（官方授权），本地文件 Assets/biandan.png
+// 来源：官方提供的 Assets/icon-source.png，经 Tools/make_icon.swift 合成为 Assets/biandan.png（512×512）
 // 大小：{len(png)} 字节，SHA-256：{digest}
 extension BrandIcon {{
     static let pngBase64 = "{b64}"

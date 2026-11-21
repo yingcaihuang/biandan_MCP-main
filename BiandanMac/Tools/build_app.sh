@@ -17,7 +17,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IDENTITY="${BIANDAN_SIGN_IDENTITY:-963EFDD532CD44170CF91398025F08D5DB4ADA2F}"
 CONFIG="${CONFIG:-release}"
 # 不在 tag 上构建时的默认版本号。
-DEFAULT_VERSION="0.6.2"
+DEFAULT_VERSION="1.0.0"
 BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
 BUNDLE_ID="${BUNDLE_ID:-ai.racore.BiandanMac}"
 DISPLAY_NAME="${DISPLAY_NAME:-便单}"
@@ -69,15 +69,15 @@ rm -rf "${APP:?}"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 echo "==> 生成 App 图标"
-# 由官方授权的 Assets/biandan.png（512×512）生成 AppIcon.icns。
-ICON_SRC="$ROOT/Assets/biandan.png"
+# 由 Assets/AppIcon-1024.png（官方原图 Assets/icon-source.png 经 Tools/make_icon.swift 合成）生成 AppIcon.icns。
+ICON_SRC="$ROOT/Assets/AppIcon-1024.png"
 ICON_TMP="$(mktemp -d)"
 ICONSET="$ICON_TMP/AppIcon.iconset"
 mkdir -p "$ICONSET"
 for size in 16 32 128 256 512; do
     sips -z "$size" "$size" "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
     double=$((size * 2))
-    if [ "$double" -le 512 ]; then
+    if [ "$double" -le 1024 ]; then
         sips -z "$double" "$double" "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
     fi
 done

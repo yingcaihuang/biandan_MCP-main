@@ -15,8 +15,12 @@ enum SentenceScheduleParser {
         var end: LocalTime?
         /// 原文写的时长（分钟），例如「时间为2小时」；只写了开始时刻时用它算结束时刻。
         var durationMinutes: Int?
+        /// 原文的日期只到一段时间（「12月中旬」「月底」），date 是按这段时间估的那一天。
+        var vagueDate: String?
         /// 只说了「下午」「晚上」、没写具体时刻时记下这个词。
         var vagueTime: String?
+        /// 句子里的地点：「在杭州西湖区文三社区举行」「在3楼开会」。
+        var location: String?
         /// 像是在询问（「明天有空吗？」），还没定下来。
         var question = false
         /// 提到了取消、改期。
@@ -29,13 +33,26 @@ enum SentenceScheduleParser {
     private static let num = "(?:\\d{1,2}|[零一二两三四五六七八九十]{1,3})"
     /// 分钟：中文只有一个字时必须带「分」，避免把「三点一起开会」的「一」当成 1 分。
     private static let minute = "(?:半|一刻|三刻|\\d{1,2}分?|[零一二两三四五六七八九十]{2,3}分?|[零一二两三四五六七八九十]分)"
-    private static let clock = "(?:\\d{1,2}[:：]\\d{2}|" + num + "[点时]" + minute + "?)"
+    private static let clock = "(?:\\d{1,2}[:：]\\d{2}|" + num + "\\s*[点时]" + minute + "?)"
     private static let period = "(?:凌晨|早上|早晨|上午|中午|下午|傍晚|晚上|夜里|半夜)"
     private static let separator = "\\s*(?:[-~～—–]+|到|至)\\s*"
 
     /// 第 1 组是时段词（可以没有），第 2 组是第一个时刻。「第1点」不算时刻。
     private static let timeRegex = regex("(?<!第)(" + period + ")?\\s*(" + clock + ")(?:" + separator + period + "?" + clock + ")?")
     private static let periodRegex = regex(period)
+    /// OCR 带进来的编辑器行号：行首「3 阿里开发大会…」。后面紧跟时刻、日期的不算（「3 点开会」）。
+    private static let lineNumberRegex = regex(#"^\s*\d{1,4}\s+(?=[^\d\s:：点时号日月/.\-])"#)
+    private static let repeatedCommaRegex = regex("[，,]\\s*[，,]+")
+    /// 「在X举行」「在X开会」：第 1 组地点，第 2 组后面的动词。前面是「现、正、存」等时不是地点（「现在」「正在」）。
+    private static let placeVerbRegex = regex(
+        #"(?<![现正存实还所自不好])(?:在|于)\s*([^\s，,。；;！!？?、]{1,30}?)\s*"# +
+        "(举行|举办|召开|进行|集合|见面|碰头|碰面|会面|开会|上课|吃饭|聚餐|聚会|见)")
+    /// 「在X」后面没有动词时，地点要以楼、区、路、大厦这类词结尾。
+    private static let placeTailRegex = regex(
+        #"(?<![现正存实还所自不好])(?:在|于)\s*([^\s，,。；;！!？?、]{1,30}"# +
+        "(?:楼|层|室|厅|区|路|街|道|巷|号|馆|中心|大厦|广场|公园|酒店|餐厅|饭店|学校|大学|公司|社区|小区|村|镇|县|市|省|店|园|院|场|站|口|座|栋))" +
+        #"(?=$|[\s，,。；;！!？?、])"#)
+    private static let exactMonthDayRegex = regex(#"^(\d{1,2})月(\d{1,2})[日号]?$"#)
     /// 时长：「时间为2小时」「一个半小时」「1.5h」「90分钟」「半小时」「1小时20分」。
     /// 第 1 组小时数，第 2 组「半」，第 3 组小时后面的分钟，第 4 组单独的「半小时」，第 5 组单独的分钟数。
     private static let durationRegex = regex(
@@ -45,6 +62,14 @@ enum SentenceScheduleParser {
         #"|(半)\s*个?\s*(?:小时|钟头)"# +
         #"|(\d{1,3}|[零一二两三四五六七八九十]+)\s*(?:分钟|min))"#)
     private static let dateRegex = regex(
+        // 带年份：「明年5月15号」「明年5月」「后年3月中旬」。
+        #"(?:明年|今年|后年)\d{1,2}月\d{1,2}[日号]?"# +
+        #"|(?:明年|今年|后年)(?:\d{1,2}|[一二三四五六七八九十]{1,3})月(?:上旬|中旬|下旬|初|中|底|末)?|"# +
+        // 模糊日期：「12月中旬」「十二月底」「下个月初」「本月下旬」「月底」。
+        #"(?:\d{1,2}|[一二三四五六七八九十]{1,3})月(?:上旬|中旬|下旬|初|中|底|末)"# +
+        "|(?:下下个?|下个?)月(?:上旬|中旬|下旬|初|中|底|末)?" +
+        "|(?:本|这个?)月(?:上旬|中旬|下旬|初|中|底|末)" +
+        "|月初|月底|月末|" +
         #"\d{4}[年/.\-]\d{1,2}[月/.\-]\d{1,2}[日号]?"# +
         #"|\d{1,2}月\d{1,2}[日号]?"# +
         #"|\d{1,2}/\d{1,2}(?!\d)"# +
@@ -52,6 +77,9 @@ enum SentenceScheduleParser {
         "|(?:下下|下|本|这)?周末" +
         "|大后天|后天|明天|今天|今晚|明晚|今早|明早" +
         #"|\d{1,2}[日号](?![楼栋室层座期线])"#)
+    /// 第 1 组月份数字，第 2 组「下个」「本」这类前缀，第 3 组上旬 / 中旬 / 下旬 / 初 / 中 / 底 / 末。
+    private static let fuzzyMonthRegex = regex(
+        #"^(?:(\d{1,2}|[一二三四五六七八九十]{1,3})月|(下下个?|下个?|本|这个?)?月)(上旬|中旬|下旬|初|中|底|末)?$"#)
     private static let explicitDateRegex = regex(#"^(\d{4})[年/.\-](\d{1,2})[月/.\-](\d{1,2})"#)
     private static let keyPrefixRegex = regex("(?:会议)?(?:时间|日期)\\s*[:：]")
     private static let emptyBracketRegex = regex("[（(【\\[]\\s*[）)】\\]]")
@@ -81,7 +109,8 @@ enum SentenceScheduleParser {
     /// 解析一行文字。base 是这行所属消息的发送日期，「明天」「周五」按它换算。
     static func parse(_ line: String, base: LocalDate, weekStart: Int) -> [Event] {
         var events: [Event] = []
-        for sentence in sentences(line) {
+        let cleaned = replace(lineNumberRegex, in: line, with: "")
+        for sentence in sentences(cleaned) {
             var groups: [Group] = []
             let parts = sentence.text.split(whereSeparator: { $0 == "，" || $0 == "," }).map(String.init)
             for part in parts where !part.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -156,6 +185,7 @@ enum SentenceScheduleParser {
         var timeRange: Range<String.Index>?
         var start: LocalTime?
         var end: LocalTime?
+        var vagueDate: String?
         var durationRange: Range<String.Index>?
         var duration: Int?
         var hasDate: Bool { date != nil }
@@ -165,11 +195,22 @@ enum SentenceScheduleParser {
     private static func anchors(_ text: String, base: LocalDate, weekStart: Int) -> Anchors {
         var found = Anchors()
         for match in find(dateRegex, text) {
-            guard let resolved = resolveDate(String(text[match.range]), base: base, weekStart: weekStart) else { continue }
+            let piece = String(text[match.range]).filter { !$0.isWhitespace }
+            let resolved: (date: LocalDate, period: String?, vague: String?)
+            if let yearly = resolveWithYear(piece, base: base) {
+                resolved = (yearly.date, nil, yearly.vague)
+            } else if let fuzzy = resolveFuzzy(piece, base: base) {
+                resolved = (fuzzy, nil, piece)
+            } else if let exact = resolveDate(piece, base: base, weekStart: weekStart) {
+                resolved = (exact.date, exact.period, nil)
+            } else {
+                continue
+            }
             found.dateRanges.append(match.range)
             if found.date == nil {
                 found.date = resolved.date
                 found.datePeriod = resolved.period
+                found.vagueDate = resolved.vague
             }
         }
         for match in find(timeRegex, text) {
@@ -199,6 +240,66 @@ enum SentenceScheduleParser {
             break
         }
         return found
+    }
+
+    /// 「12月中旬」→ 12 月 11 日（月份已过就算明年）；「月底」→ 本月最后一天；「下个月初」→ 下月 1 日。
+    /// 这段时间已经开始、还没过完（「这个月中旬」在 15 号说）时取 base 当天。
+    /// 「明年5月15号」→ 2027-05-15；「明年5月」「后年3月中旬」按那一年换算，并记下原词。
+    private static func resolveWithYear(_ value: String, base: LocalDate) -> (date: LocalDate, vague: String?)? {
+        let prefixes: [(word: String, offset: Int)] = [("明年", 1), ("今年", 0), ("后年", 2)]
+        guard let prefix = prefixes.first(where: { value.hasPrefix($0.word) }) else { return nil }
+        let year = base.year + prefix.offset
+        let rest = String(value.dropFirst(prefix.word.count))
+        if let match = find(exactMonthDayRegex, rest).first,
+           let month = Int(match.groups[1]), let day = Int(match.groups[2]) {
+            return LocalDate(year: year, month: month, day: day).map { ($0, nil) }
+        }
+        return resolveFuzzy(rest, base: base, year: year).map { ($0, value) }
+    }
+
+    private static func resolveFuzzy(_ value: String, base: LocalDate, year forcedYear: Int? = nil) -> LocalDate? {
+        guard let match = find(fuzzyMonthRegex, value).first else { return nil }
+        let part = match.groups[3]
+        var year = base.year
+        let month: Int
+        if !match.groups[1].isEmpty {
+            guard let number = chineseNumber(match.groups[1]), (1...12).contains(number) else { return nil }
+            month = number
+            if let forcedYear {
+                year = forcedYear
+            } else if month < base.month {
+                year += 1
+            }
+        } else {
+            let prefix = match.groups[2]
+            guard !(prefix.isEmpty && part.isEmpty) else { return nil }
+            let offset = prefix.hasPrefix("下下") ? 2 : (prefix.hasPrefix("下") ? 1 : 0)
+            let index = base.year * 12 + base.month - 1 + offset
+            year = index / 12
+            month = index % 12 + 1
+        }
+        let last = lastDay(year: year, month: month)
+        let bounds: (start: Int, end: Int)
+        switch part {
+        case "初": bounds = (1, 5)
+        case "上旬": bounds = (1, 10)
+        case "中旬": bounds = (11, 20)
+        case "中": bounds = (15, 20)
+        case "下旬": bounds = (21, last)
+        case "底", "末": bounds = (last, last)
+        default: bounds = (1, last)
+        }
+        guard let start = LocalDate(year: year, month: month, day: bounds.start),
+              let end = LocalDate(year: year, month: month, day: bounds.end) else { return nil }
+        if start < base && end >= base { return base }
+        return start
+    }
+
+    private static func lastDay(year: Int, month: Int) -> Int {
+        for day in stride(from: 31, through: 28, by: -1) where LocalDate(year: year, month: month, day: day) != nil {
+            return day
+        }
+        return 28
     }
 
     private static func resolveDate(_ text: String, base: LocalDate, weekStart: Int) -> (date: LocalDate, period: String?)? {
@@ -232,7 +333,11 @@ enum SentenceScheduleParser {
             removed.append(match.range)
         }
         let source = text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "，,")))
-        var event = Event(title: cleanTitle(removing(removed, from: text)), source: source)
+        var remaining = removing(removed, from: text)
+        let place = extractPlace(remaining)
+        if let place { remaining = place.rest }
+        var event = Event(title: cleanTitle(remaining), source: source)
+        event.location = place?.place
         event.date = found.date ?? inherited ?? base
         event.start = found.start
         if let start = found.start, let end = found.end, end > start {
@@ -243,6 +348,7 @@ enum SentenceScheduleParser {
             event.end = LocalTime(hour: total / 60, minute: total % 60)
         }
         event.durationMinutes = found.duration
+        event.vagueDate = found.vagueDate
         event.vagueTime = vague
         event.question = question || source.hasSuffix("吗")
         event.cancelled = cancelWords.contains { text.contains($0) }
@@ -254,6 +360,7 @@ enum SentenceScheduleParser {
         var title = replace(keyPrefixRegex, in: raw, with: "")
         title = replace(emptyBracketRegex, in: title, with: "")
         title = replace(spacesRegex, in: title, with: " ")
+        title = replace(repeatedCommaRegex, in: title, with: "，")
         var changed = true
         while changed {
             changed = false
@@ -271,6 +378,25 @@ enum SentenceScheduleParser {
             }
         }
         return title
+    }
+
+    // MARK: 地点
+
+    /// 从句子里拆出地点。「在X举行 / 举办 / 召开 / 进行」整段去掉；「在X开会」只去掉「在X」，保留动词。
+    static func extractPlace(_ text: String) -> (place: String, rest: String)? {
+        if let match = find(placeVerbRegex, text).first, !match.groups[1].isEmpty {
+            let verb = match.groups[2]
+            let dropVerb = ["举行", "举办", "召开", "进行"].contains(verb)
+            var rest = text
+            rest.replaceSubrange(match.range, with: dropVerb ? "" : verb)
+            return (match.groups[1], rest)
+        }
+        if let match = find(placeTailRegex, text).first, !match.groups[1].isEmpty {
+            var rest = text
+            rest.replaceSubrange(match.range, with: "")
+            return (match.groups[1], rest)
+        }
+        return nil
     }
 
     // MARK: 时长

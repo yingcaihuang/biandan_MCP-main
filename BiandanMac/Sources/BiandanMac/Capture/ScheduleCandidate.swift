@@ -145,10 +145,27 @@ struct ScheduleCandidate: Identifiable, Equatable {
     var quadrant: Quadrant = .neither
     /// 原文只说了「下午」「晚上」这类时段、没写具体时刻时记下这个词，卡片里提示补时刻。
     var vagueTime: String?
+    /// 原文的日期只到一段时间（「12月中旬」「月底」）时记下原词，卡片里提示核对日期。
+    var vagueDate: String?
     /// 分类：识别后按情景自动选（见 ScheduleCategorizer），确认卡片里可以逐条改。
     var category: CandidateCategory = .existing(TodoList.defaultID)
     /// 自动选分类的依据，卡片里提示；手动改过就清掉。
     var categoryReason: String?
+    /// AI 建议的分类名（已有分类名或内置常用分类名），选分类时优先用。
+    var suggestedCategory: String?
+    /// AI 给的地图搜索词（补全了城市），定位时优先用。
+    var locationQuery: String?
+    /// 地图上找到的坐标；添加时连同地点名称写进任务的地点（不开启地点提醒）。
+    var latitude: Double?
+    var longitude: Double?
+    /// 地图上找到的地点名称。
+    var placeTitle: String?
+    var lookup: PlaceLookup = .idle
+
+    /// 定位用的查询词。
+    var locateQuery: String {
+        (locationQuery ?? location).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     init(title: String) {
         self.title = title
@@ -201,6 +218,13 @@ struct ScheduleCandidate: Identifiable, Equatable {
         if !location.isEmpty { remark.append("地点：" + location) }
         if !source.isEmpty { remark.append("原文：" + source) }
         input.remark = remark.joined(separator: "\n")
+        let place = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let latitude, let longitude {
+            input.location = LocationInput(name: place.isEmpty ? placeTitle : place, latitude: latitude,
+                                           longitude: longitude, remind: nil)
+        } else if !place.isEmpty {
+            input.location = LocationInput(name: place, latitude: nil, longitude: nil, remind: nil)
+        }
         guard let date else { return input }
         let last = max(endDate ?? date, date)
         input.startDate = date
@@ -252,7 +276,8 @@ enum RuleScheduleExtractor {
             candidate.start = event.start
             candidate.end = event.end
             candidate.vagueTime = event.start == nil ? event.vagueTime : nil
-            candidate.location = nearest(places, to: index) ?? ""
+            candidate.vagueDate = event.vagueDate
+            candidate.location = event.location ?? nearest(places, to: index) ?? ""
             candidate.source = event.source
             candidate.review(today: today, initial: true)
             if event.cancelled {

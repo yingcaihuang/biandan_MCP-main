@@ -39,7 +39,7 @@ SECTION="$(awk -v v="$VERSION" '
 # 去掉截图和截图说明，「### 新功能」改成「新功能」，去掉粗体标记，合并多余空行。
 BODY="$(echo "$SECTION" \
     | grep -vE '^[[:space:]]*!\[|^[[:space:]]*（以上.*渲染图）' \
-    | sed -E 's/^### //; s/\*\*//g' \
+    | sed -E 's/^#{2,6} //; s/\*\*//g' \
     | cat -s \
     | sed -e '/./,$!d')"
 
@@ -66,7 +66,7 @@ git -C "$HERE" diff --quiet && git -C "$HERE" diff --cached --quiet \
 if git -C "$HERE" rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
     echo "tag $TAG 已经存在" >&2; exit 1
 fi
-grep -q "VERSION=\"\${VERSION:-$VERSION}\"" "$HERE/Tools/build_app.sh" \
+grep -q "^DEFAULT_VERSION=\"$VERSION\"" "$HERE/Tools/build_app.sh" \
     || echo "提醒：Tools/build_app.sh 的默认版本号不是 $VERSION" >&2
 
 echo "$MESSAGE" | git -C "$HERE" tag -a "$TAG" -F -
