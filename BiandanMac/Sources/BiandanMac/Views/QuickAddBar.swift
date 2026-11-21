@@ -28,6 +28,12 @@ struct QuickAddBar: View {
             if saving {
                 ProgressView().controlSize(.small)
             } else if !draft.title.isEmpty {
+                if let warning = model.quickAddConflictText(draft) {
+                    Text(verbatim: warning)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.overdue)
+                        .lineLimit(1)
+                }
                 Text(verbatim: model.quickAddHint(draft))
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.subtext)

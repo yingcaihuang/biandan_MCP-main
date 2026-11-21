@@ -6,7 +6,10 @@ struct OperationBanner: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Group {
+        VStack(spacing: 8) {
+            if let notice = model.conflictNotice {
+                ConflictNoticeCard(notice: notice)
+            }
             if let error = model.operationError {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -33,6 +36,12 @@ struct OperationBanner: View {
         }
         .padding(.bottom, 16)
         .animation(.easeInOut(duration: 0.2), value: model.operationError)
+        .animation(.easeInOut(duration: 0.2), value: model.conflictNotice)
+        .task(id: model.conflictNotice) {
+            guard let current = model.conflictNotice else { return }
+            try? await Task.sleep(for: .seconds(15))
+            if model.conflictNotice == current { model.conflictNotice = nil }
+        }
         .task(id: model.operationError) {
             guard let current = model.operationError else { return }
             try? await Task.sleep(for: .seconds(8))

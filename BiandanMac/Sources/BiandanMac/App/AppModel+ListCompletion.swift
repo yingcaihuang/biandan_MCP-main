@@ -7,7 +7,7 @@ enum ListCompletion {
         switch item {
         case .today, .next7, .all, .important, .collected, .list:
             break
-        case .quadrant, .calendar, .undated, .completed, .abandoned, .focus, .habits, .stats:
+        case .quadrant, .calendar, .undated, .completed, .abandoned, .focus, .habits, .stats, .conflicts:
             return nil
         }
         var query = base

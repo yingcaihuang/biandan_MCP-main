@@ -122,7 +122,9 @@ struct GlobalQuickAddView: View {
                 } else if let error {
                     Text(verbatim: error).foregroundStyle(Theme.overdue)
                 } else if !draft.title.isEmpty {
-                    Text(verbatim: model.quickAddHint(draft, preset: preset)).foregroundStyle(Theme.subtext)
+                    Text(verbatim: model.quickAddHint(draft, preset: preset)).foregroundColor(Theme.subtext)
+                        + Text(verbatim: model.quickAddConflictText(draft, preset: preset).map { "  " + $0 } ?? "")
+                        .foregroundColor(Theme.overdue)
                 } else {
                     Text("可写：明天下午3点、周五、每周一、@分类、#重要 · Esc 关闭").foregroundStyle(Theme.fieldName)
                 }

@@ -448,6 +448,7 @@ extension AppModel {
         guard let result = await perform("新建任务", { try await $0.createTask(final) }) else { return false }
         selectedFocusID = nil
         selectedOccurrenceID = result.occurrenceID
+        noteConflicts(for: final, createdID: result.occurrenceID)
         return true
     }
 

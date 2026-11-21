@@ -44,9 +44,10 @@ enum QuadrantRange: Int, CaseIterable, Identifiable {
 
 enum SidebarItem: Hashable {
     case today, next7, all, important, quadrant, calendar, undated, collected, completed, abandoned, focus, habits, stats
+    case conflicts
     case list(String)
 
-    static let views: [SidebarItem] = [.today, .next7, .all, .important, .quadrant, .calendar, .undated, .collected, .completed, .abandoned]
+    static let views: [SidebarItem] = [.today, .next7, .all, .important, .quadrant, .calendar, .conflicts, .undated, .collected, .completed, .abandoned]
 
     var title: String {
         switch self {
@@ -63,6 +64,7 @@ enum SidebarItem: Hashable {
         case .focus: return "专注记录"
         case .habits: return "习惯打卡"
         case .stats: return "统计"
+        case .conflicts: return "日程冲突"
         case .list: return "分类"
         }
     }
@@ -82,6 +84,7 @@ enum SidebarItem: Hashable {
         case .focus: return "timer"
         case .habits: return "leaf"
         case .stats: return "chart.bar.xaxis"
+        case .conflicts: return "calendar.badge.exclamationmark"
         case .list: return "list.bullet"
         }
     }
@@ -106,7 +109,8 @@ enum SidebarItem: Hashable {
     }
 
     /// 专注记录、习惯打卡是记录页：不显示快速添加栏和视图切换。
-    var isRecordPage: Bool { self == .focus || self == .habits || self == .stats }
+    /// 不是任务列表的独立页面（不显示问候卡片、快速添加栏和视图切换）。日程冲突页也算。
+    var isRecordPage: Bool { self == .focus || self == .habits || self == .stats || self == .conflicts }
 
     /// 侧栏里的「四象限」「日历」固定使用对应视图，其余项可以切换视图。
     var fixedMode: ContentMode? {
@@ -199,6 +203,8 @@ final class AppModel {
     /// 尚未得到云端确认的乐观修改；每次重新加载快照后按顺序重放。
     @ObservationIgnored var optimisticEdits: [OptimisticEdit] = []
     var operationError: String?
+    /// 新建的定时日程和已有日程时间重叠时的提醒。
+    var conflictNotice: ConflictNotice?
     /// 待确认删除的执行实例（弹出删除范围对话框）。
     var deleteRequest: OccurrenceItem?
     /// 新建任务弹窗的预设值；非 nil 时弹出。
@@ -657,7 +663,7 @@ final class AppModel {
         case .list(let id):
             query.listID = id
             query.includeUndated = true
-        case .focus, .habits, .stats:
+        case .focus, .habits, .stats, .conflicts:
             return nil
         }
         return query

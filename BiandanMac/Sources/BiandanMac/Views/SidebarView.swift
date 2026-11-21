@@ -6,16 +6,21 @@ struct SidebarView: View {
     var body: some View {
         @Bindable var model = model
         let counts = model.counts
+        let conflictCount = model.scheduleConflicts.count
 
         List(selection: $model.sidebarSelection) {
             Section("视图") {
                 // 每一行都显式标注 .tag(SidebarItem)：List(selection:) 只按行标签写回选中值，
                 // 写死的行没有隐式标签，NavigationLink(value:) 也不会代劳，否则侧栏高亮了但选中值是 nil。
                 ForEach(SidebarItem.views, id: \.self) { item in
-                    Label(item.title, systemImage: item.systemImage)
-                        .badge(badge(for: item, counts: counts))
-                        .sidebarDrop(item, model: model)
-                        .tag(item)
+                    if item == .conflicts {
+                        conflictRow(conflictCount)
+                    } else {
+                        Label(item.title, systemImage: item.systemImage)
+                            .badge(badge(for: item, counts: counts))
+                            .sidebarDrop(item, model: model)
+                            .tag(item)
+                    }
                 }
             }
 
@@ -70,6 +75,21 @@ struct SidebarView: View {
         .safeAreaInset(edge: .top) { AccountCard().padding(.horizontal, 10).padding(.top, 6) }
         .safeAreaInset(edge: .bottom) { SyncStatusBar().padding(10) }
         .navigationSplitViewColumnWidth(min: 210, ideal: 232, max: 300)
+    }
+
+    /// 日程冲突：有冲突时图标和数字变红。
+    private func conflictRow(_ count: Int) -> some View {
+        let icon = count > 0 ? AnyShapeStyle(Theme.overdue) : AnyShapeStyle(.tint)
+        let number: Text? = count > 0 ? Text(verbatim: "\(count)").foregroundColor(Theme.overdue).bold() : nil
+        return Label {
+            Text(SidebarItem.conflicts.title)
+        } icon: {
+            Image(systemName: SidebarItem.conflicts.systemImage)
+                .foregroundStyle(icon)
+        }
+        .badge(number)
+        .help(count > 0 ? "近 30 天有 \(count) 处日程时间重叠" : "近 30 天没有日程冲突")
+        .tag(SidebarItem.conflicts)
     }
 
     private func badge(for item: SidebarItem, counts: SidebarCounts) -> Int {
