@@ -104,6 +104,8 @@ struct ContentArea: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // 冲突只算一次，卡片按实例 ID 取角标数据。
+            .environment(\.conflictIndex, model.conflictIndex)
         }
         .background(Theme.background)
         .overlay(alignment: .bottom) {
