@@ -692,6 +692,8 @@ private struct AdvancedPane: View {
                 PathRow(title: "同步诊断日志", url: SyncDiagnostics.fileURL)
             }
 
+            ExportSettingsSection()
+
             InspectorSection("数据检查") {
                 ThemedRow("数据问题") {
                     if model.snapshot.warnings.isEmpty {
@@ -708,6 +710,55 @@ private struct AdvancedPane: View {
             ReminderSettingsSection()
 
             MCPSettingsSection()
+        }
+    }
+}
+
+// MARK: - 导出与备份
+
+private struct ExportSettingsSection: View {
+    @Environment(AppModel.self) private var model
+    @State private var backingUp = false
+
+    private var backupText: String {
+        guard let date = model.lastBackupAt else { return "还没有备份" }
+        return "上次 " + date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    var body: some View {
+        InspectorSection("导出与备份") {
+            ForEach(ExportFormat.allCases) { format in
+                ThemedRow(format.title) {
+                    HStack(spacing: 8) {
+                        Text(verbatim: format.detail)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.subtext)
+                            .lineLimit(1)
+                        Button("导出…") { model.exportData(format) }
+                            .buttonStyle(.themed)
+                    }
+                }
+            }
+            ThemedRow("本地自动备份") {
+                HStack(spacing: 8) {
+                    ValueText(text: backupText, color: Theme.subtext)
+                    Button(backingUp ? "备份中…" : "立即备份") {
+                        Task {
+                            backingUp = true
+                            await model.backupNow()
+                            backingUp = false
+                        }
+                    }
+                    .buttonStyle(.themed)
+                    .disabled(backingUp)
+                }
+            }
+            PathRow(title: "备份文件夹", url: LocalBackup.directoryURL)
+            if let notice = model.exportNotice {
+                NoteRow(icon: "checkmark.circle", text: notice)
+            }
+            NoteRow(icon: "externaldrive",
+                    text: "每天第一次同步成功后自动保存一份完整 JSON 备份，保留最近 7 份。导出和备份都是只读的，不会改动云端数据。")
         }
     }
 }

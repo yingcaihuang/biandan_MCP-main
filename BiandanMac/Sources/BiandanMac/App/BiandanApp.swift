@@ -128,6 +128,11 @@ struct BiandanCommands: Commands {
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(model.authState != .signedIn)
         }
+        CommandGroup(replacing: .importExport) {
+            ForEach(ExportFormat.allCases) { format in
+                Button("导出" + format.title + "…") { model.exportData(format) }
+            }
+        }
         CommandMenu("视图") {
             ForEach(Array(ContentMode.allCases.enumerated()), id: \.element) { index, mode in
                 Button(mode.title) { model.setMode(mode) }

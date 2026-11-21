@@ -168,6 +168,10 @@ final class AppModel {
     var outboxLastError: String?
     /// 待同步队列明细（待同步 + 已放弃，按入队顺序）。
     var outboxEntries: [OutboxEntry] = []
+    /// 导出、备份的结果提示（设置页显示）。
+    var exportNotice: String?
+    /// 最近一次本地自动备份的时间。
+    var lastBackupAt: Date? = LocalBackup.latestDate()
     /// 入队命令 → 它的乐观修改，重放成功或放弃时移除。
     @ObservationIgnored var queuedEdits: [String: UUID] = [:]
     @ObservationIgnored var isFlushingOutbox = false
@@ -538,6 +542,7 @@ final class AppModel {
             }
             lastSyncedAt = report.finishedAt
             reloadSnapshot()
+            autoBackupIfNeeded()
             syncThrottle.recordSuccess(at: report.finishedAt,
                                        records: snapshot.lists.count + snapshot.tasks.count
                                            + snapshot.occurrences.count + snapshot.focus.count)
