@@ -204,6 +204,12 @@ final class AppModel {
     var searchText = ""
     var selectedOccurrenceID: String?
     var selectedFocusID: String?
+    /// ⌘ 点击多选的执行实例 ID；非空时显示批量操作栏。
+    var multiSelection: Set<String> = []
+    /// 批量删除确认弹窗。
+    var batchDeleteRequested = false
+    /// 批量操作期间暂存各步的撤销，结束后合并登记成一步。
+    @ObservationIgnored var undoCollector: [UndoStep]?
     var showInspector = true
     var showRawJSON = false
     var calendarMonth: LocalDate = LocalDate.today().firstOfMonth
@@ -440,6 +446,7 @@ final class AppModel {
         }
         selectedOccurrenceID = nil
         selectedFocusID = nil
+        multiSelection = []
         syncStatus = .idle
         profile = .placeholder
         authState = .signedOut
@@ -536,6 +543,9 @@ final class AppModel {
         }
         if lastSyncedAt == nil { lastSyncedAt = snapshot.lastPulledAt }
         if let id = selectedOccurrenceID, snapshot.item(occurrenceID: id) == nil { selectedOccurrenceID = nil }
+        if !multiSelection.isEmpty {
+            multiSelection = multiSelection.filter { snapshot.item(occurrenceID: $0) != nil }
+        }
         if let id = selectedFocusID, !snapshot.focus.contains(where: { $0.time == id }) { selectedFocusID = nil }
         scheduleReminders()
     }

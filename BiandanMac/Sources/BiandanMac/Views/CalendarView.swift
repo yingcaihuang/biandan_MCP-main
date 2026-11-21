@@ -304,7 +304,7 @@ struct CalendarChip: View {
     let day: LocalDate
 
     var body: some View {
-        let selected = model.selectedOccurrenceID == item.id
+        let selected = model.selectedOccurrenceID == item.id || model.multiSelection.contains(item.id)
         let tint = item.task.quadrant.tint
         HStack(spacing: 4) {
             RoundedRectangle(cornerRadius: 1.5).fill(tint).frame(width: 3)
@@ -320,8 +320,7 @@ struct CalendarChip: View {
         .background(RoundedRectangle(cornerRadius: 4).fill(tint.opacity(selected ? 0.32 : 0.12)))
         .contentShape(Rectangle())
         .onTapGesture {
-            model.selectedOccurrenceID = item.id
-            model.selectedFocusID = nil
+            model.tapSelect(item)
         }
         .draggable(item.id)
         .help(item.task.taskTitle + " · " + item.scheduleText(today: model.today) + " · 拖到其他日期可改期")

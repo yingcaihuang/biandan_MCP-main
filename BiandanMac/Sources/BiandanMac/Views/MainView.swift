@@ -65,6 +65,9 @@ struct MainView: View {
         .sheet(item: $model.focusDeleteRequest) { record in
             FocusDeleteSheet(record: record).environment(model)
         }
+        .sheet(isPresented: $model.batchDeleteRequested) {
+            BatchDeleteSheet().environment(model)
+        }
     }
 }
 
@@ -98,7 +101,16 @@ struct ContentArea: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Theme.background)
-        .overlay(alignment: .bottom) { OperationBanner() }
+        .overlay(alignment: .bottom) {
+            VStack(spacing: 8) {
+                if !model.multiSelection.isEmpty {
+                    BatchActionBar()
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                OperationBanner()
+            }
+            .animation(.easeInOut(duration: 0.2), value: model.multiSelection.isEmpty)
+        }
     }
 }
 

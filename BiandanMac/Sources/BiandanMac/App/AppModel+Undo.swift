@@ -43,13 +43,36 @@ enum UndoPlan {
     }
 }
 
+/// 批量操作里的一步：它自己的撤销与重做命令。
+struct UndoStep {
+    let undo: [OutboxCommand]
+    let redo: [OutboxCommand]
+}
+
+extension UndoPlan {
+    /// 把多步合并成一步：撤销按相反顺序执行，重做按原顺序执行。
+    static func combine(_ steps: [UndoStep]) -> (undo: [OutboxCommand], redo: [OutboxCommand]) {
+        (steps.reversed().flatMap(\.undo), steps.flatMap(\.redo))
+    }
+}
+
 extension AppModel {
     /// 登记一步可撤销的修改。撤销时自动登记重做，重做时再登记撤销。
+    /// 批量操作期间（undoCollector 非 nil）只暂存，由批量操作结束时合并登记。
     func registerUndo(_ label: String, undo: [OutboxCommand], redo: [OutboxCommand]) {
+        if undoCollector != nil {
+            if !undo.isEmpty, !redo.isEmpty { undoCollector?.append(UndoStep(undo: undo, redo: redo)) }
+            return
+        }
+        registerUndoNow(label, undo: undo, redo: redo)
+    }
+
+    /// 直接登记到 UndoManager，不经过批量暂存（撤销 / 重做时互相登记用这个）。
+    func registerUndoNow(_ label: String, undo: [OutboxCommand], redo: [OutboxCommand]) {
         guard let manager = undoManager, !undo.isEmpty, !redo.isEmpty else { return }
         manager.registerUndo(withTarget: self) { model in
             MainActor.assumeIsolated {
-                model.registerUndo(label, undo: redo, redo: undo)
+                model.registerUndoNow(label, undo: redo, redo: undo)
                 Task { await model.runUndoCommands(label, undo) }
             }
         }
