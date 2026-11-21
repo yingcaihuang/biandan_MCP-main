@@ -452,8 +452,8 @@ extension AppModel {
     }
 
     /// 回车前的预览：日期 · 时刻 · 重复 · 分类 · 重要 / 紧急。
-    func quickAddHint(_ draft: QuickAddDraft) -> String {
-        guard let input = QuickAddParser.input(draft, preset: makeNewTaskPreset()) else { return "" }
+    func quickAddHint(_ draft: QuickAddDraft, preset: NewTaskPreset? = nil) -> String {
+        guard let input = QuickAddParser.input(draft, preset: preset ?? makeNewTaskPreset()) else { return "" }
         var parts: [String] = []
         if let day = input.startDate {
             parts.append(day == today ? "今天" : (day == today.adding(days: 1) ? "明天" : day.shortTitle))

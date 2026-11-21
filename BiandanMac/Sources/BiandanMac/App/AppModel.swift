@@ -111,6 +111,7 @@ private enum DefaultsKey {
     static let tintCheckboxByList = "biandan.tintCheckboxByList"
     static let summaryRange = "biandan.summaryRange"
     static let showSummaryTimeline = "biandan.showSummaryTimeline"
+    static let quickAddHotKey = "biandan.quickAddHotKey"
 }
 
 /// 应用状态。P3 只读：登录、同步、浏览和选中。
@@ -289,6 +290,19 @@ final class AppModel {
     var showMenuBarExtra: Bool = MenuBarDefaults.isShown {
         didSet { UserDefaults.standard.set(showMenuBarExtra, forKey: MenuBarDefaults.showKey) }
     }
+    /// 全局快速添加的快捷键（默认 ⌃⌥N）。
+    var quickAddHotKey: QuickAddHotKey = QuickAddHotKey(
+        rawValue: UserDefaults.standard.string(forKey: DefaultsKey.quickAddHotKey) ?? ""
+    ) ?? .controlOptionN {
+        didSet {
+            UserDefaults.standard.set(quickAddHotKey.rawValue, forKey: DefaultsKey.quickAddHotKey)
+            applyQuickAddHotKey()
+        }
+    }
+    /// 快捷键注册失败（被占用等）时的提示。
+    var quickAddHotKeyStatus: String?
+    /// 每次弹出全局快速添加时递增，输入框据此清空并聚焦。
+    var globalQuickAddSession = 0
     var reminderStatus: ReminderStatus = .notDetermined
     /// 上次读取系统授权的时间（设置页显示）。
     var reminderCheckedAt: Date?
@@ -337,6 +351,7 @@ final class AppModel {
         bootstrapped = true
         if mcpEnabled { startMCP() }
         installReminderObserver()
+        applyQuickAddHotKey()
         Task { await refreshReminderStatus() }
         reloadSnapshot()
         refreshOutboxCounts()

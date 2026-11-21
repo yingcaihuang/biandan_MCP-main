@@ -703,6 +703,15 @@ private struct ReminderSettingsSection: View {
                 }
             }
             ThemedRow("在菜单栏显示便单") { ThemedSwitch(isOn: $model.showMenuBarExtra) }
+            ThemedRow("全局快速添加") {
+                ThemedSegmented(selection: $model.quickAddHotKey,
+                                options: QuickAddHotKey.allCases.map { ThemeOption(value: $0, title: $0.title) })
+            }
+            if let status = model.quickAddHotKeyStatus {
+                NoteRow(icon: "exclamationmark.triangle", text: status)
+            }
+            NoteRow(icon: "keyboard",
+                    text: "在任何 App 里按快捷键弹出输入框记任务，写法与快速添加栏相同，没写日期时默认今天。不需要辅助功能权限。")
             NoteRow(icon: "bell",
                     text: "一次性任务按提醒日期和时刻通知；重复任务按近 14 天每次执行的日期加提醒时刻通知，最多排定 60 条。地点提醒仍由手机处理。显示菜单栏图标时，关闭主窗口不会退出应用。")
         }

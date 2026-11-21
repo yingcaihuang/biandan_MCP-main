@@ -92,6 +92,8 @@ struct BiandanCommands: Commands {
             Button("新建任务") { model.newTaskPreset = model.makeNewTaskPreset() }
                 .keyboardShortcut("n", modifiers: .command)
                 .disabled(model.authState != .signedIn)
+            Button("全局快速添加…") { QuickAddPanelController.shared.show(model: model) }
+                .disabled(model.authState != .signedIn)
             Button("立即同步") { Task { await model.syncNow() } }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(model.authState != .signedIn)
