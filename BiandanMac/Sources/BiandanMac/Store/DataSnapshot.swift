@@ -50,6 +50,10 @@ struct SidebarCounts: Sendable, Equatable {
     var collected = 0
     var important = 0
     var overdue = 0
+    /// 已完成：与「已完成」视图一致，含无日期任务。
+    var completed = 0
+    /// 已放弃：与「已放弃」视图一致，含无日期任务。
+    var abandoned = 0
     var perList: [String: Int] = [:]
     var focusThisWeek = 0
 }
@@ -209,8 +213,18 @@ struct DataSnapshot: Sendable {
     func counts(today: LocalDate, weekStart: Int = 0) -> SidebarCounts {
         var counts = SidebarCounts()
         let weekEnd = today.adding(days: 6)
-        for occurrence in occurrences where occurrence.status == .pending {
+        for occurrence in occurrences {
             guard let task = tasks[occurrence.id1] else { continue }
+            // 已完成、已放弃的口径与 items(_:) 对这两个视图的筛选一致。
+            if occurrence.status == .completed {
+                counts.completed += 1
+                continue
+            }
+            if occurrence.status == .abandoned {
+                counts.abandoned += 1
+                continue
+            }
+            guard occurrence.status == .pending else { continue }
             counts.allPending += 1
             counts.perList[task.id3, default: 0] += 1
             if task.collected { counts.collected += 1 }

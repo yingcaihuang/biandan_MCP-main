@@ -100,6 +100,8 @@ struct SidebarView: View {
         case .undated: return counts.undated
         case .collected: return counts.collected
         case .important: return counts.important
+        case .completed: return counts.completed
+        case .abandoned: return counts.abandoned
         default: return 0
         }
     }

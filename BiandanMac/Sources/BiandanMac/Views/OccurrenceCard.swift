@@ -42,10 +42,19 @@ struct OccurrenceCard: View {
     let item: OccurrenceItem
     var compact = false
     var showList = true
+    @State private var hovering = false
+    @State private var quickOpen: CardQuickAction?
+
+    /// 快捷操作条：鼠标在卡片上、卡片被选中或面板开着时显示；多选时让位给底部批量操作栏，日历小卡片不显示。
+    private func showsQuickActions(selected: Bool) -> Bool {
+        guard !compact, model.multiSelection.isEmpty else { return false }
+        return hovering || selected || quickOpen != nil
+    }
 
     var body: some View {
         let multi = model.multiSelection.contains(item.id)
         let selected = multi || model.selectedOccurrenceID == item.id
+        let quick = showsQuickActions(selected: selected)
         let progress = item.progress
         HStack(alignment: .top, spacing: 9) {
             Button {
@@ -96,6 +105,16 @@ struct OccurrenceCard: View {
         .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
             .stroke(selected ? Theme.accent : Color.clear, lineWidth: 2))
         .shadow(color: .black.opacity(0.05), radius: 1, y: 1)
+        .overlay(alignment: .bottomTrailing) {
+            if quick {
+                CardQuickActions(item: item, open: $quickOpen)
+                    .padding(.trailing, 6)
+                    .padding(.bottom, 4)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.12), value: quick)
+        .onHover { hovering = $0 }
         .contentShape(Rectangle())
         .onTapGesture {
             model.tapSelect(item)

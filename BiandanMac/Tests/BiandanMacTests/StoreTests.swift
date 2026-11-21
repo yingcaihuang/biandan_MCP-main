@@ -73,6 +73,7 @@ final class StoreTests: XCTestCase {
             task("2", "无日期", extra: ["haveNoTime": .int(1), "isCollectible": .int(1)]),
             task("3", "昨天完成", extra: ["startTime": .string("2026-11-18"), "endTime": .string("2026-11-18")]),
             task("4", "逾期", extra: ["startTime": .string("2026-11-10"), "endTime": .string("2026-11-12")]),
+            task("5", "放弃的无日期", extra: ["haveNoTime": .int(1)]),
         ]
         let occurrences = [
             occurrence("11", task: "1", start: "2026-11-20", end: "2026-11-20"),
@@ -80,6 +81,7 @@ final class StoreTests: XCTestCase {
             occurrence("33", task: "3", start: "2026-11-18", end: "2026-11-18", count: 1, finish: 1,
                        finishedAt: "2026-11-19 08:00:00"),
             occurrence("44", task: "4", start: "2026-11-10", end: "2026-11-12"),
+            occurrence("55", task: "5", start: "1970-01-01", end: "2100-12-31", count: -1),
             occurrence("99", task: "404", start: "2026-11-20", end: "2026-11-20"),
         ]
         return DataSnapshot(lists: [], tasks: tasks, occurrences: occurrences, focus: [], lastPulledAt: nil)
@@ -118,5 +120,20 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(counts.collected, 1)
         XCTAssertEqual(counts.overdue, 1)
         XCTAssertEqual(counts.perList["1"], 3)
+        XCTAssertEqual(counts.completed, 1)
+        XCTAssertEqual(counts.abandoned, 1)
+    }
+
+    /// 侧栏「已完成」「已放弃」的数字要和点进去看到的条数一致。
+    func testCompletedAbandonedCountsMatchViews() {
+        let snapshot = sampleSnapshot()
+        let counts = snapshot.counts(today: LocalDate(iso: "2026-11-20")!)
+        XCTAssertEqual(counts.completed, snapshot.items(OccurrenceQuery(status: .completed)).count)
+        // 与 AppModel.query(for: .abandoned) 一致：含无日期任务。
+        var abandoned = OccurrenceQuery(status: .abandoned)
+        abandoned.includeUndated = true
+        let abandonedItems = snapshot.items(abandoned)
+        XCTAssertEqual(abandonedItems.map(\.id), ["55"])
+        XCTAssertEqual(counts.abandoned, abandonedItems.count)
     }
 }

@@ -669,6 +669,8 @@ final class AppModel {
             query.status = .completed
         case .abandoned:
             query.status = .abandoned
+            // 无日期任务放弃后也要能在这里找回来（与「已完成」一致）。
+            query.includeUndated = true
         case .list(let id):
             query.listID = id
             query.includeUndated = true
