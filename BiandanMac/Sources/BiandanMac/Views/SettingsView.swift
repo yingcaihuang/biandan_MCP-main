@@ -630,6 +630,7 @@ private struct AdvancedPane: View {
         VStack(alignment: .leading, spacing: 18) {
             InspectorSection("显示") {
                 ThemedRow("检查器中显示云端字段名") { ThemedSwitch(isOn: $model.showFieldNames) }
+                ThemedRow("完成圆圈使用待办单颜色") { ThemedSwitch(isOn: $model.tintCheckboxByList) }
             }
 
             InspectorSection("本机文件") {

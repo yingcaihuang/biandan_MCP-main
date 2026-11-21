@@ -108,6 +108,7 @@ private enum DefaultsKey {
     static let pinMainWindow = "biandan.pinMainWindow"
     static let showCompletedInList = "biandan.showCompletedInList"
     static let pomodoroMinutes = "biandan.pomodoroMinutes"
+    static let tintCheckboxByList = "biandan.tintCheckboxByList"
 }
 
 /// 应用状态。P3 只读：登录、同步、浏览和选中。
@@ -229,6 +230,10 @@ final class AppModel {
     }
     var showFieldNames: Bool = UserDefaults.standard.object(forKey: DefaultsKey.showFieldNames) as? Bool ?? true {
         didSet { UserDefaults.standard.set(showFieldNames, forKey: DefaultsKey.showFieldNames) }
+    }
+    /// 任务卡片的完成圆圈使用所属待办单的颜色（默认打开）。
+    var tintCheckboxByList: Bool = UserDefaults.standard.object(forKey: DefaultsKey.tintCheckboxByList) as? Bool ?? true {
+        didSet { UserDefaults.standard.set(tintCheckboxByList, forKey: DefaultsKey.tintCheckboxByList) }
     }
 
     // 本机 MCP 服务（默认关闭）

@@ -49,7 +49,7 @@ struct OccurrenceCard: View {
             Button {
                 Task { await model.toggleCompletion(item) }
             } label: {
-                StatusCircle(status: item.status)
+                StatusCircle(status: item.status, tint: model.checkboxTint(for: item.task))
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -143,19 +143,40 @@ struct OccurrenceCard: View {
     }
 }
 
+/// 完成圆圈的取色：开关打开且待办单选了颜色时用待办单颜色；默认色（0 号）和关闭时返回 nil，保持原样式。
+enum CheckboxTint {
+    static func hex(listColor: ListColor?, enabled: Bool) -> UInt32? {
+        guard enabled, let listColor, listColor.colorIndex > 0,
+              ListColor.palette.indices.contains(listColor.colorIndex) else { return nil }
+        return listColor.hex
+    }
+}
+
+extension AppModel {
+    func checkboxTint(for task: TaskDef) -> Color? {
+        CheckboxTint.hex(listColor: snapshot.list(task.id3)?.color, enabled: tintCheckboxByList).map { Color(hex: $0) }
+    }
+}
+
 struct StatusCircle: View {
     let status: OccurrenceStatus
+    /// nil 表示原样式：灰色圆圈、绿色完成。
+    var tint: Color? = nil
     var size: CGFloat = 16
+
+    private var ring: Color { tint ?? Color(hex: 0xB9B09C) }
+    private var filled: Color { tint ?? Theme.done }
+    private var abandonedRing: Color { tint.map { $0.opacity(0.55) } ?? Color(hex: 0xB9B09C) }
 
     var body: some View {
         switch status {
         case .pending:
             Circle()
-                .stroke(Color(hex: 0xB9B09C), lineWidth: 1.6)
+                .stroke(ring, lineWidth: tint == nil ? 1.6 : 1.9)
                 .frame(width: size, height: size)
         case .completed:
             ZStack {
-                Circle().fill(Theme.done)
+                Circle().fill(filled)
                 Image(systemName: "checkmark")
                     .font(.system(size: size * 0.55, weight: .bold))
                     .foregroundStyle(.white)
@@ -163,7 +184,7 @@ struct StatusCircle: View {
             .frame(width: size, height: size)
         case .abandoned:
             ZStack {
-                Circle().stroke(Color(hex: 0xB9B09C), lineWidth: 1.6)
+                Circle().stroke(abandonedRing, lineWidth: 1.6)
                 Image(systemName: "minus")
                     .font(.system(size: size * 0.55, weight: .bold))
                     .foregroundStyle(Theme.subtext)
