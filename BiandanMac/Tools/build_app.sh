@@ -4,14 +4,16 @@
 # 可选环境变量：
 #   BIANDAN_SIGN_IDENTITY  证书 SHA-1 或名称（默认 Wuxi Chaorong Developer ID Application）
 #   CONFIG                 release（默认）或 debug
-#   VERSION / BUILD_NUMBER 版本号 / 构建号
+#   VERSION / BUILD_NUMBER 版本号 / 构建号（HEAD 在 vX.Y.Z tag 上时版本号取 tag，不能另指定）
 #   TIMESTAMP=0            离线时跳过 Apple 时间戳服务器
+# 产物：dist/Biandan.app，以及带版本号的 dist/Biandan-<版本>.zip 和 .zip.sha256。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IDENTITY="${BIANDAN_SIGN_IDENTITY:-963EFDD532CD44170CF91398025F08D5DB4ADA2F}"
 CONFIG="${CONFIG:-release}"
-VERSION="${VERSION:-0.6.1}"
+# 不在 tag 上构建时的默认版本号。
+DEFAULT_VERSION="0.6.1"
 BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
 BUNDLE_ID="ai.racore.BiandanMac"
 DIST="$ROOT/dist"
@@ -19,6 +21,29 @@ APP="$DIST/Biandan.app"
 ENTITLEMENTS="$ROOT/Tools/BiandanMac.entitlements"
 
 cd "$ROOT"
+
+# 版本号和产物文件名与 git tag 对齐：
+# - HEAD 正好在 vX.Y.Z tag 上且没有未提交改动：版本号取 X.Y.Z，产物叫 Biandan-X.Y.Z.zip，与 Release 附件同名；
+#   这时用 VERSION 指定了别的版本号会直接报错，避免打出版本号和 tag 对不上的包。
+# - 其他情况：文件名带提交号（有未提交改动再加 .dirty），例如 Biandan-0.6.1-dev.abc1234.zip，不会覆盖正式版的包。
+EXACT_TAG="$(git describe --tags --exact-match --match 'v[0-9]*.[0-9]*.[0-9]*' HEAD 2>/dev/null || true)"
+DIRTY=""
+git diff --quiet HEAD -- . 2>/dev/null || DIRTY=1
+[ -z "$(git ls-files --others --exclude-standard -- . 2>/dev/null)" ] || DIRTY=1
+if [ -n "$EXACT_TAG" ] && [ -z "$DIRTY" ]; then
+    TAG_VERSION="${EXACT_TAG#v}"
+    if [ -n "${VERSION:-}" ] && [ "$VERSION" != "$TAG_VERSION" ]; then
+        echo "版本号和 tag 不一致：VERSION=${VERSION}，HEAD 的 tag 是 ${EXACT_TAG}" >&2
+        exit 1
+    fi
+    VERSION="$TAG_VERSION"
+    ARTIFACT="Biandan-$VERSION"
+else
+    VERSION="${VERSION:-$DEFAULT_VERSION}"
+    SHORT="$(git rev-parse --short HEAD 2>/dev/null || echo nogit)"
+    ARTIFACT="Biandan-$VERSION-dev.$SHORT${DIRTY:+.dirty}"
+fi
+echo "==> 版本 ${VERSION}（tag：${EXACT_TAG:-无}），产物 ${ARTIFACT}.zip"
 
 if ! security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
     echo "找不到签名证书：$IDENTITY" >&2
@@ -135,5 +160,13 @@ codesign -d -r- "$APP" 2>&1 | sed -n 's/^designated => /  /p'
 echo "--- Gatekeeper（未公证时显示 Unnotarized 属正常）"
 spctl --assess --type execute -vv "$APP" 2>&1 || true
 
+echo "==> 打包"
+ZIP="$DIST/$ARTIFACT.zip"
+rm -f "$ZIP" "$ZIP.sha256"
+ditto -c -k --keepParent --sequesterRsrc "$APP" "$ZIP"
+(cd "$DIST" && shasum -a 256 "$ARTIFACT.zip" > "$ARTIFACT.zip.sha256")
+
 echo ""
 echo "完成：$APP  （版本 $VERSION / 构建 ${BUILD_NUMBER}）"
+echo "      $ZIP"
+echo "      SHA-256 $(awk '{print $1}' "$ZIP.sha256")"

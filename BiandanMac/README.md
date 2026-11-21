@@ -115,9 +115,16 @@
 ### 打包签名
 
 ```bash
-# 在 BiandanMac 目录执行，产物在 dist/Biandan.app
+# 在 BiandanMac 目录执行
 Tools/build_app.sh
 ```
+
+产物：
+
+- `dist/Biandan.app`：签好名的 App（名字固定，拖进「应用程序」后升级会直接覆盖旧版）；
+- `dist/Biandan-<版本>.zip` 和 `.zip.sha256`：带版本号的压缩包，文件名与 git tag 一致：
+  - HEAD 正好在 `vX.Y.Z` tag 上且没有未提交改动：`Biandan-X.Y.Z.zip`，和 GitHub Release 的附件同名，可以直接上传；这时用 `VERSION` 指定别的版本号会报错；
+  - 其他情况（tag 之后又有提交，或有未提交改动）：`Biandan-X.Y.Z-dev.<提交号>.zip`，有未提交改动时再加 `.dirty`，不会覆盖正式版的包。
 
 可选环境变量：
 
@@ -125,7 +132,7 @@ Tools/build_app.sh
 |---|---|
 | `BIANDAN_SIGN_IDENTITY` | 签名证书的 SHA-1 或名称，默认使用 Developer ID Application 证书 |
 | `CONFIG` | `release`（默认）或 `debug` |
-| `VERSION` / `BUILD_NUMBER` | 版本号（默认 0.6.1）/ 构建号（默认当前时间 `yyyyMMddHHmm`） |
+| `VERSION` / `BUILD_NUMBER` | 版本号（在 tag 上时取 tag，否则默认 0.6.1）/ 构建号（默认当前时间 `yyyyMMddHHmm`） |
 | `TIMESTAMP=0` | 离线时跳过 Apple 时间戳服务器 |
 
 ### 测试
