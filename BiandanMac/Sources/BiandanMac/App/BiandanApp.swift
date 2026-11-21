@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 以 SwiftPM 可执行文件运行时也显示 Dock 图标和菜单栏。
         NSApp.setActivationPolicy(.regular)
+        // swift run 时没有 .app 包里的 AppIcon.icns，这里把官方图标设为 Dock 图标；打包后两者一致。
+        if let icon = BrandIcon.image { NSApp.applicationIconImage = icon }
         NSApp.activate(ignoringOtherApps: true)
         if ReminderScheduler.isAvailable {
             UNUserNotificationCenter.current().delegate = self

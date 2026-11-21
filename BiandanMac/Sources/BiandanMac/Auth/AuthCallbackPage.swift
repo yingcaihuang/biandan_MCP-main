@@ -180,9 +180,8 @@ enum AuthCallbackPage {
         .strip i:nth-child(1){background:var(--q1)}.strip i:nth-child(2){background:var(--q2)}
         .strip i:nth-child(3){background:var(--q3)}.strip i:nth-child(4){background:var(--q4)}
         .main{padding:34px 32px 26px;text-align:center}
-        .logo{width:72px;height:72px;margin:0 auto 18px;border-radius:18px;
-          background:linear-gradient(135deg,#FFD54A,#F5A300);color:#fff;font-size:34px;font-weight:800;
-          display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(245,163,0,.3)}
+        .logo{display:block;width:72px;height:72px;margin:0 auto 18px;border-radius:16px;
+          box-shadow:0 6px 16px rgba(60,48,20,.18)}
         .tag{display:inline-block;padding:2px 10px;border-radius:999px;color:#fff;font-size:12px;font-weight:600;
           margin-bottom:10px;transition:background .3s}
         h1{margin:0 0 8px;font-size:24px;font-weight:800;letter-spacing:.5px}
@@ -217,7 +216,7 @@ enum AuthCallbackPage {
         <main class="card" id="card">
         <div class="strip"><i></i><i></i><i></i><i></i></div>
         <div class="main">
-        <div class="logo">便</div>
+        <img class="logo" src="\(BrandIcon.dataURI)" alt="便单" width="72" height="72">
         <span class="tag" id="tag" style="background:\(color)">\(tag)</span>
         <h1 id="title">\(title)</h1>
         <p class="msg" id="msg">\(message)</p>

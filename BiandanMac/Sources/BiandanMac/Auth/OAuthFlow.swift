@@ -105,7 +105,7 @@ final class LoopbackReceiver: @unchecked Sendable {
     /// 回调页轮询进度用的会话令牌，防止本机其他页面读取状态。
     let session = PKCE.randomToken(bytes: 18)
 
-    private static let staticCSP = "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; "
+    private static let staticCSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; "
         + "form-action 'none'; frame-ancestors 'none'"
 
     init(state: String, progress: LoginProgress) {
@@ -293,7 +293,7 @@ final class LoopbackReceiver: @unchecked Sendable {
     private func respondProgressPage(_ connection: NWConnection) {
         let nonce = PKCE.randomToken(bytes: 16)
         let html = AuthCallbackPage.progressHTML(progress.snapshot, session: session, nonce: nonce)
-        let csp = "default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-\(nonce)'; "
+        let csp = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'nonce-\(nonce)'; "
             + "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
         respond(connection, status: "200 OK", contentType: "text/html; charset=utf-8", body: Data(html.utf8), csp: csp)
     }

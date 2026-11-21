@@ -13,12 +13,7 @@ struct LoginView: View {
     var body: some View {
         VStack(spacing: 14) {
             Spacer()
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(LinearGradient(colors: [Color(hex: 0xFFD54A), Color(hex: 0xF5A300)],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 88, height: 88)
-                .overlay(Text("便").font(.system(size: 42, weight: .heavy)).foregroundStyle(.white))
-                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+            BrandLogo(size: 88)
 
             Text("登录便单")
                 .font(.system(size: 28, weight: .bold))

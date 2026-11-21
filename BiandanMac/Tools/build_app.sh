@@ -37,6 +37,22 @@ fi
 echo "==> 组装 $APP"
 rm -rf "${APP:?}"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+
+echo "==> 生成 App 图标"
+# 由官方授权的 Assets/biandan.png（512×512）生成 AppIcon.icns。
+ICON_SRC="$ROOT/Assets/biandan.png"
+ICON_TMP="$(mktemp -d)"
+ICONSET="$ICON_TMP/AppIcon.iconset"
+mkdir -p "$ICONSET"
+for size in 16 32 128 256 512; do
+    sips -z "$size" "$size" "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+    double=$((size * 2))
+    if [ "$double" -le 512 ]; then
+        sips -z "$double" "$double" "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+    fi
+done
+iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+rm -rf "${ICON_TMP:?}"
 cp "$BINARY" "$APP/Contents/MacOS/BiandanMac"
 # 依赖包的资源包（例如 GRDB 的隐私清单）一并放入。
 find "$BIN_DIR" -maxdepth 1 -name '*.bundle' -type d -exec cp -R {} "$APP/Contents/Resources/" \;
@@ -51,6 +67,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key><string>便单</string>
     <key>CFBundleDisplayName</key><string>便单</string>
     <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
     <key>CFBundleVersion</key><string>$BUILD_NUMBER</string>
     <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
