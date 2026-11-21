@@ -50,8 +50,11 @@ struct OperationFailure: Error, LocalizedError, Sendable {
     let needsSignIn: Bool
     /// 临时失败，可以入队重试。
     let transient: Bool
+    /// 原始错误（MCP 需要从中取出 ServiceError 的附加信息）。
+    let source: Error
 
     init(error: Error, changes: ChangeSet) {
+        source = error
         message = error.localizedDescription
         self.changes = changes
         transient = OutboxPolicy.isTransient(error)

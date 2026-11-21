@@ -96,6 +96,8 @@ private enum DefaultsKey {
     static let chinaMakeup = "biandan.chinaMakeup"
     static let showFieldNames = "biandan.showFieldNames"
     static let quadrantRange = "biandan.quadrantRange"
+    static let mcpEnabled = "biandan.mcpEnabled"
+    static let remindersEnabled = "biandan.remindersEnabled"
 }
 
 /// 应用状态。P3 只读：登录、同步、浏览和选中。
@@ -219,6 +221,40 @@ final class AppModel {
         didSet { UserDefaults.standard.set(showFieldNames, forKey: DefaultsKey.showFieldNames) }
     }
 
+    // 本机 MCP 服务（默认关闭）
+    var mcpEnabled: Bool = UserDefaults.standard.bool(forKey: DefaultsKey.mcpEnabled) {
+        didSet {
+            guard mcpEnabled != oldValue else { return }
+            UserDefaults.standard.set(mcpEnabled, forKey: DefaultsKey.mcpEnabled)
+            if mcpEnabled { startMCP() } else { stopMCP() }
+        }
+    }
+    var mcpStatus: MCPStatus = .off
+    var mcpCallCount = 0
+    var mcpLastCallAt: Date?
+    var mcpNotice: String?
+    @ObservationIgnored var mcpAccessKey: String?
+    @ObservationIgnored var mcpServer: MCPHTTPServer?
+    @ObservationIgnored var mcpGeneration: UUID?
+
+    // 时间提醒通知（默认关闭）与菜单栏组件（默认显示）
+    var remindersEnabled: Bool = UserDefaults.standard.bool(forKey: DefaultsKey.remindersEnabled) {
+        didSet {
+            guard remindersEnabled != oldValue else { return }
+            UserDefaults.standard.set(remindersEnabled, forKey: DefaultsKey.remindersEnabled)
+            remindersToggled()
+        }
+    }
+    var showMenuBarExtra: Bool = MenuBarDefaults.isShown {
+        didSet { UserDefaults.standard.set(showMenuBarExtra, forKey: MenuBarDefaults.showKey) }
+    }
+    var reminderStatus: ReminderStatus = .notDetermined
+    var scheduledReminderCount = 0
+    let reminders = ReminderScheduler()
+    /// 由界面注册的「打开主窗口」动作（SwiftUI openWindow）。
+    @ObservationIgnored var openMainWindow: (() -> Void)?
+    @ObservationIgnored var revealObserver: NSObjectProtocol?
+
     init() {
         // 先装好本地缓存的调休数据，重复规则展开时要用。
         HolidayUpdater.loadCache()
@@ -238,12 +274,16 @@ final class AppModel {
     func bootstrap() async {
         guard !bootstrapped else { return }
         bootstrapped = true
+        if mcpEnabled { startMCP() }
+        installReminderObserver()
+        Task { await refreshReminderStatus() }
         reloadSnapshot()
         refreshOutboxCounts()
         Task { await checkHolidayUpdates(force: false) }
         if await tokens.isSignedIn {
             profile = AccountProfile.loadSaved() ?? .placeholder
             authState = .signedIn
+            scheduleReminders()
             startAutoSync()
             await refreshRenewal()
             syncThrottle.lastSuccess = snapshot.lastPulledAt
@@ -358,6 +398,7 @@ final class AppModel {
         renewal = nil
         discardOutbox()
         undoManager?.removeAllActions()
+        scheduleReminders()
     }
 
     // MARK: - 同步
@@ -448,6 +489,7 @@ final class AppModel {
         if lastSyncedAt == nil { lastSyncedAt = snapshot.lastPulledAt }
         if let id = selectedOccurrenceID, snapshot.item(occurrenceID: id) == nil { selectedOccurrenceID = nil }
         if let id = selectedFocusID, !snapshot.focus.contains(where: { $0.time == id }) { selectedFocusID = nil }
+        scheduleReminders()
     }
 
     // MARK: - 视图数据

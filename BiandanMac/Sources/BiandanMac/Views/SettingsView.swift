@@ -649,11 +649,79 @@ private struct AdvancedPane: View {
                 }
             }
 
-            InspectorSection("实验功能") {
-                ThemedRow("本机 MCP 服务（127.0.0.1:42682）") {
-                    StatusPill(text: "P7 计划中", color: Theme.subtext)
+            InspectorSection("通知与菜单栏") {
+                ThemedRow("时间提醒通知") { ThemedSwitch(isOn: $model.remindersEnabled) }
+                ThemedRow("系统授权") {
+                    HStack(spacing: 8) {
+                        StatusPill(text: model.reminderStatus.title,
+                                   color: model.reminderStatus == .authorized ? Theme.done : Theme.subtext)
+                        if model.reminderStatus == .denied {
+                            Button("打开系统设置") { model.openNotificationSettings() }
+                                .buttonStyle(.themed)
+                        }
+                    }
                 }
+                if model.remindersEnabled && model.reminderStatus == .authorized {
+                    ThemedRow("已排定的提醒") {
+                        Text("\(model.scheduledReminderCount) 条")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.subtext)
+                    }
+                }
+                if model.reminderStatus == .unavailable {
+                    NoteRow(icon: "info.circle",
+                            text: "从打包后的 便单.app 运行时才能发送通知（直接运行的可执行文件没有 Bundle ID）。")
+                }
+                ThemedRow("在菜单栏显示便单") { ThemedSwitch(isOn: $model.showMenuBarExtra) }
+                NoteRow(icon: "bell",
+                        text: "一次性任务按提醒日期和时刻通知；重复任务按近 14 天每次执行的日期加提醒时刻通知，最多排定 60 条。地点提醒仍由手机处理。显示菜单栏图标时，关闭主窗口不会退出应用。")
             }
+            .task { await model.refreshReminderStatus() }
+
+            InspectorSection("本机 MCP 服务") {
+                ThemedRow("启用（127.0.0.1:\(String(MCPHTTP.defaultPort))）") {
+                    ThemedSwitch(isOn: $model.mcpEnabled)
+                }
+                ThemedRow("状态") {
+                    HStack(spacing: 8) {
+                        StatusPill(text: model.mcpStatus.title, color: mcpColor)
+                        if model.mcpStatus.failureMessage != nil && model.mcpEnabled {
+                            Button("重试") { model.restartMCP() }
+                                .buttonStyle(.themed)
+                        }
+                    }
+                }
+                if let message = model.mcpStatus.failureMessage {
+                    NoteRow(icon: "exclamationmark.triangle", text: message)
+                }
+                ThemedRow("AI 客户端配置") {
+                    Button("拷贝配置") { model.copyMCPConfig() }
+                        .buttonStyle(.themed)
+                }
+                PathRow(title: "访问密钥文件", url: MCPAccessKey.fileURL)
+                if model.mcpCallCount > 0 {
+                    ThemedRow("已处理工具调用") {
+                        Text("\(model.mcpCallCount) 次")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.subtext)
+                    }
+                }
+                if let notice = model.mcpNotice {
+                    NoteRow(icon: "doc.on.clipboard", text: notice)
+                }
+                NoteRow(icon: "info.circle",
+                        text: "与 Python 版共用端口和访问密钥，已配置好的 Claude、Codex 无需修改；请勿同时运行 Python 版。AI 写入后界面会立即刷新。")
+            }
+        }
+    }
+}
+
+extension AdvancedPane {
+    fileprivate var mcpColor: Color {
+        switch model.mcpStatus {
+        case .running: return Theme.done
+        case .failed: return Theme.overdue
+        case .off, .starting: return Theme.subtext
         }
     }
 }

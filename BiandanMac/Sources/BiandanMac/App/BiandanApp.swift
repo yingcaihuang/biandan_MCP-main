@@ -1,16 +1,40 @@
 import AppKit
 import Combine
 import SwiftUI
+import UserNotifications
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 以 SwiftPM 可执行文件运行时也显示 Dock 图标和菜单栏。
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        if ReminderScheduler.isAvailable {
+            UNUserNotificationCenter.current().delegate = self
+        }
     }
 
+    /// 显示菜单栏图标时，关闭主窗口不退出应用。
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        !MenuBarDefaults.isShown
+    }
+
+    // MARK: 通知
+
+    /// 应用在前台时也显示横幅。
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                            withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .list, .sound])
+    }
+
+    /// 点击通知：打开主窗口并选中对应的执行实例。
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                            withCompletionHandler completionHandler: @escaping () -> Void) {
+        let id = response.notification.request.content.userInfo["occurrenceID"] as? String
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .biandanOpenOccurrence, object: nil,
+                                            userInfo: id.map { ["occurrenceID": $0] })
+        }
+        completionHandler()
     }
 }
 
@@ -20,8 +44,10 @@ struct BiandanApp: App {
     @State private var model = AppModel()
 
     var body: some Scene {
-        WindowGroup("便单", id: "main") {
+        // 单实例窗口：从菜单栏或通知打开时切到已有窗口，不会再开一个。
+        Window("便单", id: "main") {
             RootView()
+                .registersMainWindowOpener()
                 .environment(model)
                 .frame(minWidth: 1100, minHeight: 680)
                 .preferredColorScheme(.light)
@@ -42,6 +68,17 @@ struct BiandanApp: App {
         // 去掉系统标题栏和标签栏，整窗使用主题侧栏布局。
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
+
+        MenuBarExtra(isInserted: Binding(get: { model.showMenuBarExtra },
+                                         set: { model.showMenuBarExtra = $0 })) {
+            MenuBarContent()
+                .environment(model)
+                .preferredColorScheme(.light)
+        } label: {
+            MenuBarLabel()
+                .environment(model)
+        }
+        .menuBarExtraStyle(.window)
     }
 }
 
