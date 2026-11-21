@@ -329,6 +329,7 @@ final class AppModel {
     /// 由界面注册的「打开主窗口」动作（SwiftUI openWindow）。
     @ObservationIgnored var openMainWindow: (() -> Void)?
     @ObservationIgnored var revealObserver: NSObjectProtocol?
+    @ObservationIgnored var completeObserver: NSObjectProtocol?
 
     init() {
         // 先装好本地缓存的调休数据，重复规则展开时要用。
@@ -359,6 +360,8 @@ final class AppModel {
         if await tokens.isSignedIn {
             profile = AccountProfile.loadSaved() ?? .placeholder
             authState = .signedIn
+            // 通知上点「完成」把应用拉起时，登录状态读完再处理。
+            drainReminderInbox()
             scheduleReminders()
             startAutoSync()
             await refreshRenewal()

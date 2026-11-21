@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         NSApp.activate(ignoringOtherApps: true)
         if ReminderScheduler.isAvailable {
             UNUserNotificationCenter.current().delegate = self
+            UNUserNotificationCenter.current().setNotificationCategories([ReminderAction.category()])
         }
     }
 
@@ -28,16 +29,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         completionHandler([.banner, .list, .sound])
     }
 
-    /// 点击通知：打开主窗口并选中对应的执行实例。
+    /// 点击通知：打开主窗口并选中对应的执行实例。点操作按钮：完成（后台）或稍后提醒。
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completionHandler: @escaping () -> Void) {
-        let id = response.notification.request.content.userInfo["occurrenceID"] as? String
+        let content = response.notification.request.content
+        let id = content.userInfo["occurrenceID"] as? String
+        switch ReminderAction(rawValue: response.actionIdentifier) {
+        case .complete?:
+            if let id {
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        ReminderInbox.pendingComplete.append(id)
+                        NotificationCenter.default.post(name: .biandanCompleteOccurrence, object: nil)
+                    }
+                }
+            }
+            completionHandler()
+            return
+        case let action?:
+            if let seconds = action.snoozeSeconds {
+                let done = UncheckedCompletion(completionHandler)
+                ReminderSnooze.schedule(content, after: seconds) { done.call() }
+                return
+            }
+        case nil:
+            break
+        }
         DispatchQueue.main.async {
             NotificationCenter.default.post(name: .biandanOpenOccurrence, object: nil,
                                             userInfo: id.map { ["occurrenceID": $0] })
         }
         completionHandler()
     }
+}
+
+/// 把系统给的 completionHandler 交给 @Sendable 回调（系统保证它可以在任意线程调用）。
+private struct UncheckedCompletion: @unchecked Sendable {
+    let handler: () -> Void
+    init(_ handler: @escaping () -> Void) { self.handler = handler }
+    func call() { handler() }
 }
 
 @main

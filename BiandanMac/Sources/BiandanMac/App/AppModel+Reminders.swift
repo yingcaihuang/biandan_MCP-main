@@ -18,6 +18,12 @@ extension AppModel {
         reminders.schedule(requests) { [weak self] count in
             self?.scheduledReminderCount = count
         }
+        // 稍后提醒只保留仍待完成的实例。
+        var query = OccurrenceQuery()
+        query.includeUndated = true
+        let keep: Set<String> = remindersEnabled && authState == .signedIn
+            ? Set(snapshot.items(query).map(\.id)) : []
+        ReminderSnooze.prune(keeping: keep)
     }
 
     /// 重新读取系统通知授权（设置页打开、切回应用、点「重新检查」时调用）。
@@ -83,6 +89,12 @@ extension AppModel {
             let id = note.userInfo?["occurrenceID"] as? String
             MainActor.assumeIsolated { self?.revealOccurrence(id) }
         }
+        completeObserver = NotificationCenter.default.addObserver(
+            forName: .biandanCompleteOccurrence, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.drainReminderInbox() }
+        }
+        drainReminderInbox()
     }
 
     // MARK: 主窗口

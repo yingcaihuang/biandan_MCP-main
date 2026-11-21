@@ -182,6 +182,7 @@ final class ReminderScheduler {
             content.body = item.body
             content.sound = .default
             content.threadIdentifier = "biandan.reminder"
+            content.categoryIdentifier = ReminderAction.categoryID
             content.userInfo = ["occurrenceID": item.occurrenceID]
             let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: item.fireDate)
             let trigger = UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)
