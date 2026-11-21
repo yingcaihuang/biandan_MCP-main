@@ -16,10 +16,14 @@ struct WindowSetup: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-private final class WindowSetupView: NSView {
+final class WindowSetupView: NSView {
     var maximize = false
     var resizable = false
     private weak var configured: NSWindow?
+
+    /// 只用来拿到窗口，不参与命中测试：否则它在 AppKit 层叠到分栏上面时会吞掉所有鼠标点击
+    /// （按钮、日期 / 时刻选择点不动，键盘照常，回车能保存）。
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()

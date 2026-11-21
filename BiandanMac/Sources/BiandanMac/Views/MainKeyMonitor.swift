@@ -42,6 +42,9 @@ final class KeyMonitorView: NSView {
     weak var model: AppModel?
     private var monitor: Any?
 
+    /// 只监听按键，不参与命中测试，鼠标点击全部交给 SwiftUI 内容。
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if let monitor {
