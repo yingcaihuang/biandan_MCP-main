@@ -7,9 +7,11 @@ struct HabitSummary: Identifiable {
     let current: OccurrenceItem?
     /// 有打卡（完成）记录的日期。
     let checkedDays: Set<LocalDate>
-    /// 截至今天的连续打卡天数；今天还没打卡时从昨天往回数。
+    /// 截至今天连续完成的期数（按排期的执行实例算，今天还没打卡的那一期不算断）。
     let streak: Int
     let best: Int
+    /// 连续的单位：天 / 周 / 月 / 年 / 次，跟随重复规则。
+    let unit: String
     /// 打卡记录：已完成的实例，按完成时间倒序。
     let records: [OccurrenceItem]
 
@@ -17,6 +19,8 @@ struct HabitSummary: Identifiable {
     var total: Int { records.count }
     var checkedToday: Bool { current?.status == .completed }
     var needsCheckIn: Bool { current?.status == .pending }
+    /// 「连续天数」「连续周数」「连续次数」…
+    var streakTitle: String { "连续" + unit + "数" }
 }
 
 enum HabitStats {
@@ -29,8 +33,9 @@ enum HabitStats {
             }
             let days = Set(records.compactMap { $0.occurrence.completedDate })
             let current = rows.filter { $0.occurrence.overlaps(today, today) }.min { rank($0) < rank($1) }
+            let runs = streaks(rows, today: today)
             return HabitSummary(task: task, current: current, checkedDays: days,
-                                streak: streak(days: days, today: today), best: bestStreak(days: days),
+                                streak: runs.current, best: runs.best, unit: unit(for: task),
                                 records: records)
         }
         .sorted { lhs, rhs in
@@ -48,25 +53,55 @@ enum HabitStats {
         }
     }
 
-    static func streak(days: Set<LocalDate>, today: LocalDate) -> Int {
-        var day = days.contains(today) ? today : today.adding(days: -1)
-        var count = 0
-        while days.contains(day) {
-            count += 1
-            day = day.adding(days: -1)
+    /// 按排期的执行实例计算连续：只看开始日不晚于今天的实例，按日期排序。
+    /// 已完成算一次；覆盖今天、还没完成的那一期跳过（还来得及打卡）；其余（错过、放弃）都算中断。
+    /// 这样每天、每周、每月、只在工作日的习惯都按自己的周期计数。
+    static func streaks(_ rows: [OccurrenceItem], today: LocalDate) -> (current: Int, best: Int) {
+        let scheduled = rows
+            .filter { !$0.task.undated && ($0.occurrence.startDate.map { $0 <= today } ?? false) }
+            .sorted { ($0.occurrence.startDate ?? .minSupported, $0.id) < ($1.occurrence.startDate ?? .minSupported, $1.id) }
+        func isOpen(_ item: OccurrenceItem) -> Bool {
+            item.status == .pending && item.occurrence.overlaps(today, today)
         }
-        return count
+        var best = 0, run = 0
+        for item in scheduled {
+            if item.status == .completed {
+                run += 1
+                best = max(best, run)
+            } else if !isOpen(item) {
+                run = 0
+            }
+        }
+        var current = 0
+        for item in scheduled.reversed() {
+            if item.status == .completed {
+                current += 1
+            } else if !isOpen(item) {
+                break
+            }
+        }
+        return (current, best)
     }
 
-    static func bestStreak(days: Set<LocalDate>) -> Int {
-        var best = 0, run = 0
-        var previous: LocalDate?
-        for day in days.sorted() {
-            if let previous, previous.days(to: day) == 1 { run += 1 } else { run = 1 }
-            best = max(best, run)
-            previous = day
+    /// 连续的单位：每天 → 天；每 1 周 / 月 / 年且每期只有一次 → 周 / 月 / 年；其余（工作日、隔天、一周几次等）→ 次。
+    static func unit(for task: TaskDef) -> String {
+        switch task.repeatSet {
+        case .daily?: return "天"
+        case .weeklyPeriod?: return "周"
+        case .monthlyPeriod?: return "月"
+        case .yearlyPeriod?: return "年"
+        case .custom?:
+            guard task.loopBaseNumber <= 1, task.unit.filterRaw == 0, task.loopDates.count <= 1 else { return "次" }
+            switch task.unit.unit {
+            case .day?: return "天"
+            case .week?: return "周"
+            case .month?, .lunarMonth?: return "月"
+            case .year?, .lunarYear?: return "年"
+            case nil: return "次"
+            }
+        default:
+            return "次"
         }
-        return best
     }
 }
 

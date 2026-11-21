@@ -33,12 +33,18 @@ struct HabitListView: View {
 private struct HabitOverview: View {
     let habits: [HabitSummary]
 
+    /// 连续期数最多的那个习惯，带上它自己的单位（天 / 周 / 次…）。
+    private var topStreak: String {
+        guard let top = habits.max(by: { $0.streak < $1.streak }), top.streak > 0 else { return "0" }
+        return "\(top.streak) \(top.unit)"
+    }
+
     var body: some View {
         let due = habits.filter { $0.current != nil && $0.current?.status != .abandoned }
         let done = due.filter(\.checkedToday).count
         HStack(spacing: 28) {
             item("\(done)/\(due.count)", "今日已打卡", tint: due.count > 0 && done == due.count ? Theme.done : Theme.text)
-            item("\(habits.map(\.streak).max() ?? 0) 天", "当前最长连续", tint: Theme.accent)
+            item(topStreak, "当前最长连续", tint: Theme.accent)
             item("\(habits.map(\.total).reduce(0, +))", "累计打卡", tint: Theme.text)
             Spacer(minLength: 0)
         }
@@ -77,7 +83,7 @@ private struct HabitCard: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
-                stat("\(habit.streak)", "连续天数", tint: habit.streak > 0 ? Theme.accent : Theme.subtext)
+                stat("\(habit.streak)", habit.streakTitle, tint: habit.streak > 0 ? Theme.accent : Theme.subtext)
                 stat("\(habit.best)", "最长连续", tint: Theme.text)
                 stat("\(habit.total)", "累计打卡", tint: Theme.text)
                 Button(action: toggle) {
