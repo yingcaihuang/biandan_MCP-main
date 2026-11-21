@@ -9,22 +9,21 @@ struct SidebarView: View {
 
         List(selection: $model.sidebarSelection) {
             Section("视图") {
+                // 每一行都显式标注 .tag(SidebarItem)：List(selection:) 只按行标签写回选中值，
+                // 写死的行没有隐式标签，NavigationLink(value:) 也不会代劳，否则侧栏高亮了但选中值是 nil。
                 ForEach(SidebarItem.views, id: \.self) { item in
-                    NavigationLink(value: item) {
-                        Label(item.title, systemImage: item.systemImage)
-                    }
-                    .badge(badge(for: item, counts: counts))
+                    Label(item.title, systemImage: item.systemImage)
+                        .badge(badge(for: item, counts: counts))
+                        .tag(item)
                 }
             }
 
             Section {
                 ForEach(model.snapshot.lists) { list in
-                    NavigationLink(value: SidebarItem.list(list.id3)) {
-                        Label {
-                            Text(list.displayName)
-                        } icon: {
-                            Circle().fill(list.swatch).frame(width: 10, height: 10)
-                        }
+                    Label {
+                        Text(list.displayName)
+                    } icon: {
+                        Circle().fill(list.swatch).frame(width: 10, height: 10)
                     }
                     .badge(counts.perList[list.id3] ?? 0)
                     // 把任务卡片拖到待办单上即可移动。
@@ -39,8 +38,7 @@ struct SidebarView: View {
                     .themedContextMenu { close in
                         ListContextMenu(list: list, close: close).environment(model)
                     }
-                    // ForEach 会按待办单编号（String）给行加隐式标签，外层的拖放和右键菜单又盖住了
-                    // NavigationLink 自带的标签，导致选中值变成 nil、内容区回退到「全部待办」。这里显式标注。
+                    // ForEach 按分类编号（String）给行加隐式标签，与选中值类型不符，必须显式标注。
                     .tag(SidebarItem.list(list.id3))
                 }
                 .onMove { source, destination in
@@ -64,14 +62,12 @@ struct SidebarView: View {
             }
 
             Section("记录") {
-                NavigationLink(value: SidebarItem.habits) {
-                    Label(SidebarItem.habits.title, systemImage: SidebarItem.habits.systemImage)
-                }
-                .badge(model.habitSummaries.filter(\.needsCheckIn).count)
-                NavigationLink(value: SidebarItem.focus) {
-                    Label(SidebarItem.focus.title, systemImage: SidebarItem.focus.systemImage)
-                }
-                .badge(counts.focusThisWeek)
+                Label(SidebarItem.habits.title, systemImage: SidebarItem.habits.systemImage)
+                    .badge(model.habitSummaries.filter(\.needsCheckIn).count)
+                    .tag(SidebarItem.habits)
+                Label(SidebarItem.focus.title, systemImage: SidebarItem.focus.systemImage)
+                    .badge(counts.focusThisWeek)
+                    .tag(SidebarItem.focus)
             }
         }
         .listStyle(.sidebar)
