@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// 完成率的时间维度。
 enum ProgressRange: String, CaseIterable, Identifiable {
@@ -87,6 +88,30 @@ extension AppModel {
         if item == .undated { return .makeUndated(items) }
         let range = summaryRange.bounds(today: today)
         return .make(items, start: range.start, end: range.end)
+    }
+
+    /// 时间条上的任务：与完成率同一口径（范围跟随视图，时间跟随维度，不含已放弃和无日期）。
+    func timelineItems(for item: SidebarItem) -> [OccurrenceItem] {
+        guard item != .undated else { return [] }
+        var query = OccurrenceQuery(status: .all)
+        switch item {
+        case .list(let id): query.listID = id
+        case .important: query.important = true
+        case .collected: query.collected = true
+        default: break
+        }
+        let range = summaryRange.bounds(today: today)
+        return snapshot.items(query).filter {
+            !$0.task.undated && $0.status != .abandoned && $0.occurrence.overlaps(range.start, range.end)
+        }
+    }
+
+    /// 时间条圆点颜色：分类设了颜色用分类颜色，否则用四象限颜色。
+    func timelineTint(for item: OccurrenceItem) -> Color {
+        if let hex = CheckboxTint.hex(listColor: snapshot.list(item.task.id3)?.color, enabled: true) {
+            return Color(hex: hex)
+        }
+        return TimelineStyle.fallbackTint(item)
     }
 
     func progressLabel(for item: SidebarItem) -> String {

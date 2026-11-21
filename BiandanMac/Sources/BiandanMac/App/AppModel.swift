@@ -110,6 +110,7 @@ private enum DefaultsKey {
     static let pomodoroMinutes = "biandan.pomodoroMinutes"
     static let tintCheckboxByList = "biandan.tintCheckboxByList"
     static let summaryRange = "biandan.summaryRange"
+    static let showSummaryTimeline = "biandan.showSummaryTimeline"
 }
 
 /// 应用状态。P3 只读：登录、同步、浏览和选中。
@@ -241,6 +242,10 @@ final class AppModel {
         rawValue: UserDefaults.standard.string(forKey: DefaultsKey.summaryRange) ?? ""
     ) ?? .today {
         didSet { UserDefaults.standard.set(summaryRange.rawValue, forKey: DefaultsKey.summaryRange) }
+    }
+    /// 完成率卡片下方的时间条是否展开（默认展开），会记住。
+    var showSummaryTimeline: Bool = UserDefaults.standard.object(forKey: DefaultsKey.showSummaryTimeline) as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showSummaryTimeline, forKey: DefaultsKey.showSummaryTimeline) }
     }
 
     // 本机 MCP 服务（默认关闭）

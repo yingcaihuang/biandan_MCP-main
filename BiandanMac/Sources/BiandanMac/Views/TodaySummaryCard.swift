@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 任务视图顶部的问候卡片与完成率圆环。范围跟随当前视图，时间维度可切换。
+/// 任务视图顶部的问候卡片：完成率圆环 + 问候 + 维度切换，下方是时间条（今天 0–24 点 / 近 7 天 / 本月）。
 struct TodaySummaryCard: View {
     @Environment(AppModel.self) private var model
     let item: SidebarItem
@@ -11,24 +11,49 @@ struct TodaySummaryCard: View {
         let hour = Calendar.current.component(.hour, from: Date())
         let name = model.profile.displayName
         let greeting: String = name.isEmpty ? Greeting.text(hour: hour) : Greeting.text(hour: hour) + "，" + name
-        HStack(spacing: 16) {
-            ProgressRing(progress: progress, label: label)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(greeting)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Theme.text)
-                    .lineLimit(1)
-                Text(Greeting.subtitle(progress, label: label))
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(Theme.subtext)
-                    .lineLimit(2)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 16) {
+                ProgressRing(progress: progress, label: label)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(greeting)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(1)
+                    Text(Greeting.subtitle(progress, label: label))
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(Theme.subtext)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 8)
+                if item != .undated {
+                    ThemedSegmented(selection: Binding(get: { model.summaryRange },
+                                                       set: { model.summaryRange = $0 }),
+                                    options: ProgressRange.allCases.map { ThemeOption(value: $0, title: $0.title) })
+                        .help("完成率与时间条的统计时间范围")
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) { model.showSummaryTimeline.toggle() }
+                    } label: {
+                        Image(systemName: model.showSummaryTimeline ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Theme.subtext)
+                            .frame(width: 22, height: 22)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(model.showSummaryTimeline ? "收起时间条" : "展开时间条")
+                }
             }
-            Spacer(minLength: 8)
-            if item != .undated {
-                ThemedSegmented(selection: Binding(get: { model.summaryRange },
-                                                   set: { model.summaryRange = $0 }),
-                                options: ProgressRange.allCases.map { ThemeOption(value: $0, title: $0.title) })
-                    .help("完成率的统计时间范围")
+            if item != .undated && model.showSummaryTimeline {
+                // 每分钟刷新一次「现在」竖线。
+                TimelineView(.periodic(from: .now, by: 60)) { context in
+                    SummaryTimelineStrip(items: model.timelineItems(for: item), range: model.summaryRange,
+                                         today: model.today, now: context.date,
+                                         tint: { model.timelineTint(for: $0) },
+                                         selectedID: model.selectedOccurrenceID) { occurrence in
+                        model.selectedOccurrenceID = occurrence.id
+                        model.selectedFocusID = nil
+                    }
+                }
             }
         }
         .padding(.horizontal, 16)
