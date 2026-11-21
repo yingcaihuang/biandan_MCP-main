@@ -75,7 +75,8 @@ struct ContentArea: View {
         let item = model.sidebarSelection ?? .all
         VStack(spacing: 0) {
             ContentHeader(item: item)
-            if item == .today {
+            // 问候卡片与今日完成率在所有任务视图顶部显示（统计始终是今天），记录页不显示。
+            if !item.isRecordPage {
                 TodaySummaryCard()
             }
             if !item.isRecordPage {
