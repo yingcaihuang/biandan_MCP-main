@@ -79,14 +79,32 @@ final class ListSectionTests: XCTestCase {
     }
 
     func testTodayProgress() {
-        let items = snapshot().items(OccurrenceQuery(start: today, end: today, status: .all))
-        let progress = TodayProgress.make(items)
-        XCTAssertEqual(progress, TodayProgress(done: 1, total: 2))
-        XCTAssertEqual(progress.percentText, "50%")
+        // 今天待办 1、逾期待办 1（11/18）、今天已完成 1；11/10、11/16 完成的不算，无日期不算。
+        let items = snapshot().items(OccurrenceQuery(status: .all))
+        let progress = TodayProgress.make(items, today: today)
+        XCTAssertEqual(progress, TodayProgress(done: 1, total: 3, overdue: 1))
+        XCTAssertEqual(progress.percentText, "33%")
         XCTAssertEqual(TodayProgress(done: 0, total: 0).ratio, 0)
         XCTAssertEqual(Greeting.subtitle(TodayProgress(done: 0, total: 0)), "今天还没有安排，享受轻松的一天")
         XCTAssertEqual(Greeting.subtitle(TodayProgress(done: 3, total: 3)), "今天的 3 项待办都完成了")
-        XCTAssertEqual(Greeting.subtitle(progress), "今天还有 1 项待办，已完成 1 项")
+        XCTAssertEqual(Greeting.subtitle(progress), "今天还有 2 项待办（含 1 项逾期），已完成 1 项")
+        XCTAssertEqual(Greeting.subtitle(TodayProgress(done: 1, total: 2)), "今天还有 1 项待办，已完成 1 项")
+    }
+
+    /// 今天完成逾期任务、提前完成以后的任务，都计入完成；以后的待办不计入分母。
+    func testTodayProgressCountsWorkDoneToday() {
+        let data = DataSnapshot(lists: [], tasks: [
+            task("1", start: "2026-11-18", end: "2026-11-18"),
+            task("2", start: "2026-11-25", end: "2026-11-25"),
+            task("3", start: "2026-11-27", end: "2026-11-27"),
+        ], occurrences: [
+            occurrence("1", start: "2026-11-18", end: "2026-11-18", finishedAt: "2026-11-21 09:00:00"),
+            occurrence("2", start: "2026-11-25", end: "2026-11-25", finishedAt: "2026-11-21 10:00:00"),
+            occurrence("3", start: "2026-11-27", end: "2026-11-27"),
+        ], focus: [], lastPulledAt: nil)
+        let progress = TodayProgress.make(data.items(OccurrenceQuery(status: .all)), today: today)
+        XCTAssertEqual(progress, TodayProgress(done: 2, total: 2))
+        XCTAssertEqual(progress.percentText, "100%")
     }
 
     func testYearDayCounts() {
