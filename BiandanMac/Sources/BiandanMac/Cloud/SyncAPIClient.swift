@@ -199,7 +199,7 @@ struct SyncAPIClient: Sendable {
             throw CloudError("记录版本已变化，请重新读取后再删除", status: 409)
         }
         if kind == .favorites, current.attributes?.identifier("id3") == TodoList.defaultID {
-            throw CloudError("默认待办单不能删除")
+            throw CloudError("「未分类」不能删除")
         }
         _ = try await request("DELETE", try Self.recordPath(kind, recordID),
                               params: [("baseversion", String(baseVersion))])

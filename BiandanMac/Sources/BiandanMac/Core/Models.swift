@@ -120,7 +120,7 @@ struct TodoList: Identifiable, Hashable, Sendable {
     }
 
     /// 云端没有 id3=1 的记录时补一条默认分类。
-    static let synthesizedDefault = TodoList(id3: defaultID, name: "默认", color: 0)
+    static let synthesizedDefault = TodoList(id3: defaultID, name: "未分类", color: 0)
 }
 
 // MARK: - Task：待办定义（26 列）

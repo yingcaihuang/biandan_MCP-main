@@ -73,7 +73,7 @@ enum ReminderPlanner {
 
     private static func request(_ task: TaskDef, _ occurrence: Occurrence, _ time: LocalTime, _ fire: Date,
                                 _ snapshot: DataSnapshot) -> ReminderRequest {
-        let list = snapshot.list(task.id3)?.favoritesName ?? "默认"
+        let list = snapshot.list(task.id3)?.displayName ?? "未分类"
         let remark = task.content.remark
             .split(separator: "\n", omittingEmptySubsequences: true).first
             .map { $0.trimmingCharacters(in: .whitespaces) } ?? ""

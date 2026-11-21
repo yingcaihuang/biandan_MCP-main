@@ -130,7 +130,7 @@ struct ListDeleteSheet: View {
                 .padding(10)
             }
             if count > 0 {
-                Text("可以把任务移回「默认」，也可以连同任务一起删除。")
+                Text("可以把任务移回「未分类」，也可以连同任务一起删除。")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.subtext)
             }
@@ -149,7 +149,7 @@ struct ListDeleteSheet: View {
                     .buttonStyle(.themedDestructive)
                     .disabled(working)
             }
-            Button(count > 0 ? "删除，任务移回默认" : "删除") { run(deleteTasks: false) }
+            Button(count > 0 ? "删除，任务移回未分类" : "删除") { run(deleteTasks: false) }
                 .buttonStyle(count > 0 ? .themedPrimary : .themedDestructive)
                 .keyboardShortcut(.defaultAction)
                 .disabled(working)

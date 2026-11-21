@@ -74,8 +74,8 @@ final class ReminderTests: XCTestCase {
         XCTAssertEqual(plan.map(\.occurrenceID), ["1", "52", "53"])
         XCTAssertEqual(plan.map(\.fireDate), [at(2026, 11, 21, 9, 0), at(2026, 11, 21, 20, 0), at(2026, 11, 22, 20, 0)])
         XCTAssertEqual(plan[0].title, "写周报")
-        XCTAssertEqual(plan[0].body, "09:00 · 默认 · 提前准备")
-        XCTAssertEqual(plan[1].body, "20:00 · 默认")
+        XCTAssertEqual(plan[0].body, "09:00 · 未分类 · 提前准备")
+        XCTAssertEqual(plan[1].body, "20:00 · 未分类")
         XCTAssertTrue(plan.allSatisfy { $0.identifier.hasPrefix(ReminderScheduler.prefix) })
         XCTAssertEqual(Set(plan.map(\.identifier)).count, plan.count)
     }

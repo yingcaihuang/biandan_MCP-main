@@ -548,7 +548,7 @@ struct ListContextMenu: View {
                 }
             }
             if list.isDefault {
-                ThemedMenuCaption("默认待办单不能改名或删除")
+                ThemedMenuCaption("「未分类」不能改名或删除")
             } else {
                 ThemedMenuGroup {
                     ThemedMenuRow(icon: "pencil", title: "编辑名称和颜色…", tint: Quadrant.notImportantUrgent.tint) {

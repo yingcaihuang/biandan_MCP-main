@@ -352,7 +352,7 @@ actor BiandanService {
     func updateList(_ listID: String, name: String? = nil, colorIndex: Int? = nil,
                     sortIndex: Int? = nil) async throws -> ChangeSet {
         try await run {
-            guard listID != TodoList.defaultID else { throw ServiceError("默认待办单不能编辑。") }
+            guard listID != TodoList.defaultID else { throw ServiceError("「未分类」不能编辑。") }
             guard name != nil || colorIndex != nil || sortIndex != nil else { throw ServiceError("没有要修改的内容。") }
             let row = try await fresh(try await require(.favorites, listID))
             var changes: JSONObject = [:]
@@ -374,7 +374,7 @@ actor BiandanService {
     /// 删除待办单：默认把任务移回「默认」，`deleteTasks` 时连同任务和实例一起删除。
     func deleteList(_ listID: String, deleteTasks: Bool) async throws -> ChangeSet {
         try await run {
-            guard listID != TodoList.defaultID else { throw ServiceError("默认待办单不能删除。") }
+            guard listID != TodoList.defaultID else { throw ServiceError("「未分类」不能删除。") }
             let folder = try await find(.favorites, listID, required: false)
             let matches = try await cloud.listAll(.task).filter { $0.attributes?.identifier("id3") == listID }
             if folder == nil && !matches.isEmpty {

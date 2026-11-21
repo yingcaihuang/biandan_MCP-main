@@ -57,7 +57,7 @@ extension ListColor {
 
 extension TodoList {
     var swatch: Color { color.color }
-    var displayName: String { favoritesName.isEmpty ? (isDefault ? "默认" : "未命名") : favoritesName }
+    var displayName: String { favoritesName.isEmpty ? (isDefault ? "未分类" : "未命名") : favoritesName }
 }
 
 extension OccurrenceStatus {

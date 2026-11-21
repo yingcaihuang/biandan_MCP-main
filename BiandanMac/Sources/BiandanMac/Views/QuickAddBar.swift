@@ -83,7 +83,7 @@ struct QuickAddBar: View {
         guard let input = QuickAddParser.input(draft, preset: preset) else { return "" }
         var parts: [String] = []
         parts.append(input.startDate.map { $0 == model.today ? "今天" : $0.shortTitle } ?? "无日期")
-        parts.append(model.snapshot.list(input.listID)?.displayName ?? "默认")
+        parts.append(model.snapshot.list(input.listID)?.displayName ?? "未分类")
         if input.important { parts.append("重要") }
         if input.urgent { parts.append("紧急") }
         return "↩︎ " + parts.joined(separator: " · ")

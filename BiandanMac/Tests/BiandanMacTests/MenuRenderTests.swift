@@ -28,7 +28,7 @@ final class MenuRenderTests: XCTestCase {
             VStack(alignment: .leading, spacing: 8) {
                 ThemedMenuCaption("移到待办单")
                 ThemedMenuGroup {
-                    ThemedMenuListRow(color: ListColor(raw: 0).color, title: "默认", selected: true) {}
+                    ThemedMenuListRow(color: ListColor(raw: 0).color, title: "未分类", selected: true) {}
                     ThemedMenuSeparator()
                     ThemedMenuRow(icon: "plus", title: "新建待办单…", tint: Theme.accent) {}
                 }

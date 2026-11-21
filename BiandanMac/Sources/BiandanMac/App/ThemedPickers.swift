@@ -530,7 +530,7 @@ struct ThemedListPicker: View {
         } label: {
             HStack(spacing: 6) {
                 Circle().fill(current?.swatch ?? Theme.fieldName).frame(width: 10, height: 10)
-                Text(current?.displayName ?? "默认")
+                Text(current?.displayName ?? "未分类")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.text)
                 Chevron()
