@@ -51,7 +51,7 @@ enum AuthCallbackPage {
             + step("s1", 1, "打开华为授权页", .done, "")
             + step("s2", 2, "收到授权回调", .done, "")
             + step("s3", 3, "换取令牌，保存到钥匙串", state3, detail3)
-            + step("s4", 4, "首次同步待办单、任务和专注记录", state4, detail4)
+            + step("s4", 4, "首次同步分类、任务和专注记录", state4, detail4)
             + "</ol>"
         var script = ""
         if let session, let nonce {
@@ -64,7 +64,7 @@ enum AuthCallbackPage {
 
     static func summary(_ counts: LoginProgress.Counts?) -> String {
         guard let c = counts else { return "同步完成" }
-        return "共 \(c.lists) 个待办单、\(c.tasks) 个任务、\(c.occurrences) 个执行实例、\(c.focus) 条专注记录"
+        return "共 \(c.lists) 个分类、\(c.tasks) 个任务、\(c.occurrences) 个执行实例、\(c.focus) 条专注记录"
     }
 
     private static func header(_ phase: LoginProgress.Phase) -> Header {

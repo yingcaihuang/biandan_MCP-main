@@ -314,7 +314,7 @@ actor BiandanService {
         if listID != TodoList.defaultID {
             _ = try await require(.favorites, listID)
         }
-        guard let value = Int(listID) else { throw ServiceError("无效的待办单 ID。") }
+        guard let value = Int(listID) else { throw ServiceError("无效的分类 ID。") }
         return value
     }
 
@@ -322,11 +322,11 @@ actor BiandanService {
                     operationID: String? = nil) async throws -> (String, ChangeSet) {
         try await run {
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { throw ServiceError("请填写待办单名称。") }
+            guard !trimmed.isEmpty else { throw ServiceError("请填写分类名称。") }
             guard (0...24).contains(colorIndex) else { throw ServiceError("颜色索引应在 0–24 之间。") }
             let identifier = operationID ?? BusinessID.generate(now: clock())
             guard BusinessID.isValid(identifier), identifier != TodoList.defaultID, let numeric = Int64(identifier) else {
-                throw ServiceError("待办单 ID 无效或为保留值 1。")
+                throw ServiceError("分类 ID 无效或为保留值 1。")
             }
             let rows = try await cloud.listAll(.favorites)
             let existing = try await find(.favorites, identifier, in: rows, required: false)
@@ -358,7 +358,7 @@ actor BiandanService {
             var changes: JSONObject = [:]
             if let name {
                 let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { throw ServiceError("请填写待办单名称。") }
+                guard !trimmed.isEmpty else { throw ServiceError("请填写分类名称。") }
                 changes["favoritesName"] = .string(trimmed)
             }
             if colorIndex != nil || sortIndex != nil {
@@ -378,7 +378,7 @@ actor BiandanService {
             let folder = try await find(.favorites, listID, required: false)
             let matches = try await cloud.listAll(.task).filter { $0.attributes?.identifier("id3") == listID }
             if folder == nil && !matches.isEmpty {
-                throw ServiceError("待办单已不存在，但仍有任务引用它。请先移动这些任务。")
+                throw ServiceError("分类已不存在，但仍有任务引用它。请先移动这些任务。")
             }
             do {
                 for row in matches {
@@ -391,7 +391,7 @@ actor BiandanService {
                 }
                 if let folder {
                     let remaining = try await cloud.listAll(.task).contains { $0.attributes?.identifier("id3") == listID }
-                    if remaining { throw ServiceError("仍有任务引用这个待办单。") }
+                    if remaining { throw ServiceError("仍有任务引用这个分类。") }
                     try await deleteRecord(folder)
                 }
             } catch {

@@ -79,7 +79,7 @@ struct DataSnapshot: Sendable {
             if seenLists.insert(list.id3).inserted {
                 lists.append(list)
             } else {
-                warnings.append("多个待办单使用了同一个 ID \(list.id3)")
+                warnings.append("多个分类使用了同一个 ID \(list.id3)")
             }
         }
         if !seenLists.contains(TodoList.defaultID) {

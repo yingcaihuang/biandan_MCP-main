@@ -113,7 +113,7 @@ struct NewTaskSheet: View {
             }
 
             InspectorSection("归类") {
-                ThemedRow("待办单", field: "id3") {
+                ThemedRow("分类", field: "id3") {
                     ThemedListPicker(selection: $listID, tint: quadrant.tint)
                 }
             }

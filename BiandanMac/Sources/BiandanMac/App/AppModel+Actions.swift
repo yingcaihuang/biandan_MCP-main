@@ -247,9 +247,9 @@ extension AppModel {
             snapshot.editTask(taskID) { task in task.id3 = listID }
         }
         let oldList = snapshot.tasks[taskID]?.id3
-        if await performQueued("移动待办单", optimistic: edit, .moveTask(taskID: taskID, listID: listID)),
+        if await performQueued("更换分类", optimistic: edit, .moveTask(taskID: taskID, listID: listID)),
            let oldList, oldList != listID {
-            registerUndo("移动待办单", undo: [.moveTask(taskID: taskID, listID: oldList)],
+            registerUndo("更换分类", undo: [.moveTask(taskID: taskID, listID: oldList)],
                          redo: [.moveTask(taskID: taskID, listID: listID)])
         }
     }
@@ -481,20 +481,20 @@ extension AppModel {
 
     @discardableResult
     func createList(name: String, colorIndex: Int) async -> String? {
-        let identifier = await perform("新建待办单") { try await $0.createList(name: name, colorIndex: colorIndex) }
+        let identifier = await perform("新建分类") { try await $0.createList(name: name, colorIndex: colorIndex) }
         if let identifier { sidebarSelection = .list(identifier) }
         return identifier
     }
 
     @discardableResult
     func updateList(_ listID: String, name: String?, colorIndex: Int?, sortIndex: Int? = nil) async -> Bool {
-        await performQueued("保存待办单",
+        await performQueued("保存分类",
                             .updateList(listID: listID, name: name, colorIndex: colorIndex, sortIndex: sortIndex))
     }
 
     @discardableResult
     func deleteList(_ listID: String, deleteTasks: Bool) async -> Bool {
-        let ok = await performChange("删除待办单") { try await $0.deleteList(listID, deleteTasks: deleteTasks) }
+        let ok = await performChange("删除分类") { try await $0.deleteList(listID, deleteTasks: deleteTasks) }
         if ok, sidebarSelection == .list(listID) { sidebarSelection = .all }
         return ok
     }

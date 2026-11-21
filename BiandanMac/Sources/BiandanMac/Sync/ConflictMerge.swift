@@ -44,7 +44,7 @@ enum ConflictMerge {
         case "isImportant": return "重要"
         case "isUrgency": return "紧急"
         case "isCollectible": return "收藏"
-        case "id3": return "待办单"
+        case "id3": return "分类"
         case "startTime", "endTime", "haveNoTime": return "日期"
         case "validStartTime", "validEndTime": return "时刻"
         case "isRemind", "remindDate", "remindTime": return "提醒"

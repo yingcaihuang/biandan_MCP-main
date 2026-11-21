@@ -39,7 +39,7 @@ final class CallbackPageTests: XCTestCase {
             XCTAssertFalse(html.contains("\\("), "\(name) 有未展开的插值")
             try html.write(toFile: "/tmp/biandan-callback-\(name).html", atomically: true, encoding: .utf8)
         }
-        XCTAssertTrue(AuthCallbackPage.progressHTML(pages[2].1, session: nil, nonce: nil).contains("共 2 个待办单"))
+        XCTAssertTrue(AuthCallbackPage.progressHTML(pages[2].1, session: nil, nonce: nil).contains("共 2 个分类"))
         XCTAssertTrue(AuthCallbackPage.progressHTML(pages[3].1, session: nil, nonce: nil).contains("HTTP 503"))
 
         let json = try JSONSerialization.jsonObject(with: failing.json()) as? [String: Any]

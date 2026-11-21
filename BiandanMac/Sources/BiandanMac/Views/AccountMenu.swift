@@ -100,7 +100,7 @@ struct AccountPanel: View {
             }
 
             HStack(spacing: 0) {
-                stat("待办单", model.snapshot.lists.count)
+                stat("分类", model.snapshot.lists.count)
                 statDivider
                 stat("任务", model.snapshot.tasks.count)
                 statDivider

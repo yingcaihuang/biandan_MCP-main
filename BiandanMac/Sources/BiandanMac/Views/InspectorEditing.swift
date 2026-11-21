@@ -255,7 +255,7 @@ struct TaskEditPanel: View {
     private var flagsSection: some View {
         let id = taskID
         return InspectorSection("编辑 · 分类") {
-            EditRow("待办单", field: "id3") {
+            EditRow("分类", field: "id3") {
                 ThemedListPicker(selection: asyncBinding(task.id3) { listID in
                     await model.moveTask(id, to: listID)
                 })

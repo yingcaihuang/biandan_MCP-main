@@ -5,7 +5,7 @@ extension RecordKind {
         switch self {
         case .task: return "待办定义"
         case .showTask: return "执行实例"
-        case .favorites: return "待办单"
+        case .favorites: return "分类"
         case .tomato: return "专注记录"
         }
     }

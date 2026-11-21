@@ -469,7 +469,7 @@ struct OccurrenceContextMenu: View {
         let lists = model.snapshot.lists
         let current = item.task.id3
         return VStack(alignment: .leading, spacing: 8) {
-            ThemedMenuCaption("移到待办单")
+            ThemedMenuCaption("移到分类")
             ThemedMenuGroup {
                 if lists.count > 5 {
                     ScrollView { listRows(lists, current: current) }
@@ -478,7 +478,7 @@ struct OccurrenceContextMenu: View {
                     listRows(lists, current: current)
                 }
                 ThemedMenuSeparator()
-                ThemedMenuRow(icon: "plus", title: "新建待办单…", tint: Theme.accent) {
+                ThemedMenuRow(icon: "plus", title: "新建分类…", tint: Theme.accent) {
                     close()
                     afterMenuCloses { model.listEditor = ListEditorRequest(list: nil) }
                 }
@@ -557,7 +557,7 @@ struct ListContextMenu: View {
                     }
                 }
                 ThemedMenuGroup {
-                    ThemedMenuRow(icon: "trash", title: "删除待办单…", tint: Theme.overdue, destructive: true) {
+                    ThemedMenuRow(icon: "trash", title: "删除分类…", tint: Theme.overdue, destructive: true) {
                         close()
                         afterMenuCloses { model.listDeleteRequest = list }
                     }

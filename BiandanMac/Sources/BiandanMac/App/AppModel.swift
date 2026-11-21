@@ -62,7 +62,7 @@ enum SidebarItem: Hashable {
         case .abandoned: return "已放弃"
         case .focus: return "专注记录"
         case .habits: return "习惯打卡"
-        case .list: return "待办单"
+        case .list: return "分类"
         }
     }
 
@@ -543,7 +543,7 @@ final class AppModel {
     }
 
     func title(for item: SidebarItem) -> String {
-        if case .list(let id) = item { return snapshot.list(id)?.displayName ?? "待办单" }
+        if case .list(let id) = item { return snapshot.list(id)?.displayName ?? "分类" }
         return item.title
     }
 

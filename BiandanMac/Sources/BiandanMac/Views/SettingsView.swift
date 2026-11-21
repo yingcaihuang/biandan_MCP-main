@@ -383,7 +383,7 @@ private struct AccountPane: View {
                 if signedIn {
                     Rectangle().fill(rowDivider).frame(height: 1)
                     HStack(spacing: 0) {
-                        StatCell(title: "待办单", value: model.snapshot.lists.count)
+                        StatCell(title: "分类", value: model.snapshot.lists.count)
                         Rectangle().fill(rowDivider).frame(width: 1, height: 28)
                         StatCell(title: "任务", value: model.snapshot.tasks.count)
                         Rectangle().fill(rowDivider).frame(width: 1, height: 28)
@@ -494,7 +494,7 @@ private struct SyncPane: View {
                                     })
                 }
                 ThemedRow("本地数据") {
-                    ValueText(text: "\(model.snapshot.lists.count) 个待办单 · \(model.snapshot.tasks.count) 个任务 · \(model.snapshot.occurrences.count) 个实例",
+                    ValueText(text: "\(model.snapshot.lists.count) 个分类 · \(model.snapshot.tasks.count) 个任务 · \(model.snapshot.occurrences.count) 个实例",
                               color: Theme.subtext)
                 }
                 NoteRow(icon: "gauge.with.dots.needle.33percent",
@@ -630,7 +630,7 @@ private struct AdvancedPane: View {
         VStack(alignment: .leading, spacing: 18) {
             InspectorSection("显示") {
                 ThemedRow("检查器中显示云端字段名") { ThemedSwitch(isOn: $model.showFieldNames) }
-                ThemedRow("完成圆圈使用待办单颜色") { ThemedSwitch(isOn: $model.tintCheckboxByList) }
+                ThemedRow("完成圆圈使用分类颜色") { ThemedSwitch(isOn: $model.tintCheckboxByList) }
             }
 
             InspectorSection("本机文件") {

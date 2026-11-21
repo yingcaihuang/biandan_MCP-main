@@ -228,7 +228,7 @@ extension BiandanService {
         let attributes = task?.attributes ?? [:]
         let repeating = task != nil && Self.isRepeating(attributes)
         if let expectedList, task == nil || attributes.identifier("id3") != expectedList {
-            throw ServiceError("这个任务已不属于正在删除的待办单。")
+            throw ServiceError("这个任务已不属于正在删除的分类。")
         }
         if repeating && scope == nil {
             throw ServiceError("删除重复任务需要选择范围：仅本次、本次及之后未完成的，或整个系列。")

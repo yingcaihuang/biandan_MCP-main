@@ -222,8 +222,8 @@ struct TaskInspector: View {
             FieldRow(label: "附件", field: "taskContent",
                      value: content.attachments.isEmpty ? "无" : content.attachments.joined(separator: "\n"),
                      valueColor: Theme.subtext)
-            FieldRow(label: "待办单", field: "id3",
-                     value: "\(list?.displayName ?? "未知待办单")（\(task.id3)）")
+            FieldRow(label: "分类", field: "id3",
+                     value: "\(list?.displayName ?? "未知分类")（\(task.id3)）")
             FieldRow(label: "收藏", field: "isCollectible", value: flag(task.isCollectible))
             FieldRow(label: "重要", field: "isImportant", value: flag(task.isImportant))
             FieldRow(label: "紧急", field: "isUrgency", value: flag(task.isUrgency))
@@ -406,7 +406,7 @@ struct FocusInspector: View {
                 InspectorSection("关联事项 · log") {
                     FieldRow(label: "实例 ID", field: "log.eventId", value: log.eventID ?? "未关联（-1）")
                     FieldRow(label: "标题", field: "log.eventTitle", value: log.eventTitle.isEmpty ? "—" : log.eventTitle)
-                    FieldRow(label: "待办单", field: "log.eventType", value: eventTypeText(log))
+                    FieldRow(label: "分类", field: "log.eventType", value: eventTypeText(log))
                     FieldRow(label: "结束时间", field: "log.endTime", value: log.endTime ?? "—")
                     if let linked = model.snapshot.occurrence(forFocus: record) {
                         Button {
@@ -451,6 +451,6 @@ struct FocusInspector: View {
     private func eventTypeText(_ log: FocusLog) -> String {
         guard let type = log.eventType else { return "—" }
         if type == -1 { return "无（-1）" }
-        return "\(model.snapshot.list(String(type))?.displayName ?? "未知待办单")（\(type)）"
+        return "\(model.snapshot.list(String(type))?.displayName ?? "未知分类")（\(type)）"
     }
 }

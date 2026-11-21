@@ -50,7 +50,7 @@ struct SidebarView: View {
                 }
             } header: {
                 HStack {
-                    Text("待办单")
+                    Text("分类")
                     Spacer()
                     Button {
                         model.listEditor = ListEditorRequest(list: nil)
@@ -58,7 +58,7 @@ struct SidebarView: View {
                         Image(systemName: "plus")
                     }
                     .buttonStyle(.borderless)
-                    .help("新建待办单")
+                    .help("新建分类")
                     .disabled(model.authState != .signedIn)
                 }
             }

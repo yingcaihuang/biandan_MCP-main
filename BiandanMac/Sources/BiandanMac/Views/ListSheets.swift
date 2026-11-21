@@ -27,8 +27,8 @@ struct ListEditorSheet: View {
 
     var body: some View {
         let swatchColor = ListColor(sortIndex: 0, colorIndex: colorIndex).color
-        ThemedSheet(request.list == nil ? "新建待办单" : "编辑待办单",
-                    subtitle: "待办单会同步到你的便单账号",
+        ThemedSheet(request.list == nil ? "新建分类" : "编辑分类",
+                    subtitle: "分类会同步到你的便单账号",
                     tag: ThemeTag(text: trimmed.isEmpty ? "未命名" : trimmed, color: swatchColor)) {
             InspectorSection("名称") {
                 TextField("", text: $name, prompt: Text("例如：工作"))
@@ -117,12 +117,12 @@ struct ListDeleteSheet: View {
 
     var body: some View {
         let count = model.snapshot.tasks.values.filter { $0.id3 == list.id3 }.count
-        ThemedSheet("删除待办单", subtitle: list.displayName,
+        ThemedSheet("删除分类", subtitle: list.displayName,
                     tag: ThemeTag(text: "无法撤销", color: Theme.overdue)) {
             InspectorSection("影响范围") {
                 HStack(spacing: 8) {
                     Circle().fill(list.swatch).frame(width: 10, height: 10)
-                    Text(verbatim: count == 0 ? "这个待办单里没有任务。" : "其中有 \(count) 个任务。")
+                    Text(verbatim: count == 0 ? "这个分类里没有任务。" : "其中有 \(count) 个任务。")
                     Spacer(minLength: 0)
                 }
                 .font(.system(size: 12.5))
