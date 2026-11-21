@@ -14,6 +14,7 @@ struct SidebarView: View {
                 ForEach(SidebarItem.views, id: \.self) { item in
                     Label(item.title, systemImage: item.systemImage)
                         .badge(badge(for: item, counts: counts))
+                        .sidebarDrop(item, model: model)
                         .tag(item)
                 }
             }
@@ -26,15 +27,8 @@ struct SidebarView: View {
                         Circle().fill(list.swatch).frame(width: 10, height: 10)
                     }
                     .badge(counts.perList[list.id3] ?? 0)
-                    // 把任务卡片拖到待办单上即可移动。
-                    .dropDestination(for: String.self) { identifiers, _ in
-                        for identifier in identifiers {
-                            if let item = model.snapshot.item(occurrenceID: identifier), item.task.id3 != list.id3 {
-                                Task { await model.moveTask(item.task.id1, to: list.id3) }
-                            }
-                        }
-                        return !identifiers.isEmpty
-                    }
+                    // 把任务卡片拖到待办单上即可移动（多选时整批移动）。
+                    .sidebarDrop(.list(list.id3), model: model)
                     .themedContextMenu { close in
                         ListContextMenu(list: list, close: close).environment(model)
                     }

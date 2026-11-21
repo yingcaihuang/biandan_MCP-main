@@ -84,6 +84,25 @@ enum SidebarItem: Hashable {
         }
     }
 
+    /// 可以把任务卡片拖到侧栏的这一项上。
+    var acceptsDrop: Bool {
+        switch self {
+        case .today, .important, .undated, .collected, .list: return true
+        default: return false
+        }
+    }
+
+    var dropHelp: String? {
+        switch self {
+        case .today: return "把任务拖到这里改到今天（重复任务只改这一次）"
+        case .important: return "把任务拖到这里设为重要"
+        case .undated: return "把一次性任务拖到这里清除日期"
+        case .collected: return "把任务拖到这里收藏"
+        case .list: return "把任务拖到这里移到这个分类"
+        default: return nil
+        }
+    }
+
     /// 专注记录、习惯打卡是记录页：不显示快速添加栏和视图切换。
     var isRecordPage: Bool { self == .focus || self == .habits }
 

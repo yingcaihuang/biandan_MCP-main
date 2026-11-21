@@ -82,10 +82,10 @@ struct QuadrantCell: View {
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         // 拖入卡片：改写该任务的重要 / 紧急。
         .dropDestination(for: String.self) { identifiers, _ in
-            for identifier in identifiers {
-                Task { await model.moveToQuadrant(occurrenceID: identifier, quadrant) }
-            }
-            return !identifiers.isEmpty
+            guard !identifiers.isEmpty else { return false }
+            let target = quadrant
+            Task { await model.dropOnQuadrant(identifiers, target) }
+            return true
         } isTargeted: { targeted in
             isTargeted = targeted
         }
