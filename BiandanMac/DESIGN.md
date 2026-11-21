@@ -46,6 +46,9 @@
 | 确认操作 | `ThemedSheet` 弹窗（参考 `SignOutSheet`、`DeleteTaskSheet`、`BatchDeleteSheet`） |
 | 多选与批量操作 | ⌘ 点击卡片调用 `model.tapSelect(item)`；有多选时内容区底部浮出 `BatchActionBar`（白卡片 + 黄色描边，按钮用 `.themed` / `.themedDestructive`，二级选项用 `.popover` + `ThemedMenuPanel`）。整批修改在 `AppModel+Batch.swift` 里合并成一步撤销 |
 | 数值加减 | 系统 `Stepper` 可以用，标签文字自己放 `Text` 并用主题字体 |
+| 浮动输入面板 | 参考 `GlobalQuickAddPanel.swift`：不抢焦点的 `NSPanel`，内容是白卡片（圆角 14，`Theme.accent` 描边），Esc 或点外面关闭 |
+| 统计卡片与图表 | 概览一排统计同习惯页（heavy 数字 + 11pt 说明）；图表放进白卡片（圆角 12，`Theme.line` 描边），用 Swift Charts `BarMark`，颜色只用 `Theme.accent` 或 `Quadrant.tint`；比例条用分类色板 `list.swatch`。参考 StatsView.swift |
+| 键盘操作 | 主窗口按键统一在 `MainKeyMonitor` 处理；新增任务视图时，把它的显示顺序接进 `AppModel.keyboardOrder`，卡片点击调用 `model.tapSelect(item)` |
 | 右键菜单 | `.themedContextMenu(onOpen:) { close in ThemedMenuPanel { ThemedMenuGroup { ThemedMenuRow … } } }`，二级选项直接平铺（`QuadrantMiniGrid`、`ThemedMenuListRow`），不做子菜单；破坏性操作单独一组。见 ThemedContextMenu.swift |
 
 ## 浏览器里的页面
@@ -65,6 +68,7 @@ App 自己返回给浏览器的 HTML 页面也要遵守这套主题，比如华�
 - 带文字的系统 `Toggle`，改用「`Text` + `Spacer` + `ThemedSwitch`」或 `ThemedRow`。
 - 系统 `TabView` 标签栏（灰色工具栏、蓝色选中），多分区窗口改用上表的主题侧栏。
 - 点击触发的系统 `Menu`、`confirmationDialog`、`alert`。系统右键菜单 `.contextMenu` 也不要用。
+- 不带修饰键（空格、方向键、⌫、Esc）的 `.keyboardShortcut` 和菜单快捷键：会抢走输入框里的按键，改在 `MainKeyMonitor` 里处理。
 - 新增未在上表列出的颜色值。确实需要时，先加到 `Theme` 并更新本文件。
 
 ## 新页面自查
