@@ -18,6 +18,7 @@ struct MainView: View {
         }
         .onAppear { model.undoManager = undoManager }
         .background(WindowLevelSetter(floating: model.pinMainWindow))
+        .background(MainKeyMonitor(model: model))
         .searchable(text: $model.searchText, placement: .toolbar, prompt: "搜索标题、备注、子任务")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

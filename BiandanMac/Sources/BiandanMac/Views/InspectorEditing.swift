@@ -205,7 +205,32 @@ struct TaskEditPanel: View {
         _subtasks = State(initialValue: content.subtasks)
     }
 
+    @FocusState private var titleFocused: Bool
+
     private var taskID: String { task.id1 }
+
+    /// 保存标题和备注（保存按钮、标题框回车共用）。
+    private func saveText() {
+        let content = task.content
+        let newTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newRemark = remark
+        guard !newTitle.isEmpty, newTitle != task.taskTitle || newRemark != content.remark else { return }
+        let id = taskID
+        let oldTitle = task.taskTitle
+        Task {
+            await model.updateTask(id,
+                                   title: newTitle != oldTitle ? newTitle : nil,
+                                   remark: newRemark != content.remark ? newRemark : nil)
+        }
+    }
+
+    /// 主窗口按回车后，把焦点放到标题框（检查器刚打开时稍等它出现）。
+    private func focusTitleIfRequested() async {
+        guard model.pendingTitleFocus else { return }
+        model.pendingTitleFocus = false
+        try? await Task.sleep(for: .milliseconds(120))
+        titleFocused = true
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -228,6 +253,9 @@ struct TaskEditPanel: View {
             VStack(alignment: .leading, spacing: 6) {
                 TextField("标题", text: $title)
                     .textFieldStyle(.roundedBorder)
+                    .focused($titleFocused)
+                    .onSubmit { saveText() }
+                    .task(id: model.titleFocusRequest) { await focusTitleIfRequested() }
                 TextField("备注", text: $remark, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(2...6)
@@ -239,13 +267,7 @@ struct TaskEditPanel: View {
             }
             .padding(10)
             SaveBar(title: "保存", enabled: changed && !title.trimmingCharacters(in: .whitespaces).isEmpty) {
-                let newTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-                let newRemark = remark
-                Task {
-                    await model.updateTask(taskID,
-                                           title: newTitle != task.taskTitle ? newTitle : nil,
-                                           remark: newRemark != content.remark ? newRemark : nil)
-                }
+                saveText()
             }
         }
     }

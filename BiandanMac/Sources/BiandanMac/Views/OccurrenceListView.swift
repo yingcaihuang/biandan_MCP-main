@@ -21,6 +21,7 @@ struct OccurrenceListView: View {
                                    systemImage: item.systemImage,
                                    description: Text(model.lastSyncedAt == nil ? "登录后首次同步完成即可看到数据" : ""))
         } else {
+            ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6, pinnedViews: [.sectionHeaders]) {
                     if items.isEmpty {
@@ -61,6 +62,12 @@ struct OccurrenceListView: View {
                 }
                 .padding(.horizontal, 22)
                 .padding(.bottom, 20)
+            }
+            // 键盘移动选中时滚动到那一项。
+            .onChange(of: model.keyboardScrollTarget) { _, target in
+                guard let target else { return }
+                withAnimation(.easeInOut(duration: 0.15)) { proxy.scrollTo(target) }
+            }
             }
         }
     }

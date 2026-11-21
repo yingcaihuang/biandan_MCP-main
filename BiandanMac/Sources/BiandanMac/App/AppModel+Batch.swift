@@ -8,14 +8,23 @@ extension AppModel {
         multiSelection.sorted().compactMap { snapshot.item(occurrenceID: $0) }
     }
 
-    /// 卡片点击：按住 ⌘ 时加入 / 移出多选，否则恢复单选。
+    /// 卡片点击：⇧ 连选，⌘ 加入 / 移出多选，否则恢复单选。
+    /// 点击后让窗口接管键盘焦点（离开搜索框、侧栏），方向键、空格才会作用到任务上。
     func tapSelect(_ item: OccurrenceItem) {
-        if NSEvent.modifierFlags.contains(.command) {
+        let flags = NSEvent.modifierFlags
+        if flags.contains(.shift) {
+            rangeSelect(to: item)
+        } else if flags.contains(.command) {
             toggleMultiSelect(item)
+            selectionAnchor = item.id
         } else {
             multiSelection = []
+            selectionAnchor = item.id
             selectedOccurrenceID = item.id
             selectedFocusID = nil
+        }
+        if let window = NSApp.keyWindow, !(window.firstResponder is NSWindow) {
+            window.makeFirstResponder(nil)
         }
     }
 
@@ -37,10 +46,9 @@ extension AppModel {
         multiSelection = []
     }
 
-    /// 把当前侧栏视图里的任务全部加入多选。
+    /// 把当前内容区显示的任务全部加入多选（与键盘顺序同一范围）。
     func selectAllVisible() {
-        let ids = items(for: sidebarSelection ?? .all).map(\.id)
-        multiSelection.formUnion(ids)
+        multiSelection.formUnion(keyboardOrder.map(\.id))
     }
 
     // MARK: - 批量操作

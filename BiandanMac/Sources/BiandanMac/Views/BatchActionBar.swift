@@ -51,7 +51,6 @@ struct BatchActionBar: View {
             .disabled(items.isEmpty)
             Button { model.clearMultiSelection() } label: { Image(systemName: "xmark") }
                 .buttonStyle(.themed)
-                .keyboardShortcut(.escape, modifiers: [])
                 .help("取消选择（Esc）")
         }
         .padding(.horizontal, 14)

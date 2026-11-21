@@ -206,6 +206,13 @@ final class AppModel {
     var selectedFocusID: String?
     /// ⌘ 点击多选的执行实例 ID；非空时显示批量操作栏。
     var multiSelection: Set<String> = []
+    /// ⇧ 连选的起点（最近一次单选或 ⌘ 点击的那项）。
+    @ObservationIgnored var selectionAnchor: String?
+    /// 键盘移动选中后要滚动到的实例（只由键盘设置，鼠标点击不滚动）。
+    var keyboardScrollTarget: String?
+    /// 回车编辑标题：递增后检查器的标题输入框获得焦点。
+    var titleFocusRequest = 0
+    @ObservationIgnored var pendingTitleFocus = false
     /// 批量删除确认弹窗。
     var batchDeleteRequested = false
     /// 批量操作期间暂存各步的撤销，结束后合并登记成一步。
