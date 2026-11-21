@@ -9,6 +9,8 @@ enum ReminderStatus: Equatable {
     case notDetermined
     case denied
     case authorized
+    /// 已授权，但提醒样式为「无」：通知会进通知中心，但不会弹出横幅。
+    case silenced
 
     var title: String {
         switch self {
@@ -16,8 +18,12 @@ enum ReminderStatus: Equatable {
         case .notDetermined: return "尚未授权"
         case .denied: return "已在系统设置中关闭"
         case .authorized: return "已授权"
+        case .silenced: return "已授权，但横幅已关闭"
         }
     }
+
+    /// 系统允许排定通知（包括横幅关闭的情况）。
+    var isAuthorized: Bool { self == .authorized || self == .silenced }
 }
 
 /// 一条要排定的本地通知。
@@ -99,7 +105,30 @@ final class ReminderScheduler {
     func status() async -> ReminderStatus {
         guard Self.isAvailable else { return .unavailable }
         let settings = await UNUserNotificationCenter.current().notificationSettings()
-        return Self.map(settings.authorizationStatus)
+        let base = Self.map(settings.authorizationStatus)
+        if base == .authorized && settings.alertSetting == .disabled { return .silenced }
+        return base
+    }
+
+    /// 发送一条约 2 秒后弹出的测试通知，用来确认授权和提醒样式。失败时返回原因。
+    func sendTest() async -> String? {
+        guard Self.isAvailable else { return "当前不是从打包后的 便单.app 运行。" }
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard Self.map(settings.authorizationStatus) == .authorized else { return "尚未获得通知授权。" }
+        let content = UNMutableNotificationContent()
+        content.title = "便单测试通知"
+        content.body = "收到这条通知，说明时间提醒可以正常弹出。"
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+        // 不用提醒前缀，避免重新排定时被清掉。
+        let request = UNNotificationRequest(identifier: "biandan.test.\(UUID().uuidString)", content: content, trigger: trigger)
+        do {
+            try await center.add(request)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
     }
 
     func requestAuthorization() async -> ReminderStatus {

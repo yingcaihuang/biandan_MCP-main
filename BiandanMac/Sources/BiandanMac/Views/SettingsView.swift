@@ -1,3 +1,4 @@
+import Combine
 import AppKit
 import SwiftUI
 
@@ -649,79 +650,310 @@ private struct AdvancedPane: View {
                 }
             }
 
-            InspectorSection("通知与菜单栏") {
-                ThemedRow("时间提醒通知") { ThemedSwitch(isOn: $model.remindersEnabled) }
-                ThemedRow("系统授权") {
-                    HStack(spacing: 8) {
-                        StatusPill(text: model.reminderStatus.title,
-                                   color: model.reminderStatus == .authorized ? Theme.done : Theme.subtext)
-                        if model.reminderStatus == .denied {
-                            Button("打开系统设置") { model.openNotificationSettings() }
-                                .buttonStyle(.themed)
-                        }
-                    }
-                }
-                if model.remindersEnabled && model.reminderStatus == .authorized {
-                    ThemedRow("已排定的提醒") {
-                        Text("\(model.scheduledReminderCount) 条")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.subtext)
-                    }
-                }
-                if model.reminderStatus == .unavailable {
-                    NoteRow(icon: "info.circle",
-                            text: "从打包后的 便单.app 运行时才能发送通知（直接运行的可执行文件没有 Bundle ID）。")
-                }
-                ThemedRow("在菜单栏显示便单") { ThemedSwitch(isOn: $model.showMenuBarExtra) }
-                NoteRow(icon: "bell",
-                        text: "一次性任务按提醒日期和时刻通知；重复任务按近 14 天每次执行的日期加提醒时刻通知，最多排定 60 条。地点提醒仍由手机处理。显示菜单栏图标时，关闭主窗口不会退出应用。")
-            }
-            .task { await model.refreshReminderStatus() }
+            ReminderSettingsSection()
 
-            InspectorSection("本机 MCP 服务") {
-                ThemedRow("启用（127.0.0.1:\(String(MCPHTTP.defaultPort))）") {
-                    ThemedSwitch(isOn: $model.mcpEnabled)
-                }
-                ThemedRow("状态") {
-                    HStack(spacing: 8) {
-                        StatusPill(text: model.mcpStatus.title, color: mcpColor)
-                        if model.mcpStatus.failureMessage != nil && model.mcpEnabled {
-                            Button("重试") { model.restartMCP() }
-                                .buttonStyle(.themed)
-                        }
-                    }
-                }
-                if let message = model.mcpStatus.failureMessage {
-                    NoteRow(icon: "exclamationmark.triangle", text: message)
-                }
-                ThemedRow("AI 客户端配置") {
-                    Button("拷贝配置") { model.copyMCPConfig() }
-                        .buttonStyle(.themed)
-                }
-                PathRow(title: "访问密钥文件", url: MCPAccessKey.fileURL)
-                if model.mcpCallCount > 0 {
-                    ThemedRow("已处理工具调用") {
-                        Text("\(model.mcpCallCount) 次")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.subtext)
-                    }
-                }
-                if let notice = model.mcpNotice {
-                    NoteRow(icon: "doc.on.clipboard", text: notice)
-                }
-                NoteRow(icon: "info.circle",
-                        text: "与 Python 版共用端口和访问密钥，已配置好的 Claude、Codex 无需修改；请勿同时运行 Python 版。AI 写入后界面会立即刷新。")
-            }
+            MCPSettingsSection()
         }
     }
 }
 
-extension AdvancedPane {
-    fileprivate var mcpColor: Color {
+// MARK: - 通知与菜单栏
+
+private struct ReminderSettingsSection: View {
+    @Environment(AppModel.self) private var model
+    @State private var checking = false
+    @State private var working = false
+
+    var body: some View {
+        @Bindable var model = model
+        InspectorSection("通知与菜单栏") {
+            ThemedRow("时间提醒通知") { ThemedSwitch(isOn: $model.remindersEnabled) }
+            ThemedRow("系统授权") {
+                HStack(spacing: 8) {
+                    if let checked = model.reminderCheckedAt {
+                        Text("\(checked.formatted(date: .omitted, time: .standard)) 检查")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.subtext)
+                    }
+                    StatusPill(text: model.reminderStatus.title, color: statusColor)
+                    Button(checking ? "检查中…" : "重新检查") {
+                        Task {
+                            checking = true
+                            await model.refreshReminderStatus()
+                            checking = false
+                        }
+                    }
+                    .buttonStyle(.themed)
+                    .disabled(checking)
+                }
+            }
+            if let guide = Self.guide(for: model.reminderStatus) {
+                GuideSteps(title: guide.title, steps: guide.steps)
+            }
+            actionRow
+            if let notice = model.reminderNotice {
+                NoteRow(icon: "bell.badge", text: notice)
+            }
+            if model.remindersEnabled && model.reminderStatus.isAuthorized {
+                ThemedRow("已排定的提醒") {
+                    Text("\(model.scheduledReminderCount) 条")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.subtext)
+                }
+            }
+            ThemedRow("在菜单栏显示便单") { ThemedSwitch(isOn: $model.showMenuBarExtra) }
+            NoteRow(icon: "bell",
+                    text: "一次性任务按提醒日期和时刻通知；重复任务按近 14 天每次执行的日期加提醒时刻通知，最多排定 60 条。地点提醒仍由手机处理。显示菜单栏图标时，关闭主窗口不会退出应用。")
+        }
+        .task { await model.refreshReminderStatus() }
+        // 从系统设置切回来时自动重新检查。
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await model.refreshReminderStatus() }
+        }
+    }
+
+    private var statusColor: Color {
+        switch model.reminderStatus {
+        case .authorized: return Theme.done
+        case .denied: return Theme.overdue
+        case .silenced: return Theme.accent
+        case .notDetermined, .unavailable: return Theme.subtext
+        }
+    }
+
+    /// 按授权状态给出的下一步按钮。
+    @ViewBuilder private var actionRow: some View {
+        switch model.reminderStatus {
+        case .notDetermined:
+            ThemedRow("下一步") {
+                Button("请求授权") { run { await model.requestReminderAuthorization() } }
+                    .buttonStyle(.themedPrimary)
+                    .disabled(working)
+            }
+        case .denied, .silenced:
+            ThemedRow("下一步") {
+                Button("打开系统设置") { model.openNotificationSettings() }
+                    .buttonStyle(.themedPrimary)
+            }
+        case .authorized:
+            ThemedRow("校验") {
+                Button("发送测试通知") { run { await model.sendTestReminder() } }
+                    .buttonStyle(.themed)
+                    .disabled(working)
+            }
+        case .unavailable:
+            EmptyView()
+        }
+    }
+
+    private func run(_ body: @escaping () async -> Void) {
+        Task {
+            working = true
+            await body()
+            working = false
+        }
+    }
+
+    static func guide(for status: ReminderStatus) -> (title: String, steps: [String])? {
+        switch status {
+        case .unavailable:
+            return ("当前是直接运行的可执行文件，系统不允许它发送通知", [
+                "在终端进入 BiandanMac 目录，运行 Tools/build_app.sh 打包",
+                "退出当前运行的便单，打开打包生成的 便单.app",
+                "回到「设置 → 高级」，点「重新检查」",
+            ])
+        case .notDetermined:
+            return ("还没有向系统申请通知权限", [
+                "点下方「请求授权」",
+                "在系统弹出的窗口里选择「允许」",
+                "状态变成「已授权」后，点「发送测试通知」确认能正常弹出",
+            ])
+        case .denied:
+            return ("通知权限已被关闭，系统不会再弹出授权窗口", [
+                "点下方「打开系统设置」，进入「通知」",
+                "在应用列表中找到「便单」，打开「允许通知」",
+                "提醒样式选择「横幅」或「提醒」",
+                "切回便单会自动重新检查，也可以点「重新检查」",
+            ])
+        case .silenced:
+            return ("已授权，但提醒样式为「无」，通知只进通知中心、不会弹出", [
+                "点下方「打开系统设置」，进入「通知 → 便单」",
+                "把提醒样式改为「横幅」或「提醒」",
+                "切回便单后点「发送测试通知」确认",
+            ])
+        case .authorized:
+            return ("通知权限正常", [
+                "点下方「发送测试通知」，约 2 秒后应弹出横幅",
+                "没看到横幅时，检查是否开启了专注模式（勿扰）",
+                "打开上方「时间提醒通知」后，任务的时间提醒会按时弹出",
+            ])
+        }
+    }
+}
+
+/// 带序号的分步引导。
+private struct GuideSteps: View {
+    let title: String
+    let steps: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.text)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                HStack(alignment: .top, spacing: 7) {
+                    Text("\(index + 1)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 16, height: 16)
+                        .background(Circle().fill(Theme.accent))
+                    Text(step)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(hex: 0x4A453C))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Color(hex: 0xF0EADD)).frame(height: 1)
+        }
+    }
+}
+
+// MARK: - 本机 MCP 服务
+
+private struct MCPSettingsSection: View {
+    @Environment(AppModel.self) private var model
+    @State private var revealKey = false
+
+    var body: some View {
+        @Bindable var model = model
+        InspectorSection("本机 MCP 服务") {
+            ThemedRow("启用（127.0.0.1:\(String(MCPHTTP.defaultPort))）") {
+                ThemedSwitch(isOn: $model.mcpEnabled)
+            }
+            ThemedRow("状态") {
+                HStack(spacing: 8) {
+                    StatusPill(text: model.mcpStatus.title, color: mcpColor)
+                    if model.mcpStatus.failureMessage != nil && model.mcpEnabled {
+                        Button("重试") { model.restartMCP() }
+                            .buttonStyle(.themed)
+                    }
+                }
+            }
+            if let message = model.mcpStatus.failureMessage {
+                NoteRow(icon: "exclamationmark.triangle", text: message)
+            }
+            ThemedRow("访问密钥") {
+                HStack(spacing: 8) {
+                    Text(keyDisplay)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(model.mcpAccessKey == nil ? Theme.subtext : Theme.text)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: 310, alignment: .trailing)
+                    Button(revealKey ? "隐藏" : "显示") { revealKey.toggle() }
+                        .buttonStyle(.themed)
+                        .disabled(model.mcpAccessKey == nil)
+                    CopyButton(title: "拷贝") { model.copyMCPKey() }
+                        .disabled(model.mcpAccessKey == nil)
+                }
+            }
+            ThemedRow("AI 客户端配置") {
+                CopyButton(title: "拷贝配置") { model.copyMCPConfig() }
+            }
+            if let config = model.mcpConfigText(revealed: revealKey) {
+                CodeBlockRow(text: config)
+            } else {
+                NoteRow(icon: "key", text: "打开上方开关（或点「拷贝配置」）后会生成访问密钥，并在这里显示客户端配置。")
+            }
+            if let notice = model.mcpNotice {
+                NoteRow(icon: "checkmark.circle", text: notice)
+            }
+            if model.mcpCallCount > 0 {
+                ThemedRow("已处理工具调用") {
+                    Text("\(model.mcpCallCount) 次")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.subtext)
+                }
+            }
+            NoteRow(icon: "info.circle",
+                    text: "密钥保存在 \(keyPath)，与 Python 版共用端口和访问密钥，已配置好的 Claude、Codex 无需修改；请勿同时运行 Python 版。AI 写入后界面会立即刷新。")
+        }
+        .task { model.loadMCPKeyIfPresent() }
+    }
+
+    private var keyDisplay: String {
+        guard let token = model.mcpAccessKey else { return "启用服务后生成" }
+        return revealKey ? token : MCPAccessKey.masked(token)
+    }
+
+    private var keyPath: String {
+        let path = MCPAccessKey.fileURL.path
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+    }
+
+    private var mcpColor: Color {
         switch model.mcpStatus {
         case .running: return Theme.done
         case .failed: return Theme.overdue
         case .off, .starting: return Theme.subtext
+        }
+    }
+}
+
+/// 点击后变成「✓ 已拷贝」，2 秒后恢复。action 返回 false 时不显示。
+private struct CopyButton: View {
+    let title: String
+    let action: () -> Bool
+    @State private var copied = false
+    @State private var resetTask: Task<Void, Never>?
+
+    var body: some View {
+        Button {
+            guard action() else { return }
+            copied = true
+            resetTask?.cancel()
+            resetTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if !Task.isCancelled { copied = false }
+            }
+        } label: {
+            Label(copied ? "已拷贝" : title, systemImage: copied ? "checkmark" : "doc.on.doc")
+        }
+        .buttonStyle(.themed)
+        .animation(.easeInOut(duration: 0.15), value: copied)
+    }
+}
+
+/// 等宽字体的代码块，可选中文字，过宽时横向滚动。
+private struct CodeBlockRow: View {
+    let text: String
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            Text(text)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(Theme.text)
+                .textSelection(.enabled)
+                .fixedSize()
+                .padding(10)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color(hex: 0xF7F3EA)))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(hex: 0xE6DFD0), lineWidth: 1))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Color(hex: 0xF0EADD)).frame(height: 1)
         }
     }
 }

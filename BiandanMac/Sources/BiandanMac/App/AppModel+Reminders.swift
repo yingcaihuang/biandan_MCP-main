@@ -20,15 +20,47 @@ extension AppModel {
         }
     }
 
+    /// 重新读取系统通知授权（设置页打开、切回应用、点「重新检查」时调用）。
     func refreshReminderStatus() async {
         reminderStatus = await reminders.status()
+        reminderCheckedAt = Date()
+    }
+
+    /// 向系统申请通知权限，并按结果给出下一步提示。
+    func requestReminderAuthorization() async {
+        let before = reminderStatus
+        reminderStatus = await reminders.requestAuthorization()
+        reminderCheckedAt = Date()
+        switch reminderStatus {
+        case .authorized:
+            reminderNotice = "已获得通知授权。可以点「发送测试通知」确认能正常弹出。"
+            scheduleReminders()
+        case .silenced:
+            reminderNotice = "已授权，但提醒样式为「无」，通知不会弹出。请按下面的步骤在系统设置中改为「横幅」。"
+            scheduleReminders()
+        case .denied:
+            reminderNotice = before == .denied
+                ? "系统不会再次弹出授权窗口，请按下面的步骤在系统设置中打开通知。"
+                : "系统授权窗口中选择了「不允许」，可按下面的步骤在系统设置中重新打开。"
+        case .notDetermined, .unavailable:
+            break
+        }
+    }
+
+    /// 发送测试通知，校验授权和提醒样式。
+    func sendTestReminder() async {
+        if let error = await reminders.sendTest() {
+            reminderNotice = "测试通知发送失败：\(error)"
+        } else {
+            reminderNotice = "已发送测试通知，约 2 秒后应弹出横幅。没看到时，请检查是否开启了专注模式（勿扰）。"
+        }
     }
 
     /// 设置页开关变化：打开时请求系统授权，再排定。
     func remindersToggled() {
         if remindersEnabled {
             Task {
-                reminderStatus = await reminders.requestAuthorization()
+                await requestReminderAuthorization()
                 scheduleReminders()
             }
         } else {

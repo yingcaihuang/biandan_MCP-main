@@ -26,6 +26,19 @@ enum MCPAccessKey {
         token.count == tokenLength && token.allSatisfy { alphabet.contains($0) }
     }
 
+    /// 读取已有的合法密钥；文件不存在或内容无效时返回 nil（不新建）。
+    static func readExisting() -> String? {
+        guard let text = try? String(contentsOf: fileURL, encoding: .ascii) else { return nil }
+        let token = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return isValid(token) ? token : nil
+    }
+
+    /// 只露出前后 4 位，用于界面默认显示。
+    static func masked(_ token: String) -> String {
+        guard token.count > 8 else { return "••••••••" }
+        return "\(token.prefix(4))••••••••\(token.suffix(4))"
+    }
+
     /// 读取已有密钥；没有时新建（O_EXCL + 0600，避免与 Python 进程同时创建时互相覆盖）。
     static func load() throws -> String {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,

@@ -61,18 +61,52 @@ extension AppModel {
         if mcpEnabled { startMCP() }
     }
 
-    /// 拷贝给 Claude、Codex 等客户端用的配置（含访问密钥）。
-    func copyMCPConfig() {
+    /// 设置页打开时读取已有密钥（不新建文件）。
+    func loadMCPKeyIfPresent() {
+        guard mcpAccessKey == nil else { return }
+        mcpAccessKey = MCPAccessKey.readExisting()
+    }
+
+    /// 设置页显示的客户端配置；revealed 为 false 时遮住密钥中间部分。
+    func mcpConfigText(revealed: Bool) -> String? {
+        guard let token = mcpAccessKey else { return nil }
+        return MCPAccessKey.clientConfig(port: MCPHTTP.defaultPort,
+                                         token: revealed ? token : MCPAccessKey.masked(token))
+    }
+
+    /// 读取密钥，没有时新建（与 Python --print-http-config 一致）。
+    private func ensureMCPKey() -> String? {
         do {
             let token = try mcpAccessKey ?? MCPAccessKey.load()
             mcpAccessKey = token
-            let text = MCPAccessKey.clientConfig(port: MCPHTTP.defaultPort, token: token)
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-            mcpNotice = "已拷贝客户端配置。配置里含访问密钥，请勿分享。"
+            return token
         } catch {
             mcpNotice = "读取本机 MCP 密钥失败：\(error.localizedDescription)"
+            return nil
         }
+    }
+
+    private func copyToPasteboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    /// 拷贝给 Claude、Codex 等客户端用的配置（含完整访问密钥）。成功返回 true。
+    @discardableResult
+    func copyMCPConfig() -> Bool {
+        guard let token = ensureMCPKey() else { return false }
+        copyToPasteboard(MCPAccessKey.clientConfig(port: MCPHTTP.defaultPort, token: token))
+        mcpNotice = "已拷贝客户端配置到剪贴板，粘贴到 Claude、Codex 等客户端的 MCP 配置里即可。配置含访问密钥，请勿分享。"
+        return true
+    }
+
+    /// 只拷贝访问密钥。成功返回 true。
+    @discardableResult
+    func copyMCPKey() -> Bool {
+        guard let token = ensureMCPKey() else { return false }
+        copyToPasteboard(token)
+        mcpNotice = "已拷贝访问密钥到剪贴板，请勿分享。"
+        return true
     }
 
     private func mcpStateChanged(_ state: MCPHTTPServer.State, generation: UUID) {

@@ -233,7 +233,8 @@ final class AppModel {
     var mcpCallCount = 0
     var mcpLastCallAt: Date?
     var mcpNotice: String?
-    @ObservationIgnored var mcpAccessKey: String?
+    /// 本机 MCP 访问密钥（设置页显示，需要可观察）。
+    var mcpAccessKey: String?
     @ObservationIgnored var mcpServer: MCPHTTPServer?
     @ObservationIgnored var mcpGeneration: UUID?
 
@@ -249,6 +250,10 @@ final class AppModel {
         didSet { UserDefaults.standard.set(showMenuBarExtra, forKey: MenuBarDefaults.showKey) }
     }
     var reminderStatus: ReminderStatus = .notDetermined
+    /// 上次读取系统授权的时间（设置页显示）。
+    var reminderCheckedAt: Date?
+    /// 授权、测试通知的结果提示。
+    var reminderNotice: String?
     var scheduledReminderCount = 0
     let reminders = ReminderScheduler()
     /// 由界面注册的「打开主窗口」动作（SwiftUI openWindow）。
