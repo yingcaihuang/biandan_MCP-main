@@ -50,6 +50,23 @@ final class ScheduleConflictTests: XCTestCase {
         XCTAssertEqual(groups.map(\.slots.count), [3])
     }
 
+    /// 连锁分组里，角标只列直接重叠的那几项。
+    func testPartnersOnlyDirectOverlap() {
+        let items = [
+            item("a", "2026-11-23", "09:00:00", "10:00:00"),
+            item("b", "2026-11-23", "09:30:00", "10:30:00"),
+            item("c", "2026-11-23", "10:15:00", "11:00:00"),
+        ]
+        let index = ScheduleConflicts.partners(ScheduleConflicts.groups(items, from: today, to: end))
+        XCTAssertEqual(index["a"]?.map(\.item.id), ["b"])
+        XCTAssertEqual(index["b"]?.map(\.item.id).sorted(), ["a", "c"])
+        XCTAssertEqual(index["c"]?.map(\.item.id), ["b"])
+        let bc = index["b"]?.first { $0.item.id == "c" }
+        XCTAssertEqual(bc?.overlapStart, 10 * 60 + 15)
+        XCTAssertEqual(bc?.overlapEnd, 10 * 60 + 30)
+        XCTAssertNil(index["x"])
+    }
+
     func testIgnoresAllDayCompletedAndPast() {
         let items = [
             item("allday", "2026-11-23", "00:00:00", "23:59:00"),

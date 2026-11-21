@@ -21,6 +21,18 @@ struct ScheduleConflictGroup: Identifiable, Hashable, Sendable {
     var end: Int { slots.map(\.end).max() ?? 0 }
 }
 
+/// 和某个日程直接重叠的另一项：它当天的时间段，以及两者重叠的那一段。
+struct ConflictPartner: Hashable, Sendable {
+    let item: OccurrenceItem
+    let day: LocalDate
+    let start: Int
+    let end: Int
+    let overlapStart: Int
+    let overlapEnd: Int
+
+    var id: String { item.id + "|" + day.iso }
+}
+
 /// 新建日程和已有日程时间重叠时，底部弹出的提醒。
 struct ConflictNotice: Equatable, Sendable {
     let id = UUID()
@@ -112,6 +124,21 @@ enum ScheduleConflicts {
                 }
             }
             if current.count > 1 { result.append(ScheduleConflictGroup(day: day, slots: current)) }
+        }
+        return result
+    }
+
+    /// 每个实例直接重叠的其他实例（连锁分组里不直接重叠的两项不算）。卡片上的冲突角标用。
+    static func partners(_ groups: [ScheduleConflictGroup]) -> [String: [ConflictPartner]] {
+        var result: [String: [ConflictPartner]] = [:]
+        for group in groups {
+            for a in group.slots {
+                for b in group.slots where b.item.id != a.item.id && a.overlaps(start: b.start, end: b.end) {
+                    let partner = ConflictPartner(item: b.item, day: b.day, start: b.start, end: b.end,
+                                                  overlapStart: max(a.start, b.start), overlapEnd: min(a.end, b.end))
+                    result[a.item.id, default: []].append(partner)
+                }
+            }
         }
         return result
     }

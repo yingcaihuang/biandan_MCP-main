@@ -47,6 +47,7 @@
 | 多选与批量操作 | ⌘ 点击卡片调用 `model.tapSelect(item)`；有多选时内容区底部浮出 `BatchActionBar`（白卡片 + 黄色描边，按钮用 `.themed` / `.themedDestructive`，二级选项用 `.popover` + `ThemedMenuPanel`）。整批修改在 `AppModel+Batch.swift` 里合并成一步撤销 |
 | 数值加减 | 系统 `Stepper` 可以用，标签文字自己放 `Text` 并用主题字体 |
 | 浮动输入面板 | 参考 `GlobalQuickAddPanel.swift`：不抢焦点的 `NSPanel`，内容是白卡片（圆角 14，`Theme.accent` 描边），Esc 或点外面关闭 |
+| 悬停浮层 | 鼠标移上去要显示可点击的说明时，用 `.hoverPopover { close in … }`（HoverPopover.swift）：稍停弹出、移开收起，背景 `Theme.card`；不要用系统 `.help` 提示做大段说明 |
 | 统计卡片与图表 | 概览一排统计同习惯页（heavy 数字 + 11pt 说明）；图表放进白卡片（圆角 12，`Theme.line` 描边），用 Swift Charts `BarMark`，颜色只用 `Theme.accent` 或 `Quadrant.tint`；比例条用分类色板 `list.swatch`。参考 StatsView.swift |
 | 键盘操作 | 主窗口按键统一在 `MainKeyMonitor` 处理；新增任务视图时，把它的显示顺序接进 `AppModel.keyboardOrder`，卡片点击调用 `model.tapSelect(item)` |
 | 右键菜单 | `.themedContextMenu(onOpen:) { close in ThemedMenuPanel { ThemedMenuGroup { ThemedMenuRow … } } }`，二级选项直接平铺（`QuadrantMiniGrid`、`ThemedMenuListRow`），不做子菜单；破坏性操作单独一组。见 ThemedContextMenu.swift |

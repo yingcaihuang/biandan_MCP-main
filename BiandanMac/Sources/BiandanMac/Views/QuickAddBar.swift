@@ -5,6 +5,7 @@ struct QuickAddBar: View {
     @Environment(AppModel.self) private var model
     @State private var text = ""
     @State private var saving = false
+    @FocusState private var focused: Bool
 
     static let prompt = "快速添加，回车保存（可加：明天 下午3点、周五、11月30日、每周一、@分类、#重要 #紧急）"
     static let help = "日期：今天 / 明天 / 后天、周五 / 下周三、11月30日 / 25号\n"
@@ -16,15 +17,17 @@ struct QuickAddBar: View {
     var body: some View {
         let draft = model.parseQuickAdd(text)
         HStack(spacing: 8) {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 15))
-                .foregroundStyle(Theme.accent)
+            // 鼠标移到 ＋ 上弹出写法说明（主题样式），点示例填进输入框。
+            QuickAddGuideAnchor { example in
+                text = text.isEmpty ? example : text + " " + example
+                focused = true
+            }
             TextField("", text: $text, prompt: Text(Self.prompt))
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
+                .focused($focused)
                 .onSubmit { submit(draft) }
                 .disabled(saving || model.authState != .signedIn)
-                .help(Self.help)
             if saving {
                 ProgressView().controlSize(.small)
             } else if !draft.title.isEmpty {

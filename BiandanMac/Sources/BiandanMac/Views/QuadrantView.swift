@@ -64,14 +64,21 @@ struct QuadrantCell: View {
                     .foregroundStyle(quadrant.titleColor.opacity(0.45))
                 Spacer()
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 7) {
-                        ForEach(items) { item in
-                            OccurrenceCard(item: item)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 7) {
+                            ForEach(items) { item in
+                                OccurrenceCard(item: item)
+                            }
                         }
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 10)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 10)
+                    // 键盘移动或从冲突浮层跳转时，滚动到这一项。
+                    .onChange(of: model.keyboardScrollTarget) { _, target in
+                        guard let target, items.contains(where: { $0.id == target }) else { return }
+                        withAnimation(.easeInOut(duration: 0.15)) { proxy.scrollTo(target, anchor: .center) }
+                    }
                 }
             }
         }

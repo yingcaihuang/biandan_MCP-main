@@ -38,6 +38,7 @@ private struct MetaChip {
 /// 一个执行实例的卡片，用于四象限、列表和日历。P3 只读，圆圈不可点。
 struct OccurrenceCard: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.conflictIndex) private var conflictIndex
     let item: OccurrenceItem
     var compact = false
     var showList = true
@@ -84,6 +85,9 @@ struct OccurrenceCard: View {
                 }
             }
             Spacer(minLength: 0)
+            if item.status == .pending, let partners = conflictIndex[item.id], !partners.isEmpty {
+                ConflictBadge(partners: partners, compact: compact)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, compact ? 5 : 8)
