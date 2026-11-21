@@ -90,6 +90,88 @@ private func asyncBinding<T>(_ value: T, _ apply: @escaping (T) async -> Void) -
     Binding(get: { value }, set: { newValue in Task { await apply(newValue) } })
 }
 
+// MARK: - 草稿原值
+
+/// 编辑区各分区的原值，由任务和实例算出；草稿和原值相同表示这个分区没改过。
+/// 「分类」分区是即时生效的开关，不经过草稿，不在这里。
+struct EditBaseline: Equatable {
+    struct TitleRemark: Equatable {
+        var title: String
+        var remark: String
+    }
+
+    struct Schedule: Equatable {
+        var hasDate: Bool
+        var hasTime: Bool
+        var startDay: Date
+        var endDay: Date
+        var startClock: Date
+        var endClock: Date
+    }
+
+    struct Reminder: Equatable {
+        var on: Bool
+        var at: Date
+    }
+
+    struct Location: Equatable {
+        var name: String
+        var latitude: String
+        var longitude: String
+        var remind: Bool
+    }
+
+    struct Goal: Equatable {
+        var checklist: Bool
+        var targetCount: Int
+        var subtasks: [String]
+    }
+
+    var text: TitleRemark
+    var schedule: Schedule
+    var reminder: Reminder
+    var location: Location
+    var goal: Goal
+
+    /// 同一任务来了新版本：没改过的分区（草稿 == 旧原值）换成新值，改过的分区保留草稿。
+    static func merge(draft: EditBaseline, old: EditBaseline, new: EditBaseline) -> EditBaseline {
+        var result = draft
+        // 标题按去掉首尾空白比较，和「保存」按钮的判断一致。
+        let titleClean = draft.text.title.trimmingCharacters(in: .whitespacesAndNewlines) == old.text.title
+        if titleClean && draft.text.remark == old.text.remark { result.text = new.text }
+        if draft.schedule == old.schedule { result.schedule = new.schedule }
+        if draft.reminder == old.reminder { result.reminder = new.reminder }
+        if draft.location == old.location { result.location = new.location }
+        if draft.goal == old.goal { result.goal = new.goal }
+        return result
+    }
+}
+
+extension EditBaseline {
+    init(task: TaskDef, occurrence: Occurrence) {
+        let content = task.content
+        let start = (task.undated ? nil : occurrence.startDate) ?? LocalDate.today()
+        let end = (task.undated ? nil : occurrence.endDate) ?? start
+        let startTime = occurrence.startClock ?? .startOfDay
+        let endTime = occurrence.endClock ?? LocalTime(hour: 23, minute: 59)!
+        let allDay = startTime.hour == 0 && startTime.minute == 0 && endTime.hour == 23 && endTime.minute == 59
+        let remindDay = LocalDate(iso: task.remindDate) ?? start
+        let remindTime = LocalTime(text: task.remindTime) ?? LocalTime(hour: 9, minute: 0)!
+        text = TitleRemark(title: task.taskTitle, remark: content.remark)
+        schedule = Schedule(hasDate: !task.undated, hasTime: !allDay,
+                            startDay: start.date(), endDay: end.date(),
+                            startClock: startTime.date(on: start), endClock: endTime.date(on: end))
+        reminder = Reminder(on: task.hasTimeReminder, at: remindTime.date(on: remindDay))
+        location = Location(name: task.location,
+                            latitude: task.hasCoordinate ? String(task.latitude) : "",
+                            longitude: task.hasCoordinate ? String(task.longitude) : "",
+                            remind: task.hasLocationReminder)
+        goal = Goal(checklist: task.goal.isChecklist,
+                    targetCount: task.goal.isChecklist ? 1 : task.goal.targetCount,
+                    subtasks: content.subtasks)
+    }
+}
+
 // MARK: - 本次操作（showTask）
 
 struct OccurrenceActionsPanel: View {
@@ -174,35 +256,72 @@ struct TaskEditPanel: View {
     @State private var checklist: Bool
     @State private var targetCount: Int
     @State private var subtasks: [String]
+    /// 草稿建立时（或上次合并新版本时）各分区的原值，用来判断哪些分区改过。
+    @State private var base: EditBaseline
 
     init(task: TaskDef, occurrence: Occurrence) {
         self.task = task
         self.occurrence = occurrence
-        let content = task.content
-        let start = (task.undated ? nil : occurrence.startDate) ?? LocalDate.today()
-        let end = (task.undated ? nil : occurrence.endDate) ?? start
-        let startTime = occurrence.startClock ?? .startOfDay
-        let endTime = occurrence.endClock ?? LocalTime(hour: 23, minute: 59)!
-        _title = State(initialValue: task.taskTitle)
-        _remark = State(initialValue: content.remark)
-        _hasDate = State(initialValue: !task.undated)
-        _hasTime = State(initialValue: !(startTime.hour == 0 && startTime.minute == 0
-                                         && endTime.hour == 23 && endTime.minute == 59))
-        _startDay = State(initialValue: start.date())
-        _endDay = State(initialValue: end.date())
-        _startClock = State(initialValue: startTime.date(on: start))
-        _endClock = State(initialValue: endTime.date(on: end))
-        let remindDay = LocalDate(iso: task.remindDate) ?? start
-        let remindTime = LocalTime(text: task.remindTime) ?? LocalTime(hour: 9, minute: 0)!
-        _remindOn = State(initialValue: task.hasTimeReminder)
-        _remindAt = State(initialValue: remindTime.date(on: remindDay))
-        _locationName = State(initialValue: task.location)
-        _latitudeText = State(initialValue: task.hasCoordinate ? String(task.latitude) : "")
-        _longitudeText = State(initialValue: task.hasCoordinate ? String(task.longitude) : "")
-        _locationRemind = State(initialValue: task.hasLocationReminder)
-        _checklist = State(initialValue: task.goal.isChecklist)
-        _targetCount = State(initialValue: task.goal.isChecklist ? 1 : task.goal.targetCount)
-        _subtasks = State(initialValue: content.subtasks)
+        let base = EditBaseline(task: task, occurrence: occurrence)
+        _base = State(initialValue: base)
+        _title = State(initialValue: base.text.title)
+        _remark = State(initialValue: base.text.remark)
+        _hasDate = State(initialValue: base.schedule.hasDate)
+        _hasTime = State(initialValue: base.schedule.hasTime)
+        _startDay = State(initialValue: base.schedule.startDay)
+        _endDay = State(initialValue: base.schedule.endDay)
+        _startClock = State(initialValue: base.schedule.startClock)
+        _endClock = State(initialValue: base.schedule.endClock)
+        _remindOn = State(initialValue: base.reminder.on)
+        _remindAt = State(initialValue: base.reminder.at)
+        _locationName = State(initialValue: base.location.name)
+        _latitudeText = State(initialValue: base.location.latitude)
+        _longitudeText = State(initialValue: base.location.longitude)
+        _locationRemind = State(initialValue: base.location.remind)
+        _checklist = State(initialValue: base.goal.checklist)
+        _targetCount = State(initialValue: base.goal.targetCount)
+        _subtasks = State(initialValue: base.goal.subtasks)
+    }
+
+    /// 当前草稿；赋值时写回各个 @State。
+    private var draft: EditBaseline {
+        get {
+            EditBaseline(
+                text: .init(title: title, remark: remark),
+                schedule: .init(hasDate: hasDate, hasTime: hasTime, startDay: startDay, endDay: endDay,
+                                startClock: startClock, endClock: endClock),
+                reminder: .init(on: remindOn, at: remindAt),
+                location: .init(name: locationName, latitude: latitudeText, longitude: longitudeText,
+                                remind: locationRemind),
+                goal: .init(checklist: checklist, targetCount: targetCount, subtasks: subtasks))
+        }
+        nonmutating set {
+            title = newValue.text.title
+            remark = newValue.text.remark
+            hasDate = newValue.schedule.hasDate
+            hasTime = newValue.schedule.hasTime
+            startDay = newValue.schedule.startDay
+            endDay = newValue.schedule.endDay
+            startClock = newValue.schedule.startClock
+            endClock = newValue.schedule.endClock
+            remindOn = newValue.reminder.on
+            remindAt = newValue.reminder.at
+            locationName = newValue.location.name
+            latitudeText = newValue.location.latitude
+            longitudeText = newValue.location.longitude
+            locationRemind = newValue.location.remind
+            checklist = newValue.goal.checklist
+            targetCount = newValue.goal.targetCount
+            subtasks = newValue.goal.subtasks
+        }
+    }
+
+    /// 同一任务来了新版本（自动同步、别处保存、本分区保存成功）：
+    /// 没改过的分区换成新值，改过的分区保留草稿。编辑区本身不重建，正在点的控件不会被换掉。
+    private func adopt(_ new: EditBaseline) {
+        guard new != base else { return }
+        draft = EditBaseline.merge(draft: draft, old: base, new: new)
+        base = new
     }
 
     @FocusState private var titleFocused: Bool
@@ -241,6 +360,7 @@ struct TaskEditPanel: View {
             locationSection
             goalSection
         }
+        .onChange(of: EditBaseline(task: task, occurrence: occurrence)) { _, new in adopt(new) }
         // 不再整块禁用：保存都是后台 + 乐观，界面立即生效，可以继续编辑。
     }
 

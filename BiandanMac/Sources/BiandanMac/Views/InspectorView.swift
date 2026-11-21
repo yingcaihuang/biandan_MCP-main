@@ -194,8 +194,9 @@ struct TaskInspector: View {
                 }
                 OccurrenceActionsPanel(item: item)
                 TaskEditPanel(task: task, occurrence: item.occurrence)
-                    // 云端版本变化或切换实例时重置草稿。
-                    .id("\(task.id1)#\(task.meta?.version ?? 0)#\(item.id)#\(item.occurrence.meta?.version ?? 0)")
+                    // 只在切换任务 / 实例时重建编辑区、重置草稿。同一任务的新版本由编辑区按分区合并
+                    // （没改过的分区更新，改过的保留草稿）；以前把版本号拼进 id，同步一到就整块重建，草稿丢失、点击落空。
+                    .id("\(task.id1)#\(item.id)")
                 // 只读字段默认折叠，避免和上面能编辑的项混在一起。
                 DisclosureGroup(isExpanded: $showReadonly) {
                     VStack(alignment: .leading, spacing: 14) {
