@@ -69,12 +69,17 @@ private struct TimelineDot: View {
     let color: Color
     let selected: Bool
     let help: String
+    /// 空心点：全天任务的提醒时刻。
+    var hollow = false
     let onSelect: () -> Void
 
     var body: some View {
+        let fill: Color = hollow ? Theme.card : color
+        let ring: Color = hollow ? color : (selected ? Theme.text : Color.white)
+        let ringWidth: CGFloat = hollow ? (selected ? 3 : 2.2) : (selected ? 2 : 1.5)
         Circle()
-            .fill(color)
-            .overlay(Circle().stroke(selected ? Theme.text : Color.white, lineWidth: selected ? 2 : 1.5))
+            .fill(fill)
+            .overlay(Circle().stroke(ring, lineWidth: ringWidth))
             .overlay {
                 if item.status == .completed {
                     Image(systemName: "checkmark")
@@ -117,6 +122,13 @@ private struct DayTimelineStrip: View {
 
     private var nowFraction: Double { TimelineLayout.fraction(of: now) }
 
+    private func help(_ mark: TimelineMark) -> String {
+        let base = TimelineStyle.helpText(mark.item, today: day)
+        guard mark.isReminder else { return base }
+        let total = Int((mark.start * 1440).rounded())
+        return base + String(format: " · 提醒 %02d:%02d", total / 60, total % 60)
+    }
+
     private var nowText: String {
         let parts = Calendar.current.dateComponents([.hour, .minute], from: now)
         return String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
@@ -125,7 +137,8 @@ private struct DayTimelineStrip: View {
     private func color(_ mark: TimelineMark) -> Color {
         let item = mark.item
         if item.status == .completed { return Theme.done }
-        if let last = item.occurrence.endDate, last < day || (last == day && mark.end < nowFraction) {
+        // 提醒时刻过了不算逾期：全天任务要到当天结束才逾期。
+        if let last = item.occurrence.endDate, last < day || (!mark.isReminder && last == day && mark.end < nowFraction) {
             return Theme.overdue
         }
         return tint(item)
@@ -169,14 +182,16 @@ private struct DayTimelineStrip: View {
                 .foregroundStyle(Theme.overdue)
                 .position(x: nowX, y: labelY)
             if marks.isEmpty {
-                Text("今天没有定时安排")
+                // 放在离「现在」竖线较远的一侧，避免压线。
+                Text("今天没有定时安排或提醒")
                     .font(.system(size: 10.5))
                     .foregroundStyle(Theme.fieldName)
-                    .position(x: width / 2, y: TimelineStyle.laneCenter(0, lanes: lanes))
+                    .position(x: width * (nowFraction < 0.5 ? 0.72 : 0.28), y: TimelineStyle.laneCenter(0, lanes: lanes))
             }
             ForEach(marks) { mark in
                 TimelineDot(item: mark.item, color: color(mark), selected: selectedID == mark.id,
-                            help: TimelineStyle.helpText(mark.item, today: day)) { onSelect(mark.item) }
+                            help: help(mark),
+                            hollow: mark.isReminder && mark.item.status != .completed) { onSelect(mark.item) }
                     .position(x: TimelineStyle.x(mark.start, width: width),
                               y: TimelineStyle.laneCenter(mark.lane, lanes: lanes))
             }

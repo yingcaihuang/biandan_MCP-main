@@ -11,13 +11,18 @@ final class TimelineLayoutTests: XCTestCase {
     }
 
     private func item(_ id: String, start: String, end: String, from: String = "00:00:00", to: String = "23:59:00",
-                      done: Bool = false, important: Bool = false) -> (RawRecord, RawRecord) {
-        let task = record(.task, "t\(id)", [
+                      done: Bool = false, important: Bool = false, remind: String? = nil) -> (RawRecord, RawRecord) {
+        var attributes: JSONObject = [
             "id1": .string(id), "taskTitle": .string("任务 \(id)"), "taskContent": .string(""), "id3": .int(1),
             "startTime": .string(start), "endTime": .string(end), "haveNoTime": .int(0),
             "isImportant": .int(important ? 1 : 0), "validStartTime": .string(from),
             "validEndTime": .string(to), "unitTimeNumber": .int(1),
-        ])
+        ]
+        if let remind {
+            attributes["isRemind"] = .int(1)
+            attributes["remindTime"] = .string(remind)
+        }
+        let task = record(.task, "t\(id)", attributes)
         let occurrence = record(.showTask, "o\(id)", [
             "id1": .string(id), "id2": .string(id), "startTime": .string(start), "endTime": .string(end),
             "validStartTime": .string(from), "validEndTime": .string(to),
@@ -61,6 +66,20 @@ final class TimelineLayoutTests: XCTestCase {
         XCTAssertEqual(overnight.lane, 0)
     }
 
+    /// 全天任务设了时间提醒：按提醒时刻标空心点，不再算进「全天」。
+    func testAllDayReminderIsMarked() throws {
+        let layout = TimelineLayout.day(items([
+            item("r", start: "2026-11-21", end: "2026-11-21", remind: "19:30:00"),
+            item("a", start: "2026-11-21", end: "2026-11-21"),
+        ]), day: today)
+        XCTAssertEqual(layout.allDay.map(\.id), ["a"])
+        let mark = try XCTUnwrap(layout.timed.first)
+        XCTAssertEqual(mark.id, "r")
+        XCTAssertTrue(mark.isReminder)
+        XCTAssertEqual(mark.start, 19.5 / 24, accuracy: 0.0001)
+        XCTAssertEqual(mark.end, mark.start)
+    }
+
     func testLaneLimit() {
         let rows = (0..<5).map { index in
             item("\(index)", start: "2026-11-21", end: "2026-11-21",
@@ -89,8 +108,13 @@ final class TimelineLayoutTests: XCTestCase {
     @MainActor
     func testRenderStrips() throws {
         let now = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 21, hour: 11, minute: 40))!
+        // 示例数据再加两条「全天 + 提醒」任务，检查空心点。
+        let data = sample() + items([
+            item("10", start: "2026-11-21", end: "2026-11-21", remind: "19:30:00"),
+            item("11", start: "2026-11-21", end: "2026-11-21", remind: "15:00:00"),
+        ])
         for range in ProgressRange.allCases {
-            let strip = SummaryTimelineStrip(items: sample(), range: range, today: today, now: now,
+            let strip = SummaryTimelineStrip(items: data, range: range, today: today, now: now,
                                              tint: { TimelineStyle.fallbackTint($0) })
                 .frame(width: 760)
                 .padding(16)

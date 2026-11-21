@@ -6,6 +6,8 @@ struct TimelineMark: Identifiable {
     let start: Double
     let end: Double
     var lane: Int = 0
+    /// 全天任务按提醒时刻标注（空心点），不是开始时间。
+    var isReminder = false
     var id: String { item.id }
 }
 
@@ -46,7 +48,13 @@ enum TimelineLayout {
             let occurrence = item.occurrence
             guard let first = occurrence.startDate, let last = occurrence.endDate else { continue }
             if isAllDay(occurrence) {
-                allDay.append(item)
+                // 全天任务设了时间提醒：在提醒时刻标注；否则归入「全天」。
+                if item.task.hasTimeReminder, let clock = LocalTime(text: item.task.remindTime) {
+                    let at = fraction(hour: clock.hour, minute: clock.minute)
+                    timed.append(TimelineMark(item: item, start: at, end: at, isReminder: true))
+                } else {
+                    allDay.append(item)
+                }
                 continue
             }
             let start: Double = first < day ? 0 : (occurrence.startClock.map { fraction(hour: $0.hour, minute: $0.minute) } ?? 0)
