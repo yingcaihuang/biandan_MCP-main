@@ -139,13 +139,15 @@ struct ContentHeader: View {
             Spacer(minLength: 8)
             if !item.isRecordPage {
                 ThemedSegmented(selection: Binding(get: { model.effectiveMode }, set: { model.setMode($0) }),
-                                options: ContentMode.allCases.map { ThemeOption(value: $0, title: $0.title) })
+                                options: ContentMode.allCases.map { ThemeOption(value: $0, title: $0.title) },
+                                glass: true)
                     .help("切换视图（⌘1 – ⌘3）")
 
                 if model.effectiveMode == .quadrant {
                     ThemedSegmented(selection: Binding(get: { model.quadrantRange },
                                                        set: { model.quadrantRange = $0 }),
-                                    options: QuadrantRange.allCases.map { ThemeOption(value: $0, title: $0.title) })
+                                    options: QuadrantRange.allCases.map { ThemeOption(value: $0, title: $0.title) },
+                                    glass: true)
                         .help("四象限显示的时间范围")
                 }
             }

@@ -40,9 +40,7 @@ struct CardQuickActions: View {
             }
         }
         .padding(2)
-        .background(Capsule().fill(Theme.card))
-        .overlay(Capsule().stroke(Theme.line, lineWidth: 1))
-        .shadow(color: .black.opacity(0.1), radius: 3, y: 1)
+        .floatingSurface(Capsule(), shadowRadius: 3, shadowOpacity: 0.1)
     }
 
     private func presented(_ action: CardQuickAction) -> Binding<Bool> {
@@ -87,7 +85,7 @@ struct CardQuickActions: View {
         }
         .padding(12)
         .frame(width: 290, alignment: .leading)
-        .background(Theme.background)
+        .popoverBackground(Theme.background)
     }
 
     // MARK: 分类
@@ -107,7 +105,7 @@ struct CardQuickActions: View {
         }
         .padding(12)
         .frame(width: 240, alignment: .leading)
-        .background(Theme.background)
+        .popoverBackground(Theme.background)
     }
 
     private func listRows(_ lists: [TodoList]) -> some View {
@@ -135,7 +133,7 @@ struct CardQuickActions: View {
         }
         .padding(12)
         .frame(width: 270, alignment: .leading)
-        .background(Theme.background)
+        .popoverBackground(Theme.background)
     }
 }
 

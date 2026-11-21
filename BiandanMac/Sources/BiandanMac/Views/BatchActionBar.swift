@@ -56,9 +56,8 @@ struct BatchActionBar: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .frame(maxWidth: 760)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.card))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Theme.accent.opacity(0.6)))
-        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+        .floatingSurface(RoundedRectangle(cornerRadius: 12, style: .continuous),
+                         border: Theme.accent.opacity(0.6), glassBorder: true)
         .padding(.horizontal, 16)
     }
 

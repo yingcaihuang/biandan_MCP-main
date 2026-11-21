@@ -156,6 +156,8 @@ struct ThemeOption<Value: Hashable>: Identifiable {
 struct ThemedSegmented<Value: Hashable>: View {
     @Binding var selection: Value
     let options: [ThemeOption<Value>]
+    /// 内容区标题栏上的分段按钮在 macOS 26 起用液态玻璃底；表单里的保持原样。
+    var glass = false
 
     var body: some View {
         HStack(spacing: 2) {
@@ -180,7 +182,8 @@ struct ThemedSegmented<Value: Hashable>: View {
             }
         }
         .padding(2)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color(hex: 0xE8E1D1)))
+        .floatingSurface(RoundedRectangle(cornerRadius: 8), fill: Color(hex: 0xE8E1D1), border: .clear,
+                         shadowRadius: 0, glass: glass)
     }
 }
 

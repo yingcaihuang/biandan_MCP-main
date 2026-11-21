@@ -136,8 +136,9 @@ struct GlobalQuickAddView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(width: 600, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.card))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.accent.opacity(0.6)))
+        // 面板窗口本身透明（NSPanel backgroundColor = .clear），玻璃能透出桌面。阴影由窗口提供。
+        .floatingSurface(RoundedRectangle(cornerRadius: 14, style: .continuous),
+                         border: Theme.accent.opacity(0.6), shadowRadius: 0, glassBorder: true)
         // 每次弹出都清空并聚焦输入框。
         .task(id: model.globalQuickAddSession) {
             text = ""

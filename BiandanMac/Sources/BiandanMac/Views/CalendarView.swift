@@ -31,7 +31,8 @@ struct CalendarView: View {
                 Text(verbatim: title(days: days))
                     .font(.system(size: 17, weight: .bold))
                 ThemedSegmented(selection: $model.calendarScope,
-                                options: CalendarScope.allCases.map { ThemeOption(value: $0, title: $0.title) })
+                                options: CalendarScope.allCases.map { ThemeOption(value: $0, title: $0.title) },
+                                glass: true)
                     .help("日历显示范围")
                 Spacer()
                 Text("拖动任务到其他日期即可改期")

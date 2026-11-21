@@ -28,9 +28,8 @@ struct OperationBanner: View {
                 }
                 .padding(12)
                 .frame(maxWidth: 560)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.overdue.opacity(0.5)))
-                .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                .floatingSurface(RoundedRectangle(cornerRadius: 10), border: Theme.overdue.opacity(0.5),
+                                 glassTint: Theme.overdue.opacity(0.08), glassBorder: true)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }

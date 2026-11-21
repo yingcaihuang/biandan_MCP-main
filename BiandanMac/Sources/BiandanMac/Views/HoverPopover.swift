@@ -26,7 +26,7 @@ struct HoverPopoverModifier<Popup: View>: ViewModifier {
                         overPopup = inside
                         schedule()
                     }
-                    .presentationBackground(Theme.card)
+                    .themedPresentationBackground(Theme.card)
             }
     }
 

@@ -171,7 +171,7 @@ private struct CurrentQuadrantTag: View {
         .foregroundStyle(tint)
         .padding(.horizontal, 7)
         .frame(height: 18)
-        .background(Capsule().fill(tint.opacity(0.14)))
-        .overlay(Capsule().stroke(tint.opacity(0.5), lineWidth: 1))
+        .floatingSurface(Capsule(), fill: tint.opacity(0.14), border: tint.opacity(0.5), shadowRadius: 0,
+                         glassTint: tint.opacity(0.22), glassBorder: true)
     }
 }

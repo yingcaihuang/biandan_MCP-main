@@ -162,7 +162,7 @@ struct ThemedMenuPanel<Content: View>: View {
         }
         .padding(10)
         .frame(width: 270)
-        .background(Theme.panel)
+        .popoverBackground(Theme.panel)
     }
 }
 
