@@ -24,6 +24,10 @@ extension AppModel {
             preset.date = today
         case .undated?:
             preset.date = nil
+        case .important?:
+            // 在「重要待办」里新建的任务默认标为重要。
+            preset.important = true
+            preset.date = today
         case .collected?, .today?, .next7?, .all?, .quadrant?, .calendar?, .completed?, .abandoned?, .focus?, nil:
             preset.date = today
         }

@@ -43,16 +43,17 @@ enum QuadrantRange: Int, CaseIterable, Identifiable {
 }
 
 enum SidebarItem: Hashable {
-    case today, next7, all, quadrant, calendar, undated, collected, completed, abandoned, focus
+    case today, next7, all, important, quadrant, calendar, undated, collected, completed, abandoned, focus
     case list(String)
 
-    static let views: [SidebarItem] = [.today, .next7, .all, .quadrant, .calendar, .undated, .collected, .completed, .abandoned]
+    static let views: [SidebarItem] = [.today, .next7, .all, .important, .quadrant, .calendar, .undated, .collected, .completed, .abandoned]
 
     var title: String {
         switch self {
         case .today: return "今天"
         case .next7: return "近 7 天"
         case .all: return "全部待办"
+        case .important: return "重要待办"
         case .quadrant: return "四象限"
         case .calendar: return "日历"
         case .undated: return "无日期"
@@ -69,6 +70,7 @@ enum SidebarItem: Hashable {
         case .today: return "sun.max"
         case .next7: return "calendar.badge.clock"
         case .all: return "tray.full"
+        case .important: return "exclamationmark.circle"
         case .quadrant: return "square.grid.2x2"
         case .calendar: return "calendar"
         case .undated: return "circle.dashed"
@@ -538,6 +540,9 @@ final class AppModel {
             query.includeUndated = true
         case .calendar:
             query.status = .all
+        case .important:
+            query.important = true
+            query.includeUndated = true
         case .collected:
             query.collected = true
             query.includeUndated = true

@@ -80,6 +80,7 @@ struct SidebarView: View {
         case .all: return counts.allPending
         case .undated: return counts.undated
         case .collected: return counts.collected
+        case .important: return counts.important
         default: return 0
         }
     }

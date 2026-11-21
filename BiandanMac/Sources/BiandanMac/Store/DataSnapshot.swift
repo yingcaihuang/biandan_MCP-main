@@ -48,6 +48,7 @@ struct SidebarCounts: Sendable, Equatable {
     var allPending = 0
     var undated = 0
     var collected = 0
+    var important = 0
     var overdue = 0
     var perList: [String: Int] = [:]
     var focusThisWeek = 0
@@ -213,6 +214,7 @@ struct DataSnapshot: Sendable {
             counts.allPending += 1
             counts.perList[task.id3, default: 0] += 1
             if task.collected { counts.collected += 1 }
+            if task.important { counts.important += 1 }
             if task.undated {
                 counts.undated += 1
                 continue
