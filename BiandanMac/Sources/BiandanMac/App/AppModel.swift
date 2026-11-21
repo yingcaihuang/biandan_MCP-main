@@ -107,6 +107,7 @@ private enum DefaultsKey {
     static let remindersEnabled = "biandan.remindersEnabled"
     static let pinMainWindow = "biandan.pinMainWindow"
     static let showCompletedInList = "biandan.showCompletedInList"
+    static let pomodoroMinutes = "biandan.pomodoroMinutes"
 }
 
 /// 应用状态。P3 只读：登录、同步、浏览和选中。
@@ -271,6 +272,14 @@ final class AppModel {
     /// 列表底部「已完成」分组是否展开（默认展开）。
     var showCompletedInList: Bool = UserDefaults.standard.object(forKey: DefaultsKey.showCompletedInList) as? Bool ?? true {
         didSet { UserDefaults.standard.set(showCompletedInList, forKey: DefaultsKey.showCompletedInList) }
+    }
+    /// 番茄钟：进行中的计时，nil 表示没有在计时。
+    var pomodoro: PomodoroSession?
+    @ObservationIgnored var pomodoroTicker: Task<Void, Never>?
+    var showPomodoro = false
+    /// 番茄钟时长（分钟），会记住。
+    var pomodoroMinutes: Int = (UserDefaults.standard.object(forKey: DefaultsKey.pomodoroMinutes) as? Int) ?? 25 {
+        didSet { UserDefaults.standard.set(pomodoroMinutes, forKey: DefaultsKey.pomodoroMinutes) }
     }
     let reminders = ReminderScheduler()
     /// 由界面注册的「打开主窗口」动作（SwiftUI openWindow）。

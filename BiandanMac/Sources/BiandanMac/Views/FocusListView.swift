@@ -14,7 +14,7 @@ enum FocusRange: String, CaseIterable, Identifiable {
     }
 }
 
-/// 专注记录（tomato）：列表、补记、编辑、删除、按日汇总。不提供计时器。
+/// 专注记录（tomato）：列表、补记、编辑、删除、按日汇总。番茄钟计时在工具栏，结束后自动补记。
 struct FocusListView: View {
     @Environment(AppModel.self) private var model
     @State private var range: FocusRange = .week
@@ -66,6 +66,9 @@ struct FocusListView: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(Color(hex: 0x4A453C))
                 Spacer()
+                Button(model.pomodoro == nil ? "番茄钟" : "查看番茄钟") { model.showPomodoro = true }
+                    .buttonStyle(.themed)
+                    .help("开始计时，结束后自动补记专注")
                 Button("＋ 补记") { model.focusEditor = FocusEditorRequest() }
                     .buttonStyle(.themed)
                     .disabled(model.authState != .signedIn)
@@ -74,7 +77,7 @@ struct FocusListView: View {
 
             if records.isEmpty {
                 ContentUnavailableView("没有专注记录", systemImage: "timer",
-                                       description: Text("在鸿蒙便单里完成的专注会同步到这里，也可以点「补记」手动添加"))
+                                       description: Text("在鸿蒙便单里完成的专注会同步到这里，也可以开始番茄钟，或点「补记」手动添加"))
             } else if byDay {
                 FocusDayTable(rows: FocusDayRow.group(records))
             } else {
