@@ -17,8 +17,18 @@ struct MainView: View {
                 }
         }
         .onAppear { model.undoManager = undoManager }
+        .background(WindowLevelSetter(floating: model.pinMainWindow))
         .searchable(text: $model.searchText, placement: .toolbar, prompt: "搜索标题、备注、子任务")
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    model.pinMainWindow.toggle()
+                } label: {
+                    Image(systemName: model.pinMainWindow ? "pin.fill" : "pin")
+                        .foregroundStyle(model.pinMainWindow ? Theme.accent : Color.primary)
+                }
+                .help(model.pinMainWindow ? "取消置顶" : "窗口置顶（浮动在其他窗口之上）")
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     model.showInspector.toggle()

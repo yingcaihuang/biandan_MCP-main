@@ -102,6 +102,8 @@ struct BiandanCommands: Commands {
             Divider()
             Button(model.showInspector ? "隐藏检查器" : "显示检查器") { model.showInspector.toggle() }
                 .keyboardShortcut("i", modifiers: [.command, .option])
+            Button(model.pinMainWindow ? "取消窗口置顶" : "窗口置顶") { model.pinMainWindow.toggle() }
+                .keyboardShortcut("p", modifiers: [.command, .option])
             Button("回到今天") {
                 model.today = .today()
                 model.calendarMonth = model.today.firstOfMonth

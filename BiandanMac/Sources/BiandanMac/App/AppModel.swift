@@ -100,6 +100,7 @@ private enum DefaultsKey {
     static let quadrantRange = "biandan.quadrantRange"
     static let mcpEnabled = "biandan.mcpEnabled"
     static let remindersEnabled = "biandan.remindersEnabled"
+    static let pinMainWindow = "biandan.pinMainWindow"
 }
 
 /// 应用状态。P3 只读：登录、同步、浏览和选中。
@@ -257,6 +258,10 @@ final class AppModel {
     /// 授权、测试通知的结果提示。
     var reminderNotice: String?
     var scheduledReminderCount = 0
+    /// 主窗口置顶（浮动在其他窗口之上）。
+    var pinMainWindow: Bool = UserDefaults.standard.bool(forKey: DefaultsKey.pinMainWindow) {
+        didSet { UserDefaults.standard.set(pinMainWindow, forKey: DefaultsKey.pinMainWindow) }
+    }
     let reminders = ReminderScheduler()
     /// 由界面注册的「打开主窗口」动作（SwiftUI openWindow）。
     @ObservationIgnored var openMainWindow: (() -> Void)?
