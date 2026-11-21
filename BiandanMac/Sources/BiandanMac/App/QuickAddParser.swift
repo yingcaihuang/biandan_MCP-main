@@ -18,8 +18,9 @@ struct QuickAddDraft: Equatable {
     var today: LocalDate?
 }
 
-/// 解析快速添加栏的文字。只识别用空格隔开的词（一个词里可以把日期、时刻连写，如「明天下午3点」），
-/// 识别不了的词原样留在标题里，避免把「明天的会议」「3点开会」拆开。
+/// 解析快速添加栏的文字。按空格分词识别（一个词里可以把日期、时刻连写，如「明天下午3点」）；
+/// 日期 + 时刻、今天 / 明天 / 后天、带上下午的时刻直接写在标题前面时也会拆出来（「后天下午1点跟腾讯开会」）。
+/// 其余识别不了的词原样留在标题里，避免把「明天的会议」「3点开会」「周一例会」拆开。
 enum QuickAddParser {
     enum RepeatSpec: Equatable {
         case daily, workdays
@@ -51,7 +52,8 @@ enum QuickAddParser {
             case "#习惯", "＃习惯": draft.habit = true; continue
             default: break
             }
-            if let first = token.first, first == "@" || first == "＠",
+            // @分类；#分类 也认（#重要 / #紧急 / #习惯 已在上面处理，对不上分类的 #词 留在标题里）
+            if let first = token.first, first == "@" || first == "＠" || first == "#" || first == "＃",
                let id = matchList(String(token.dropFirst()), lists) {
                 draft.listID = id
                 continue
@@ -73,9 +75,30 @@ enum QuickAddParser {
                     setTime(range)
                     continue
                 }
+                // 日期后面紧跟时刻再跟标题：「后天下午1点跟腾讯开会」「明天3点开会」
+                if let lead = leadingTime(found.rest, period: found.period) {
+                    draft.dateSet = true
+                    draft.date = found.date
+                    setTime(lead.range)
+                    words.append(lead.rest)
+                    continue
+                }
+                // 今天 / 明天 / 后天直接跟标题：「后天跟腾讯开会」；「明天的会议」不拆
+                if isRelativeDay(token), !found.rest.hasPrefix("的") {
+                    draft.dateSet = true
+                    draft.date = found.date
+                    words.append(found.rest)
+                    continue
+                }
             }
             if let range = time(token, period: nil) {
                 setTime(range)
+                continue
+            }
+            // 带上下午的时刻写在标题前面：「下午3点开会」；不带时段的「3点开会」不拆
+            if periods.contains(where: { token.hasPrefix($0.word) }), let lead = leadingTime(token, period: nil) {
+                setTime(lead.range)
+                words.append(lead.rest)
                 continue
             }
             // 「下午 3点」分成两个词时，时段词作用到下一个时刻。
@@ -226,6 +249,22 @@ enum QuickAddParser {
               let second = clock(separator.rest, period: first.period), second.rest.isEmpty,
               second.time > first.time else { return nil }
         return (first.time, second.time)
+    }
+
+    /// 词首的时刻（或时间段），后面还跟着别的文字；rest 是剩下的标题部分，为空时返回 nil。
+    static func leadingTime(_ text: String, period: String?) -> (range: TimeRange, rest: String)? {
+        guard let first = clock(text, period: period) else { return nil }
+        if let separator = groups("[-~～到至—]", first.rest),
+           let second = clock(separator.rest, period: first.period), second.time > first.time,
+           !second.rest.isEmpty {
+            return ((first.time, second.time), second.rest)
+        }
+        guard !first.rest.isEmpty else { return nil }
+        return ((first.time, nil), first.rest)
+    }
+
+    private static func isRelativeDay(_ token: String) -> Bool {
+        relativeWords.contains { token.hasPrefix($0.word) }
     }
 
     /// 词首的一个时刻：15:30、下午3点、3点半、十点一刻。没写时段的「1点」–「5点」按下午算。
@@ -456,7 +495,8 @@ extension AppModel {
         guard let input = QuickAddParser.input(draft, preset: preset ?? makeNewTaskPreset()) else { return "" }
         var parts: [String] = []
         if let day = input.startDate {
-            parts.append(day == today ? "今天" : (day == today.adding(days: 1) ? "明天" : day.shortTitle))
+            let offset = today.days(to: day)
+            parts.append(offset == 0 ? "今天" : (offset == 1 ? "明天" : (offset == 2 ? "后天 " + day.shortTitle : day.shortTitle)))
         } else {
             parts.append("无日期")
         }

@@ -58,9 +58,13 @@ enum TimelineStyle {
         inset + CGFloat(min(max(fraction, 0), 1)) * max(width - inset * 2, 1)
     }
 
-    static func helpText(_ item: OccurrenceItem, today: LocalDate) -> String {
-        let title = item.task.taskTitle.isEmpty ? "（无标题）" : item.task.taskTitle
-        return title + " · " + item.scheduleText(today: today) + " · " + item.status.title
+    /// 提示卡片的一行：标题（过长截断）+ 时间 · 状态（· 提醒时刻）。
+    static func tooltipRow(_ item: OccurrenceItem, color: Color, today: LocalDate, extra: String? = nil) -> TimelineTooltipRow {
+        var title = item.task.taskTitle.isEmpty ? "（无标题）" : item.task.taskTitle
+        if title.count > 28 { title = String(title.prefix(27)) + "…" }
+        var detail = item.scheduleText(today: today) + " · " + item.status.title
+        if let extra { detail += " · " + extra }
+        return TimelineTooltipRow(title: title, detail: detail, color: color)
     }
 }
 
@@ -68,10 +72,10 @@ private struct TimelineDot: View {
     let item: OccurrenceItem
     let color: Color
     let selected: Bool
-    let help: String
+    /// 鼠标靠近时放大一点，提示正指向它。
+    var hovered = false
     /// 空心点：全天任务的提醒时刻。
     var hollow = false
-    let onSelect: () -> Void
 
     var body: some View {
         let fill: Color = hollow ? Theme.card : color
@@ -88,10 +92,9 @@ private struct TimelineDot: View {
                 }
             }
             .frame(width: TimelineStyle.dot, height: TimelineStyle.dot)
+            .scaleEffect(hovered ? 1.4 : 1)
             .shadow(color: .black.opacity(0.18), radius: 1, y: 0.5)
-            .contentShape(Circle().inset(by: -3))
-            .onTapGesture(perform: onSelect)
-            .help(help)
+            .animation(.easeOut(duration: 0.12), value: hovered)
     }
 }
 
@@ -105,6 +108,7 @@ private struct DayTimelineStrip: View {
     let selectedID: String?
     let onSelect: (OccurrenceItem) -> Void
     @State private var showAllDay = false
+    @State private var hovered: String?
 
     var body: some View {
         let layout = TimelineLayout.day(items, day: day)
@@ -122,11 +126,19 @@ private struct DayTimelineStrip: View {
 
     private var nowFraction: Double { TimelineLayout.fraction(of: now) }
 
-    private func help(_ mark: TimelineMark) -> String {
-        let base = TimelineStyle.helpText(mark.item, today: day)
-        guard mark.isReminder else { return base }
+    private func reminderText(_ mark: TimelineMark) -> String? {
+        guard mark.isReminder else { return nil }
         let total = Int((mark.start * 1440).rounded())
-        return base + String(format: " · 提醒 %02d:%02d", total / 60, total % 60)
+        return String(format: "提醒 %02d:%02d", total / 60, total % 60)
+    }
+
+    private func targets(_ marks: [TimelineMark], lanes: Int, width: CGFloat) -> [TimelineHoverTarget] {
+        marks.map { mark in
+            let point = CGPoint(x: TimelineStyle.x(mark.start, width: width),
+                                y: TimelineStyle.laneCenter(mark.lane, lanes: lanes))
+            let row = TimelineStyle.tooltipRow(mark.item, color: color(mark), today: day, extra: reminderText(mark))
+            return TimelineHoverTarget(id: mark.id, point: point, item: mark.item, rows: [row])
+        }
     }
 
     private var nowText: String {
@@ -190,11 +202,14 @@ private struct DayTimelineStrip: View {
             }
             ForEach(marks) { mark in
                 TimelineDot(item: mark.item, color: color(mark), selected: selectedID == mark.id,
-                            help: help(mark),
-                            hollow: mark.isReminder && mark.item.status != .completed) { onSelect(mark.item) }
+                            hovered: hovered == mark.id,
+                            hollow: mark.isReminder && mark.item.status != .completed)
                     .position(x: TimelineStyle.x(mark.start, width: width),
                               y: TimelineStyle.laneCenter(mark.lane, lanes: lanes))
             }
+            TimelineHoverLayer(targets: targets(marks, lanes: lanes, width: width),
+                               size: CGSize(width: width, height: TimelineStyle.height(lanes: lanes)),
+                               hovered: $hovered, onSelect: onSelect)
         }
         .frame(width: width, height: TimelineStyle.height(lanes: lanes), alignment: .topLeading)
     }
@@ -258,6 +273,7 @@ private struct RangeTimelineStrip: View {
     let tint: (OccurrenceItem) -> Color
     let selectedID: String?
     let onSelect: (OccurrenceItem) -> Void
+    @State private var hovered: String?
 
     var body: some View {
         let groups = TimelineLayout.range(items, start: start, end: end)
@@ -276,6 +292,27 @@ private struct RangeTimelineStrip: View {
         if item.status == .completed { return Theme.done }
         if item.isOverdue(today: today) { return Theme.overdue }
         return tint(item)
+    }
+
+    private func targets(_ groups: [TimelineDayGroup], lanes: Int, width: CGFloat) -> [TimelineHoverTarget] {
+        var result: [TimelineHoverTarget] = []
+        for group in groups {
+            let x = TimelineStyle.x(center(group.index), width: width)
+            let overflow = group.items.count > lanes
+            for (lane, item) in group.items.prefix(lanes).enumerated() {
+                let point = CGPoint(x: x, y: TimelineStyle.laneCenter(lane, lanes: lanes))
+                if overflow && lane == lanes - 1 {
+                    let hidden = Array(group.items.dropFirst(lanes - 1))
+                    let rows = hidden.prefix(4).map { TimelineStyle.tooltipRow($0, color: color($0), today: today) }
+                    result.append(TimelineHoverTarget(id: "more-\(group.index)", point: point, item: nil,
+                                                      rows: Array(rows), more: hidden.count - rows.count))
+                } else {
+                    let row = TimelineStyle.tooltipRow(item, color: color(item), today: today)
+                    result.append(TimelineHoverTarget(id: item.id, point: point, item: item, rows: [row]))
+                }
+            }
+        }
+        return result
     }
 
     /// 本月刻度：今天前后 2 天内的刻度让位给「今天」。
@@ -328,23 +365,27 @@ private struct RangeTimelineStrip: View {
                 let overflow = group.items.count > lanes
                 ForEach(Array(group.items.prefix(lanes).enumerated()), id: \.element.id) { lane, item in
                     if overflow && lane == lanes - 1 {
+                        let hot = hovered == "more-\(group.index)"
+                        let textColor: Color = hot ? Theme.text : Theme.subtext
+                        let strokeColor: Color = hot ? Theme.accent : Theme.line
                         Text(verbatim: "+\(group.items.count - lanes + 1)")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Theme.subtext)
+                            .foregroundStyle(textColor)
                             .padding(.horizontal, 4)
                             .frame(height: 12)
                             .background(Capsule().fill(Theme.panel))
-                            .overlay(Capsule().stroke(Theme.line, lineWidth: 1))
+                            .overlay(Capsule().stroke(strokeColor, lineWidth: 1))
                             .position(x: x, y: TimelineStyle.laneCenter(lane, lanes: lanes))
-                            .help(group.items.dropFirst(lanes - 1)
-                                .map { TimelineStyle.helpText($0, today: today) }.joined(separator: "\n"))
                     } else {
                         TimelineDot(item: item, color: color(item), selected: selectedID == item.id,
-                                    help: TimelineStyle.helpText(item, today: today)) { onSelect(item) }
+                                    hovered: hovered == item.id)
                             .position(x: x, y: TimelineStyle.laneCenter(lane, lanes: lanes))
                     }
                 }
             }
+            TimelineHoverLayer(targets: targets(groups, lanes: lanes, width: width),
+                               size: CGSize(width: width, height: TimelineStyle.height(lanes: lanes)),
+                               hovered: $hovered, onSelect: onSelect)
         }
         .frame(width: width, height: TimelineStyle.height(lanes: lanes), alignment: .topLeading)
     }

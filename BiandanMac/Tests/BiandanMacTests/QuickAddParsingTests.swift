@@ -63,6 +63,47 @@ final class QuickAddParsingTests: XCTestCase {
         XCTAssertNil(parse("开会 25:00").startTime)
     }
 
+    /// 日期 / 时刻直接写在标题前面（今天是 11-20 周五）。
+    func testDateTimeBeforeTitle() {
+        let meeting = parse("后天下午1点跟腾讯开会 #临时")
+        XCTAssertEqual(meeting.date, day(11, 22))
+        XCTAssertEqual(meeting.startTime, clock(13))
+        XCTAssertNil(meeting.endTime)
+        XCTAssertEqual(meeting.title, "跟腾讯开会 #临时", "对不上分类的 #词 留在标题里")
+        let plain = parse("后天跟腾讯开会")
+        XCTAssertEqual(plain.date, day(11, 22))
+        XCTAssertNil(plain.startTime)
+        XCTAssertEqual(plain.title, "跟腾讯开会")
+        let spoken = parse("明天3点开会")
+        XCTAssertEqual(spoken.date, day(11, 21))
+        XCTAssertEqual(spoken.startTime, clock(15))
+        XCTAssertEqual(spoken.title, "开会")
+        let chinese = parse("大后天上午十点交材料")
+        XCTAssertEqual(chinese.date, day(11, 23))
+        XCTAssertEqual(chinese.startTime, clock(10))
+        XCTAssertEqual(chinese.title, "交材料")
+        let range = parse("明天下午2点到4点评审")
+        XCTAssertEqual(range.startTime, clock(14))
+        XCTAssertEqual(range.endTime, clock(16))
+        XCTAssertEqual(range.title, "评审")
+        let afternoon = parse("下午3点开会")
+        XCTAssertFalse(afternoon.dateSet)
+        XCTAssertEqual(afternoon.startTime, clock(15))
+        XCTAssertEqual(afternoon.title, "开会")
+        XCTAssertEqual(parse("明天的会议").title, "明天的会议")
+        XCTAssertFalse(parse("明天的会议").dateSet)
+        XCTAssertEqual(parse("周一例会").title, "周一例会")
+    }
+
+    func testHashList() {
+        let draft = parse("周报 #工作")
+        XCTAssertEqual(draft.listID, "7")
+        XCTAssertEqual(draft.title, "周报")
+        let tagged = parse("周报 #重要")
+        XCTAssertEqual(tagged.important, true)
+        XCTAssertNil(tagged.listID)
+    }
+
     func testListTag() {
         let exact = parse("周报 @工作")
         XCTAssertEqual(exact.listID, "7")
