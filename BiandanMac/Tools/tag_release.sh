@@ -70,7 +70,7 @@ grep -q "VERSION=\"\${VERSION:-$VERSION}\"" "$HERE/Tools/build_app.sh" \
     || echo "提醒：Tools/build_app.sh 的默认版本号不是 $VERSION" >&2
 
 echo "$MESSAGE" | git -C "$HERE" tag -a "$TAG" -F -
-echo "已打 tag $TAG（$(git -C "$HERE" rev-parse --short "$TAG^{commit}")）"
+echo "已打 tag ${TAG}（$(git -C "$HERE" rev-parse --short "${TAG}^{commit}")）"
 
 if [ "$PUSH" = 1 ]; then
     BRANCH="$(git -C "$HERE" branch --show-current)"
