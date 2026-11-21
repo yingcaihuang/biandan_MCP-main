@@ -101,6 +101,7 @@ private enum DefaultsKey {
     static let mcpEnabled = "biandan.mcpEnabled"
     static let remindersEnabled = "biandan.remindersEnabled"
     static let pinMainWindow = "biandan.pinMainWindow"
+    static let showCompletedInList = "biandan.showCompletedInList"
 }
 
 /// 应用状态。P3 只读：登录、同步、浏览和选中。
@@ -261,6 +262,10 @@ final class AppModel {
     /// 主窗口置顶（浮动在其他窗口之上）。
     var pinMainWindow: Bool = UserDefaults.standard.bool(forKey: DefaultsKey.pinMainWindow) {
         didSet { UserDefaults.standard.set(pinMainWindow, forKey: DefaultsKey.pinMainWindow) }
+    }
+    /// 列表底部「已完成」分组是否展开（默认展开）。
+    var showCompletedInList: Bool = UserDefaults.standard.object(forKey: DefaultsKey.showCompletedInList) as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showCompletedInList, forKey: DefaultsKey.showCompletedInList) }
     }
     let reminders = ReminderScheduler()
     /// 由界面注册的「打开主窗口」动作（SwiftUI openWindow）。
