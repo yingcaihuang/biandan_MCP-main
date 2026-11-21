@@ -43,7 +43,7 @@ enum QuadrantRange: Int, CaseIterable, Identifiable {
 }
 
 enum SidebarItem: Hashable {
-    case today, next7, all, important, quadrant, calendar, undated, collected, completed, abandoned, focus
+    case today, next7, all, important, quadrant, calendar, undated, collected, completed, abandoned, focus, habits
     case list(String)
 
     static let views: [SidebarItem] = [.today, .next7, .all, .important, .quadrant, .calendar, .undated, .collected, .completed, .abandoned]
@@ -61,6 +61,7 @@ enum SidebarItem: Hashable {
         case .completed: return "已完成"
         case .abandoned: return "已放弃"
         case .focus: return "专注记录"
+        case .habits: return "习惯打卡"
         case .list: return "待办单"
         }
     }
@@ -78,9 +79,13 @@ enum SidebarItem: Hashable {
         case .completed: return "checkmark.circle"
         case .abandoned: return "slash.circle"
         case .focus: return "timer"
+        case .habits: return "leaf"
         case .list: return "list.bullet"
         }
     }
+
+    /// 专注记录、习惯打卡是记录页：不显示快速添加栏和视图切换。
+    var isRecordPage: Bool { self == .focus || self == .habits }
 
     /// 侧栏里的「四象限」「日历」固定使用对应视图，其余项可以切换视图。
     var fixedMode: ContentMode? {
@@ -563,7 +568,7 @@ final class AppModel {
         case .list(let id):
             query.listID = id
             query.includeUndated = true
-        case .focus:
+        case .focus, .habits:
             return nil
         }
         return query
@@ -579,7 +584,7 @@ final class AppModel {
     /// 四象限取数的侧栏范围：日历、专注记录按「全部待办」处理。
     private var quadrantScope: SidebarItem {
         let scope = sidebarSelection ?? .all
-        return scope == .calendar || scope == .focus ? .all : scope
+        return scope == .calendar || scope.isRecordPage ? .all : scope
     }
 
     /// 当前「近 N 天」范围外（更晚或无日期）被隐藏的待办数。

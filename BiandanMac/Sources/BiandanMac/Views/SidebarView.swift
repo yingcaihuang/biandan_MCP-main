@@ -61,6 +61,10 @@ struct SidebarView: View {
             }
 
             Section("记录") {
+                NavigationLink(value: SidebarItem.habits) {
+                    Label(SidebarItem.habits.title, systemImage: SidebarItem.habits.systemImage)
+                }
+                .badge(model.habitSummaries.filter(\.needsCheckIn).count)
                 NavigationLink(value: SidebarItem.focus) {
                     Label(SidebarItem.focus.title, systemImage: SidebarItem.focus.systemImage)
                 }

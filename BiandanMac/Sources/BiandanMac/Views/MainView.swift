@@ -75,12 +75,14 @@ struct ContentArea: View {
             if item == .today {
                 TodaySummaryCard()
             }
-            if item != .focus {
+            if !item.isRecordPage {
                 QuickAddBar()
             }
             Group {
                 if item == .focus {
                     FocusListView()
+                } else if item == .habits {
+                    HabitListView()
                 } else {
                     switch model.effectiveMode {
                     case .list: OccurrenceListView(item: item)
@@ -112,7 +114,7 @@ struct ContentHeader: View {
                     .foregroundStyle(Color(hex: 0x3B372F))
             }
             Spacer(minLength: 8)
-            if item != .focus {
+            if !item.isRecordPage {
                 Picker("视图", selection: Binding(get: { model.effectiveMode }, set: { model.setMode($0) })) {
                     ForEach(ContentMode.allCases) { mode in
                         Text(mode.title).tag(mode)
