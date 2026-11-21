@@ -9,16 +9,66 @@ struct SummaryTimelineStrip: View {
     let tint: (OccurrenceItem) -> Color
     var selectedID: String?
     var onSelect: (OccurrenceItem) -> Void = { _ in }
+    /// 点时间条左侧的「⚠︎ N」冲突标签。
+    var onShowConflicts: () -> Void = {}
 
     var body: some View {
         switch range {
         case .today:
-            DayTimelineStrip(items: items, day: today, now: now, tint: tint, selectedID: selectedID, onSelect: onSelect)
+            DayTimelineStrip(items: items, day: today, now: now, tint: tint, selectedID: selectedID,
+                             onSelect: onSelect, onShowConflicts: onShowConflicts)
         case .next7, .month:
             let bounds = range.bounds(today: today)
-            RangeTimelineStrip(items: items, start: bounds.start, end: bounds.end, today: today,
-                               tint: tint, selectedID: selectedID, onSelect: onSelect)
+            RangeTimelineStrip(items: items, start: bounds.start, end: bounds.end, today: today, now: now,
+                               tint: tint, selectedID: selectedID, onSelect: onSelect,
+                               onShowConflicts: onShowConflicts)
         }
+    }
+}
+
+/// 冲突时段：红色半透明底 + 红色斜纹，铺在渐变条上。
+private struct ConflictStripes: View {
+    var body: some View {
+        Canvas { context, size in
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Theme.overdue.opacity(0.3)))
+            var path = Path()
+            var x = -size.height
+            while x < size.width {
+                path.move(to: CGPoint(x: x, y: size.height))
+                path.addLine(to: CGPoint(x: x + size.height, y: 0))
+                x += 4
+            }
+            context.stroke(path, with: .color(Theme.overdue), lineWidth: 1.3)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 2.5))
+        .overlay(RoundedRectangle(cornerRadius: 2.5).stroke(Theme.overdue, lineWidth: 1))
+        .allowsHitTesting(false)
+    }
+}
+
+/// 时间条左侧的「⚠︎ N」：这段时间有几处冲突，点击打开「日程冲突」。
+private struct ConflictCountChip: View {
+    let count: Int
+    let help: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 2) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 8.5, weight: .bold))
+                Text(verbatim: "\(count)")
+                    .font(.system(size: 10.5, weight: .heavy))
+                    .monospacedDigit()
+            }
+            .foregroundStyle(Theme.overdue)
+            .frame(width: 40, height: 17)
+            .background(Capsule().fill(Theme.overdue.opacity(0.12)))
+            .overlay(Capsule().stroke(Theme.overdue.opacity(0.6), lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 }
 
@@ -59,12 +109,14 @@ enum TimelineStyle {
     }
 
     /// 提示卡片的一行：标题（过长截断）+ 时间 · 状态（· 提醒时刻）。
-    static func tooltipRow(_ item: OccurrenceItem, color: Color, today: LocalDate, extra: String? = nil) -> TimelineTooltipRow {
+    static func tooltipRow(_ item: OccurrenceItem, color: Color, today: LocalDate, extra: String? = nil,
+                           conflicts: TimelineConflicts? = nil) -> TimelineTooltipRow {
         var title = item.task.taskTitle.isEmpty ? "（无标题）" : item.task.taskTitle
         if title.count > 28 { title = String(title.prefix(27)) + "…" }
         var detail = item.scheduleText(today: today) + " · " + item.status.title
         if let extra { detail += " · " + extra }
-        return TimelineTooltipRow(title: title, detail: detail, color: color)
+        let warning = conflicts.flatMap { ScheduleConflicts.tooltipText($0.partners[item.id] ?? []) }
+        return TimelineTooltipRow(title: title, detail: detail, color: color, warning: warning)
     }
 }
 
@@ -76,6 +128,8 @@ private struct TimelineDot: View {
     var hovered = false
     /// 空心点：全天任务的提醒时刻。
     var hollow = false
+    /// 和别的日程时间冲突：外面套一圈红环。
+    var conflict = false
 
     var body: some View {
         let fill: Color = hollow ? Theme.card : color
@@ -92,6 +146,11 @@ private struct TimelineDot: View {
                 }
             }
             .frame(width: TimelineStyle.dot, height: TimelineStyle.dot)
+            .overlay {
+                if conflict {
+                    Circle().stroke(Theme.overdue, lineWidth: 1.6).padding(-2.2)
+                }
+            }
             .scaleEffect(hovered ? 1.4 : 1)
             .shadow(color: .black.opacity(0.18), radius: 1, y: 0.5)
             .animation(.easeOut(duration: 0.12), value: hovered)
@@ -107,24 +166,34 @@ private struct DayTimelineStrip: View {
     let tint: (OccurrenceItem) -> Color
     let selectedID: String?
     let onSelect: (OccurrenceItem) -> Void
+    let onShowConflicts: () -> Void
     @State private var showAllDay = false
     @State private var hovered: String?
 
     var body: some View {
         let layout = TimelineLayout.day(items, day: day)
+        let conflicts = ScheduleConflicts.timeline(items, from: day, to: day, today: day, now: nowMinutes)
         let lanes = max((layout.timed.map(\.lane).max() ?? -1) + 1, 1)
         let top = TimelineStyle.barTop(lanes: lanes)
         HStack(alignment: .top, spacing: 10) {
-            allDayChip(layout.allDay)
-                .padding(.top, max(top + TimelineStyle.barHeight / 2 - 15, 0))
+            VStack(spacing: 5) {
+                allDayChip(layout.allDay)
+                if !conflicts.isEmpty {
+                    ConflictCountChip(count: conflicts.groups.count,
+                                      help: "今天有 \(conflicts.groups.count) 处时间冲突（红色斜纹），点击查看「日程冲突」",
+                                      action: onShowConflicts)
+                }
+            }
+            .padding(.top, max(top + TimelineStyle.barHeight / 2 - 15, 0))
             GeometryReader { geo in
-                track(layout.timed, lanes: lanes, width: geo.size.width)
+                track(layout.timed, conflicts: conflicts, lanes: lanes, width: geo.size.width)
             }
             .frame(height: TimelineStyle.height(lanes: lanes))
         }
     }
 
     private var nowFraction: Double { TimelineLayout.fraction(of: now) }
+    private var nowMinutes: Int { Int((nowFraction * 1440).rounded()) }
 
     private func reminderText(_ mark: TimelineMark) -> String? {
         guard mark.isReminder else { return nil }
@@ -132,11 +201,13 @@ private struct DayTimelineStrip: View {
         return String(format: "提醒 %02d:%02d", total / 60, total % 60)
     }
 
-    private func targets(_ marks: [TimelineMark], lanes: Int, width: CGFloat) -> [TimelineHoverTarget] {
+    private func targets(_ marks: [TimelineMark], conflicts: TimelineConflicts, lanes: Int,
+                         width: CGFloat) -> [TimelineHoverTarget] {
         marks.map { mark in
             let point = CGPoint(x: TimelineStyle.x(mark.start, width: width),
                                 y: TimelineStyle.laneCenter(mark.lane, lanes: lanes))
-            let row = TimelineStyle.tooltipRow(mark.item, color: color(mark), today: day, extra: reminderText(mark))
+            let row = TimelineStyle.tooltipRow(mark.item, color: color(mark), today: day, extra: reminderText(mark),
+                                               conflicts: conflicts)
             return TimelineHoverTarget(id: mark.id, point: point, item: mark.item, rows: [row])
         }
     }
@@ -156,7 +227,8 @@ private struct DayTimelineStrip: View {
         return tint(item)
     }
 
-    private func track(_ marks: [TimelineMark], lanes: Int, width: CGFloat) -> some View {
+    private func track(_ marks: [TimelineMark], conflicts: TimelineConflicts, lanes: Int,
+                       width: CGFloat) -> some View {
         let top = TimelineStyle.barTop(lanes: lanes)
         let labelY = top + TimelineStyle.barHeight + 10
         let nowX = TimelineStyle.x(nowFraction, width: width)
@@ -166,6 +238,14 @@ private struct DayTimelineStrip: View {
                 .fill(TimelineStyle.dayGradient)
                 .frame(width: span, height: TimelineStyle.barHeight)
                 .offset(x: TimelineStyle.inset, y: top)
+            // 冲突时段：渐变条上铺红色斜纹，一眼看到几点到几点撞了。
+            ForEach(conflicts.spans(on: day), id: \.self) { overlap in
+                let x0 = TimelineStyle.x(Double(overlap.start) / 1440, width: width)
+                let x1 = TimelineStyle.x(Double(overlap.end) / 1440, width: width)
+                ConflictStripes()
+                    .frame(width: max(x1 - x0, 4), height: TimelineStyle.barHeight + 4)
+                    .offset(x: x0, y: top - 2)
+            }
             // 有时长的任务：从圆点向右画一条细线表示时段，不遮住渐变条。
             ForEach(marks.filter { $0.end - $0.start > 0.004 }) { mark in
                 Capsule()
@@ -203,11 +283,12 @@ private struct DayTimelineStrip: View {
             ForEach(marks) { mark in
                 TimelineDot(item: mark.item, color: color(mark), selected: selectedID == mark.id,
                             hovered: hovered == mark.id,
-                            hollow: mark.isReminder && mark.item.status != .completed)
+                            hollow: mark.isReminder && mark.item.status != .completed,
+                            conflict: conflicts.isConflicting(mark.id))
                     .position(x: TimelineStyle.x(mark.start, width: width),
                               y: TimelineStyle.laneCenter(mark.lane, lanes: lanes))
             }
-            TimelineHoverLayer(targets: targets(marks, lanes: lanes, width: width),
+            TimelineHoverLayer(targets: targets(marks, conflicts: conflicts, lanes: lanes, width: width),
                                size: CGSize(width: width, height: TimelineStyle.height(lanes: lanes)),
                                hovered: $hovered, onSelect: onSelect)
         }
@@ -270,18 +351,37 @@ private struct RangeTimelineStrip: View {
     let start: LocalDate
     let end: LocalDate
     let today: LocalDate
+    let now: Date
     let tint: (OccurrenceItem) -> Color
     let selectedID: String?
     let onSelect: (OccurrenceItem) -> Void
+    let onShowConflicts: () -> Void
     @State private var hovered: String?
 
+    private var nowMinutes: Int { Int((TimelineLayout.fraction(of: now) * 1440).rounded()) }
+
     var body: some View {
-        let groups = TimelineLayout.range(items, start: start, end: end)
-        let lanes = min(max(groups.map(\.items.count).max() ?? 0, 1), TimelineLayout.maxLanes)
-        GeometryReader { geo in
-            track(groups, lanes: lanes, width: geo.size.width)
+        let conflicts = ScheduleConflicts.timeline(items, from: start, to: end, today: today, now: nowMinutes)
+        // 每天里冲突的排在前面，层数不够时优先露出来，不被收进「+N」。
+        let groups = TimelineLayout.range(items, start: start, end: end).map { group in
+            var group = group
+            let hot = group.items.filter { conflicts.isConflicting($0.id) }
+            group.items = hot + group.items.filter { !conflicts.isConflicting($0.id) }
+            return group
         }
-        .frame(height: TimelineStyle.height(lanes: lanes))
+        let lanes = min(max(groups.map(\.items.count).max() ?? 0, 1), TimelineLayout.maxLanes)
+        HStack(alignment: .top, spacing: 10) {
+            if !conflicts.isEmpty {
+                ConflictCountChip(count: conflicts.groups.count,
+                                  help: "这段时间有 \(conflicts.groups.count) 处时间冲突（红色斜纹的日期），点击查看「日程冲突」",
+                                  action: onShowConflicts)
+                    .padding(.top, max(TimelineStyle.barTop(lanes: lanes) + TimelineStyle.barHeight / 2 - 8.5, 0))
+            }
+            GeometryReader { geo in
+                track(groups, conflicts: conflicts, lanes: lanes, width: geo.size.width)
+            }
+            .frame(height: TimelineStyle.height(lanes: lanes))
+        }
     }
 
     private var count: Int { max(start.days(to: end) + 1, 1) }
@@ -294,7 +394,8 @@ private struct RangeTimelineStrip: View {
         return tint(item)
     }
 
-    private func targets(_ groups: [TimelineDayGroup], lanes: Int, width: CGFloat) -> [TimelineHoverTarget] {
+    private func targets(_ groups: [TimelineDayGroup], conflicts: TimelineConflicts, lanes: Int,
+                         width: CGFloat) -> [TimelineHoverTarget] {
         var result: [TimelineHoverTarget] = []
         for group in groups {
             let x = TimelineStyle.x(center(group.index), width: width)
@@ -303,11 +404,13 @@ private struct RangeTimelineStrip: View {
                 let point = CGPoint(x: x, y: TimelineStyle.laneCenter(lane, lanes: lanes))
                 if overflow && lane == lanes - 1 {
                     let hidden = Array(group.items.dropFirst(lanes - 1))
-                    let rows = hidden.prefix(4).map { TimelineStyle.tooltipRow($0, color: color($0), today: today) }
+                    let rows = hidden.prefix(4).map {
+                        TimelineStyle.tooltipRow($0, color: color($0), today: today, conflicts: conflicts)
+                    }
                     result.append(TimelineHoverTarget(id: "more-\(group.index)", point: point, item: nil,
                                                       rows: Array(rows), more: hidden.count - rows.count))
                 } else {
-                    let row = TimelineStyle.tooltipRow(item, color: color(item), today: today)
+                    let row = TimelineStyle.tooltipRow(item, color: color(item), today: today, conflicts: conflicts)
                     result.append(TimelineHoverTarget(id: item.id, point: point, item: item, rows: [row]))
                 }
             }
@@ -327,17 +430,27 @@ private struct RangeTimelineStrip: View {
         return count <= 7 ? LocalDate.weekdayShortNames[day.weekday] + " \(day.day)" : "\(day.day)"
     }
 
-    private func track(_ groups: [TimelineDayGroup], lanes: Int, width: CGFloat) -> some View {
+    private func track(_ groups: [TimelineDayGroup], conflicts: TimelineConflicts, lanes: Int,
+                       width: CGFloat) -> some View {
         let top = TimelineStyle.barTop(lanes: lanes)
         let labelY = top + TimelineStyle.barHeight + 10
         let span = max(width - TimelineStyle.inset * 2, 1)
         let todayIndex = start.days(to: today)
         let showToday = todayIndex >= 0 && todayIndex < count
+        let conflictDays = conflicts.days
+        let conflictIndices = conflictDays.map { start.days(to: $0) }.filter { $0 >= 0 && $0 < count }.sorted()
         return ZStack(alignment: .topLeading) {
             Capsule()
                 .fill(TimelineStyle.rangeGradient)
                 .frame(width: span, height: TimelineStyle.barHeight)
                 .offset(x: TimelineStyle.inset, y: top)
+            // 有冲突的日期：那一格铺红色斜纹。
+            ForEach(conflictIndices, id: \.self) { index in
+                let slot = max(span / CGFloat(count), 6)
+                ConflictStripes()
+                    .frame(width: slot, height: TimelineStyle.barHeight + 4)
+                    .offset(x: TimelineStyle.x(center(index), width: width) - slot / 2, y: top - 2)
+            }
             if showToday {
                 // 在渐变条上框出今天这一格，不穿过上方的圆点。
                 let slot = max(span / CGFloat(count), 6)
@@ -348,10 +461,11 @@ private struct RangeTimelineStrip: View {
             }
             ForEach(visibleTicks(todayIndex: showToday ? todayIndex : nil), id: \.self) { index in
                 let isToday = showToday && index == todayIndex
+                let isConflict = conflictDays.contains(start.adding(days: index))
                 Text(verbatim: isToday && count > 7 ? "今天" : label(index))
-                    .font(.system(size: 9.5, weight: isToday ? .bold : .regular))
+                    .font(.system(size: 9.5, weight: isToday || isConflict ? .bold : .regular))
                     .monospacedDigit()
-                    .foregroundStyle(isToday ? Theme.overdue : Theme.subtext)
+                    .foregroundStyle(isToday || isConflict ? Theme.overdue : Theme.subtext)
                     .position(x: TimelineStyle.x(center(index), width: width), y: labelY)
             }
             if groups.isEmpty {
@@ -366,8 +480,10 @@ private struct RangeTimelineStrip: View {
                 ForEach(Array(group.items.prefix(lanes).enumerated()), id: \.element.id) { lane, item in
                     if overflow && lane == lanes - 1 {
                         let hot = hovered == "more-\(group.index)"
-                        let textColor: Color = hot ? Theme.text : Theme.subtext
-                        let strokeColor: Color = hot ? Theme.accent : Theme.line
+                        // 收起来的里面还有冲突项时标红。
+                        let hiddenConflict = group.items.dropFirst(lanes - 1).contains { conflicts.isConflicting($0.id) }
+                        let textColor: Color = hiddenConflict ? Theme.overdue : (hot ? Theme.text : Theme.subtext)
+                        let strokeColor: Color = hiddenConflict ? Theme.overdue : (hot ? Theme.accent : Theme.line)
                         Text(verbatim: "+\(group.items.count - lanes + 1)")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(textColor)
@@ -378,12 +494,12 @@ private struct RangeTimelineStrip: View {
                             .position(x: x, y: TimelineStyle.laneCenter(lane, lanes: lanes))
                     } else {
                         TimelineDot(item: item, color: color(item), selected: selectedID == item.id,
-                                    hovered: hovered == item.id)
+                                    hovered: hovered == item.id, conflict: conflicts.isConflicting(item.id))
                             .position(x: x, y: TimelineStyle.laneCenter(lane, lanes: lanes))
                     }
                 }
             }
-            TimelineHoverLayer(targets: targets(groups, lanes: lanes, width: width),
+            TimelineHoverLayer(targets: targets(groups, conflicts: conflicts, lanes: lanes, width: width),
                                size: CGSize(width: width, height: TimelineStyle.height(lanes: lanes)),
                                hovered: $hovered, onSelect: onSelect)
         }

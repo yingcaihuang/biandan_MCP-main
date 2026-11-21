@@ -5,6 +5,21 @@ struct TimelineTooltipRow: Hashable {
     let title: String
     let detail: String
     let color: Color
+    /// 时间冲突说明，红字显示在下面一行。
+    var warning: String? = nil
+}
+
+/// 提示卡片里的红色冲突说明。
+private struct TimelineTooltipWarning: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9, weight: .bold))
+            Text(verbatim: text).font(.system(size: 10.5, weight: .semibold)).monospacedDigit()
+        }
+        .foregroundStyle(Theme.overdue)
+    }
 }
 
 /// 时间条上可以悬停 / 点击的一个点（圆点或「+N」）。
@@ -134,15 +149,20 @@ private struct TimelineTooltipCompactLine: View {
     let row: TimelineTooltipRow
 
     var body: some View {
-        HStack(spacing: 6) {
-            Circle().fill(row.color).frame(width: 7, height: 7)
-            Text(verbatim: row.title)
-                .font(.system(size: 11.5, weight: .semibold))
-                .foregroundStyle(Theme.text)
-            Text(verbatim: row.detail)
-                .font(.system(size: 10.5))
-                .monospacedDigit()
-                .foregroundStyle(Theme.subtext)
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 6) {
+                Circle().fill(row.color).frame(width: 7, height: 7)
+                Text(verbatim: row.title)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                Text(verbatim: row.detail)
+                    .font(.system(size: 10.5))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.subtext)
+            }
+            if let warning = row.warning {
+                TimelineTooltipWarning(text: warning).padding(.leading, 13)
+            }
         }
     }
 }
@@ -164,6 +184,9 @@ private struct TimelineTooltipLine: View {
                     .font(.system(size: 10.5))
                     .monospacedDigit()
                     .foregroundStyle(Theme.subtext)
+                if let warning = row.warning {
+                    TimelineTooltipWarning(text: warning).padding(.top, 2)
+                }
             }
         }
     }

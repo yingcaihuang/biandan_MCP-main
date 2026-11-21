@@ -33,6 +33,29 @@ struct ConflictPartner: Hashable, Sendable {
     var id: String { item.id + "|" + day.iso }
 }
 
+/// 当天的一段分钟区间 [start, end)。
+struct MinuteSpan: Hashable, Sendable {
+    var start: Int
+    var end: Int
+}
+
+/// 时间条上要标出的冲突。
+struct TimelineConflicts: Sendable {
+    var groups: [ScheduleConflictGroup] = []
+    /// 实例 ID → 和它直接冲突的日程。
+    var partners: [String: [ConflictPartner]] = [:]
+
+    var isEmpty: Bool { groups.isEmpty }
+    var days: Set<LocalDate> { Set(groups.map(\.day)) }
+
+    func isConflicting(_ id: String) -> Bool { !(partners[id] ?? []).isEmpty }
+
+    /// 某天真正重叠的时段。
+    func spans(on day: LocalDate) -> [MinuteSpan] {
+        groups.filter { $0.day == day }.flatMap(ScheduleConflicts.overlapSpans)
+    }
+}
+
 /// 新建日程和已有日程时间重叠时，底部弹出的提醒。
 struct ConflictNotice: Equatable, Sendable {
     let id = UUID()
@@ -141,6 +164,47 @@ enum ScheduleConflicts {
             }
         }
         return result
+    }
+
+    /// 一组冲突里真正重叠的时段（两两重叠的部分合并），时间条上标红用。
+    static func overlapSpans(_ group: ScheduleConflictGroup) -> [MinuteSpan] {
+        let slots = group.slots
+        var spans: [MinuteSpan] = []
+        for i in slots.indices {
+            for j in slots.indices where j > i {
+                let start = max(slots[i].start, slots[j].start)
+                let end = min(slots[i].end, slots[j].end)
+                if start < end { spans.append(MinuteSpan(start: start, end: end)) }
+            }
+        }
+        spans.sort { ($0.start, $0.end) < ($1.start, $1.end) }
+        var merged: [MinuteSpan] = []
+        for span in spans {
+            if let last = merged.last, span.start <= last.end {
+                merged[merged.count - 1].end = max(last.end, span.end)
+            } else {
+                merged.append(span)
+            }
+        }
+        return merged
+    }
+
+    /// 时间条用：[from, to] 里的冲突。和卡片角标同一规则：已经过去的日子不算，今天已结束的时段不算。
+    static func timeline(_ items: [OccurrenceItem], from: LocalDate, to: LocalDate,
+                         today: LocalDate, now: Int) -> TimelineConflicts {
+        let first = max(from, today)
+        guard first <= to else { return TimelineConflicts() }
+        let groups = groups(items, from: first, to: to, now: first == today ? now : nil)
+        return TimelineConflicts(groups: groups, partners: partners(groups))
+    }
+
+    /// 时间条提示卡片里的冲突说明：「与「公司例会」冲突 13:00–13:30」。
+    static func tooltipText(_ partners: [ConflictPartner]) -> String? {
+        guard let first = partners.first else { return nil }
+        if partners.count > 1 {
+            return "与「\(shortTitle(first.item))」等 \(partners.count) 项时间冲突"
+        }
+        return "与「\(shortTitle(first.item))」冲突 " + rangeText(first.overlapStart, first.overlapEnd)
     }
 
     /// 和某一天的 [start, end) 时间段交叉的已有日程。

@@ -49,10 +49,12 @@ struct TodaySummaryCard: View {
                     SummaryTimelineStrip(items: model.timelineItems(for: item), range: model.summaryRange,
                                          today: model.today, now: context.date,
                                          tint: { model.timelineTint(for: $0) },
-                                         selectedID: model.selectedOccurrenceID) { occurrence in
-                        model.selectedOccurrenceID = occurrence.id
-                        model.selectedFocusID = nil
-                    }
+                                         selectedID: model.selectedOccurrenceID,
+                                         onSelect: { occurrence in
+                                             model.selectedOccurrenceID = occurrence.id
+                                             model.selectedFocusID = nil
+                                         },
+                                         onShowConflicts: { model.sidebarSelection = .conflicts })
                 }
             }
         }
