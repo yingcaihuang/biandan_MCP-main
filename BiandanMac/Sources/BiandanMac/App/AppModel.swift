@@ -43,7 +43,7 @@ enum QuadrantRange: Int, CaseIterable, Identifiable {
 }
 
 enum SidebarItem: Hashable {
-    case today, next7, all, important, quadrant, calendar, undated, collected, completed, abandoned, focus, habits
+    case today, next7, all, important, quadrant, calendar, undated, collected, completed, abandoned, focus, habits, stats
     case list(String)
 
     static let views: [SidebarItem] = [.today, .next7, .all, .important, .quadrant, .calendar, .undated, .collected, .completed, .abandoned]
@@ -62,6 +62,7 @@ enum SidebarItem: Hashable {
         case .abandoned: return "已放弃"
         case .focus: return "专注记录"
         case .habits: return "习惯打卡"
+        case .stats: return "统计"
         case .list: return "分类"
         }
     }
@@ -80,6 +81,7 @@ enum SidebarItem: Hashable {
         case .abandoned: return "slash.circle"
         case .focus: return "timer"
         case .habits: return "leaf"
+        case .stats: return "chart.bar.xaxis"
         case .list: return "list.bullet"
         }
     }
@@ -104,7 +106,7 @@ enum SidebarItem: Hashable {
     }
 
     /// 专注记录、习惯打卡是记录页：不显示快速添加栏和视图切换。
-    var isRecordPage: Bool { self == .focus || self == .habits }
+    var isRecordPage: Bool { self == .focus || self == .habits || self == .stats }
 
     /// 侧栏里的「四象限」「日历」固定使用对应视图，其余项可以切换视图。
     var fixedMode: ContentMode? {
@@ -655,7 +657,7 @@ final class AppModel {
         case .list(let id):
             query.listID = id
             query.includeUndated = true
-        case .focus, .habits:
+        case .focus, .habits, .stats:
             return nil
         }
         return query

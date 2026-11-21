@@ -91,6 +91,8 @@ struct ContentArea: View {
                     FocusListView()
                 } else if item == .habits {
                     HabitListView()
+                } else if item == .stats {
+                    StatsView()
                 } else {
                     switch model.effectiveMode {
                     case .list: OccurrenceListView(item: item)

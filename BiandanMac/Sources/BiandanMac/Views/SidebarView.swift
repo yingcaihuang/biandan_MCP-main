@@ -62,6 +62,8 @@ struct SidebarView: View {
                 Label(SidebarItem.focus.title, systemImage: SidebarItem.focus.systemImage)
                     .badge(counts.focusThisWeek)
                     .tag(SidebarItem.focus)
+                Label(SidebarItem.stats.title, systemImage: SidebarItem.stats.systemImage)
+                    .tag(SidebarItem.stats)
             }
         }
         .listStyle(.sidebar)
