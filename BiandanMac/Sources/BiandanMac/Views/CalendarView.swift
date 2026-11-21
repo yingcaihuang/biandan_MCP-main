@@ -40,19 +40,18 @@ struct CalendarView: View {
                 Text("拖动任务到其他日期即可改期")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.fieldName)
-                DatePicker("跳转到", selection: Binding(get: { model.calendarFocus.date() },
-                                                     set: { model.jumpCalendar(to: LocalDate.today($0)) }),
-                           displayedComponents: .date)
-                    .datePickerStyle(.compact)
-                    .labelsHidden()
+                ThemedDateField(date: Binding(get: { model.calendarFocus },
+                                              set: { model.jumpCalendar(to: $0) }))
                     .help("跳转到任意一天")
-                Button { step(-1) } label: { Image(systemName: "chevron.left") }
-                    .help(stepHelp(-1))
-                Button("今天") { model.jumpCalendar(to: model.today) }
-                Button { step(1) } label: { Image(systemName: "chevron.right") }
-                    .help(stepHelp(1))
+                Group {
+                    Button { step(-1) } label: { Image(systemName: "chevron.left") }
+                        .help(stepHelp(-1))
+                    Button("今天") { model.jumpCalendar(to: model.today) }
+                    Button { step(1) } label: { Image(systemName: "chevron.right") }
+                        .help(stepHelp(1))
+                }
+                .buttonStyle(.themed)
             }
-            .buttonStyle(.bordered)
 
             if scope == .year {
                 CalendarYearGrid(year: model.calendarMonth.year, items: visible)

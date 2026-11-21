@@ -69,10 +69,13 @@ struct PomodoroPanel: View {
                     .font(.system(size: 12.5, weight: .semibold))
             }
             if item != nil {
-                Toggle(isOn: $linkSelected) {
+                HStack(spacing: 8) {
                     Text(verbatim: "关联「\(name)」")
                         .font(.system(size: 12))
+                        .foregroundStyle(Theme.text)
                         .lineLimit(1)
+                    Spacer(minLength: 4)
+                    ThemedSwitch(isOn: $linkSelected)
                 }
             } else {
                 Text("在列表里选中一个任务，可以把这次专注关联到它")
@@ -84,7 +87,7 @@ struct PomodoroPanel: View {
             } label: {
                 Text("开始专注").frame(maxWidth: .infinity)
             }
-            .buttonStyle(.themed)
+            .buttonStyle(.themedPrimary)
             .disabled(model.authState != .signedIn)
             Text("计时结束后会自动补记一条专注记录")
                 .font(.system(size: 11))
@@ -160,7 +163,7 @@ private struct PomodoroRunning: View {
                 Button("放弃") { model.cancelPomodoro() }
                     .help("放弃本次计时，不记录")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.themed)
             Text(verbatim: "计划 \(session.plannedMinutes) 分钟 · 到时自动补记")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.fieldName)
