@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IDENTITY="${BIANDAN_SIGN_IDENTITY:-963EFDD532CD44170CF91398025F08D5DB4ADA2F}"
 CONFIG="${CONFIG:-release}"
-VERSION="${VERSION:-0.5.1}"
+VERSION="${VERSION:-0.6.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
 BUNDLE_ID="ai.racore.BiandanMac"
 DIST="$ROOT/dist"

@@ -4,6 +4,8 @@
 
 ![四象限主界面](docs/screenshots/quadrant.png)
 
+每个版本改了什么，见 [更新记录（CHANGELOG）](CHANGELOG.md)。
+
 <sub>四象限主界面：中间是任务卡片的右键菜单（完成、改期、移到象限 / 待办单、收藏、重复规则、删除），右侧是检查器。</sub>
 
 - 设计与规划：[../docs/macos/plan.md](../docs/macos/plan.md)
@@ -123,7 +125,7 @@ Tools/build_app.sh
 |---|---|
 | `BIANDAN_SIGN_IDENTITY` | 签名证书的 SHA-1 或名称，默认使用 Developer ID Application 证书 |
 | `CONFIG` | `release`（默认）或 `debug` |
-| `VERSION` / `BUILD_NUMBER` | 版本号（默认 0.5.0）/ 构建号（默认当前时间 `yyyyMMddHHmm`） |
+| `VERSION` / `BUILD_NUMBER` | 版本号（默认 0.6.0）/ 构建号（默认当前时间 `yyyyMMddHHmm`） |
 | `TIMESTAMP=0` | 离线时跳过 Apple 时间戳服务器 |
 
 ### 测试
