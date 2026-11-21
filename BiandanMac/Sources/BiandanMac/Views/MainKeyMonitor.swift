@@ -17,6 +17,27 @@ struct MainKeyMonitor: NSViewRepresentable {
     }
 }
 
+/// 从 NSEvent 取出的按键信息（都是可跨线程传递的值，NSEvent 本身不是 Sendable）。
+struct KeyPress: Sendable {
+    let keyCode: UInt16
+    let flagsRaw: UInt
+    let characters: String?
+    let windowNumber: Int
+
+    init(_ event: NSEvent) {
+        keyCode = event.keyCode
+        flagsRaw = event.modifierFlags.rawValue
+        characters = event.charactersIgnoringModifiers
+        windowNumber = event.windowNumber
+    }
+
+    /// 去掉数字键盘、fn、大写锁定后的修饰键。
+    var flags: NSEvent.ModifierFlags {
+        NSEvent.ModifierFlags(rawValue: flagsRaw).intersection(.deviceIndependentFlagsMask)
+            .subtracting([.numericPad, .function, .capsLock])
+    }
+}
+
 final class KeyMonitorView: NSView {
     weak var model: AppModel?
     private var monitor: Any?
@@ -29,10 +50,13 @@ final class KeyMonitorView: NSView {
         }
         guard window != nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            MainActor.assumeIsolated {
-                guard let self, let window = self.window, event.window === window else { return event }
-                return self.handle(event, in: window) ? nil : event
+            let press = KeyPress(event)
+            // 本地监听在主线程回调。
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard let self, let window = self.window, press.windowNumber == window.windowNumber else { return false }
+                return self.handle(press, in: window)
             }
+            return handled ? nil : event
         }
     }
 
@@ -43,19 +67,18 @@ final class KeyMonitorView: NSView {
     }
 
     /// 返回 true 表示已处理（吞掉按键）。
-    private func handle(_ event: NSEvent, in window: NSWindow) -> Bool {
+    private func handle(_ press: KeyPress, in window: NSWindow) -> Bool {
         guard let model, model.authState == .signedIn else { return false }
         if window.attachedSheet != nil || !window.sheets.isEmpty { return false }
         if let responder = window.firstResponder,
            responder is NSText || responder is NSTextField || responder is NSTableView {
             return false
         }
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            .subtracting([.numericPad, .function, .capsLock])
-        switch event.keyCode {
+        let flags = press.flags
+        switch press.keyCode {
         case Key.down, Key.up:
             guard flags.isSubset(of: [.shift]), !model.keyboardOrder.isEmpty else { return false }
-            model.moveSelection(by: event.keyCode == Key.down ? 1 : -1, extend: flags.contains(.shift))
+            model.moveSelection(by: press.keyCode == Key.down ? 1 : -1, extend: flags.contains(.shift))
             return true
         case Key.space:
             guard flags.isEmpty, model.hasKeyboardTarget else { return false }
@@ -74,8 +97,7 @@ final class KeyMonitorView: NSView {
             model.clearMultiSelection()
             return true
         default:
-            if flags == [.command], event.charactersIgnoringModifiers?.lowercased() == "a",
-               !model.keyboardOrder.isEmpty {
+            if flags == [.command], press.characters?.lowercased() == "a", !model.keyboardOrder.isEmpty {
                 model.selectAllVisible()
                 return true
             }
