@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 日历：月视图（6×7 网格）、周视图（7 列）和单日视图。显示与每天有交集的执行实例（含已完成、已放弃），
+/// 日历：年视图（12 个小月历）、月视图（6×7 网格）、周视图（7 列）和单日视图。显示与每天有交集的执行实例（含已完成、已放弃），
 /// 可以把实例拖到其他日期改期。
 struct CalendarView: View {
     @Environment(AppModel.self) private var model
@@ -35,7 +35,7 @@ struct CalendarView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 132)
+                .frame(width: 176)
                 Spacer()
                 Text("拖动任务到其他日期即可改期")
                     .font(.system(size: 11))
@@ -54,7 +54,9 @@ struct CalendarView: View {
             }
             .buttonStyle(.bordered)
 
-            if scope == .month {
+            if scope == .year {
+                CalendarYearGrid(year: model.calendarMonth.year, items: visible)
+            } else if scope == .month {
                 weekdayHeader
                 VStack(spacing: 6) {
                     ForEach(0..<6, id: \.self) { row in
@@ -87,6 +89,7 @@ struct CalendarView: View {
 
     private func visibleDays(_ scope: CalendarScope) -> [LocalDate] {
         switch scope {
+        case .year: return CalendarYear.days(year: model.calendarMonth.year)
         case .month: return Self.gridDays(month: model.calendarMonth, weekStart: model.weekStart)
         case .week: return Self.weekDays(containing: model.calendarFocus, weekStart: model.weekStart)
         case .day: return [model.calendarFocus]
@@ -96,6 +99,7 @@ struct CalendarView: View {
     private func stepHelp(_ direction: Int) -> String {
         let word = direction < 0 ? "上" : "下"
         switch model.calendarScope {
+        case .year: return word + "一年"
         case .month: return word + "个月"
         case .week: return word + "一周"
         case .day: return direction < 0 ? "前一天" : "后一天"
@@ -114,6 +118,9 @@ struct CalendarView: View {
     }
 
     private func title(days: [LocalDate]) -> String {
+        if model.calendarScope == .year {
+            return "\(model.calendarMonth.year)年"
+        }
         if model.calendarScope == .day {
             let day = model.calendarFocus
             return "\(day.year)年\(day.month)月\(day.day)日 " + LocalDate.weekdayNames[day.weekday]

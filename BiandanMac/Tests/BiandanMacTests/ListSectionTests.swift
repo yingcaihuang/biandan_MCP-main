@@ -89,6 +89,16 @@ final class ListSectionTests: XCTestCase {
         XCTAssertEqual(Greeting.subtitle(progress), "今天还有 1 项待办，已完成 1 项")
     }
 
+    func testYearDayCounts() {
+        let items = snapshot().items(OccurrenceQuery(status: .all))
+        let counts = CalendarYear.dayCounts(items, year: 2026)
+        XCTAssertEqual(counts[today], 2)
+        XCTAssertEqual(counts[LocalDate(year: 2026, month: 11, day: 18)!], 1)
+        XCTAssertEqual(counts[LocalDate(year: 2026, month: 11, day: 10)!], 1)
+        XCTAssertNil(counts[LocalDate(year: 2026, month: 11, day: 19)!])
+        XCTAssertTrue(CalendarYear.dayCounts(items, year: 2025).isEmpty)
+    }
+
     func testGreetingByHour() {
         XCTAssertEqual(Greeting.text(hour: 7), "早上好")
         XCTAssertEqual(Greeting.text(hour: 12), "中午好")

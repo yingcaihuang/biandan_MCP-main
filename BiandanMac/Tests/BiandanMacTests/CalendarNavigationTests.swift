@@ -22,7 +22,15 @@ final class CalendarNavigationTests: XCTestCase {
         XCTAssertEqual(next.focus, focus)
     }
 
+    func testYearStep() {
+        let next = CalendarNavigation.step(scope: .year, month: month, focus: focus, direction: 1)
+        XCTAssertEqual(next.month, LocalDate(year: 2027, month: 11, day: 1)!)
+        XCTAssertEqual(next.focus, focus)
+        XCTAssertEqual(CalendarYear.days(year: 2028).count, 366)
+        XCTAssertEqual(CalendarYear.days(year: 2026).count, 365)
+    }
+
     func testScopeTitles() {
-        XCTAssertEqual(CalendarScope.allCases.map(\.title), ["月", "周", "日"])
+        XCTAssertEqual(CalendarScope.allCases.map(\.title), ["年", "月", "周", "日"])
     }
 }
