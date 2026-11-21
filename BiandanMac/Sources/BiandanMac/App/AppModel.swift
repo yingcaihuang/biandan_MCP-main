@@ -323,6 +323,13 @@ final class AppModel {
     var showMenuBarExtra: Bool = MenuBarDefaults.isShown {
         didSet { UserDefaults.standard.set(showMenuBarExtra, forKey: MenuBarDefaults.showKey) }
     }
+    /// 桌面浮窗球（默认显示）：单击框选识别日程，右键更多。
+    var showFloatingBall: Bool = UserDefaults.standard.object(forKey: "biandan.showFloatingBall") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(showFloatingBall, forKey: "biandan.showFloatingBall")
+            FloatingBallController.shared.apply(model: self)
+        }
+    }
     /// 全局快速添加的快捷键（默认 ⌃⌥N）。
     var quickAddHotKey: QuickAddHotKey = QuickAddHotKey(
         rawValue: UserDefaults.standard.string(forKey: DefaultsKey.quickAddHotKey) ?? ""
@@ -383,6 +390,7 @@ final class AppModel {
     func bootstrap() async {
         guard !bootstrapped else { return }
         bootstrapped = true
+        FloatingBallController.shared.apply(model: self)
         if DebugFlags.offline {
             // 仅 Debug 排查：不读钥匙串、不联网、不启 MCP、不排提醒，只用本地库显示主界面。
             reloadSnapshot()

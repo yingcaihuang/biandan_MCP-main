@@ -808,6 +808,9 @@ private struct ReminderSettingsSection: View {
                 }
             }
             ThemedRow("在菜单栏显示便单") { ThemedSwitch(isOn: $model.showMenuBarExtra) }
+            ThemedRow("桌面浮窗球") { ThemedSwitch(isOn: $model.showFloatingBall) }
+            NoteRow(icon: "text.viewfinder",
+                    text: "单击小球框选屏幕上的聊天记录，在本机识别文字并提取日程，确认后再添加；右键可识别剪贴板，也可以把文字或图片拖到球上。框选需要「屏幕录制」权限，识别剪贴板和拖入不需要。macOS 26 起用系统端侧模型提取，其他情况用规则识别。")
             ThemedRow("全局快速添加") {
                 ThemedSegmented(selection: $model.quickAddHotKey,
                                 options: QuickAddHotKey.allCases.map { ThemeOption(value: $0, title: $0.title) })

@@ -132,6 +132,12 @@ struct BiandanCommands: Commands {
                 .disabled(model.authState != .signedIn)
             Button("全局快速添加…") { QuickAddPanelController.shared.show(model: model) }
                 .disabled(model.authState != .signedIn)
+            Button("框选识别日程…") {
+                ScheduleCaptureFlow.startRegion(model: model, anchor: FloatingBallController.shared.frame)
+            }
+            Button("识别剪贴板里的日程") {
+                ScheduleCaptureFlow.fromClipboard(model: model, anchor: FloatingBallController.shared.frame)
+            }
             Button("立即同步") { Task { await model.syncNow() } }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(model.authState != .signedIn)
