@@ -5,6 +5,11 @@ extension AppModel {
     /// 执行一条可入队的后台命令。临时失败时入队并保留乐观修改，返回 true 表示已执行或已排队。
     @discardableResult
     func performQueued(_ label: String, optimistic: SnapshotEdit? = nil, _ command: OutboxCommand) async -> Bool {
+        // 排查用离线模式没有令牌：不写云端，也不入队，避免失败后退回登录页。
+        if DebugFlags.offline {
+            operationError = "排查用离线模式：「\(label)」不会写入云端。"
+            return false
+        }
         guard authState == .signedIn else {
             operationError = "请先登录华为账号。"
             return false
@@ -72,6 +77,7 @@ extension AppModel {
 
     /// 按入队顺序重放。临时失败时停下等下次；永久失败时放弃这一条并撤掉它的乐观修改。
     func flushOutbox() async {
+        if DebugFlags.offline { return }
         guard authState == .signedIn, !isFlushingOutbox else { return }
         isFlushingOutbox = true
         defer {

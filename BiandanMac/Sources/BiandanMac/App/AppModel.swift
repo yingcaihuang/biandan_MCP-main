@@ -532,6 +532,8 @@ final class AppModel {
     /// 返回本次同步是否成功。
     @discardableResult
     func syncNow(_ reason: SyncReason = .manual) async -> Bool {
+        // 排查用离线模式没有令牌：不同步，否则会因 notSignedIn 退回登录页。
+        if DebugFlags.offline { return false }
         guard authState == .signedIn else { return false }
         switch syncThrottle.decide(reason) {
         case .allow:

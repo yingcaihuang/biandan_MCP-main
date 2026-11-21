@@ -31,6 +31,11 @@ extension AppModel {
     func perform<T: Sendable>(_ label: String, background: Bool = false, silent: Bool = false,
                               optimistic: SnapshotEdit? = nil,
                               _ operation: @escaping @Sendable (BiandanService) async throws -> (T, ChangeSet)) async -> T? {
+        // 排查用离线模式没有令牌：不写云端，避免失败后退回登录页。
+        if DebugFlags.offline {
+            operationError = "排查用离线模式：「\(label)」不会写入云端。"
+            return nil
+        }
         guard authState == .signedIn else {
             operationError = "请先登录华为账号。"
             return nil
