@@ -2,10 +2,48 @@ import Foundation
 
 /// 日历显示范围。
 enum CalendarScope: String, CaseIterable, Identifiable {
-    case month, week
+    case month, week, day
 
     var id: String { rawValue }
-    var title: String { self == .month ? "月" : "周" }
+    var title: String {
+        switch self {
+        case .month: return "月"
+        case .week: return "周"
+        case .day: return "日"
+        }
+    }
+}
+
+/// 日历翻页与跳转：月视图翻一个月，周视图翻 7 天，日视图翻 1 天。
+enum CalendarNavigation {
+    static func step(scope: CalendarScope, month: LocalDate, focus: LocalDate,
+                     direction: Int) -> (month: LocalDate, focus: LocalDate) {
+        switch scope {
+        case .month:
+            return (month.adding(months: direction).firstOfMonth, focus)
+        case .week:
+            let next = focus.adding(days: 7 * direction)
+            return (next.firstOfMonth, next)
+        case .day:
+            let next = focus.adding(days: direction)
+            return (next.firstOfMonth, next)
+        }
+    }
+}
+
+extension AppModel {
+    /// 打开某一天的单日视图。
+    func showDay(_ day: LocalDate) {
+        calendarFocus = day
+        calendarMonth = day.firstOfMonth
+        calendarScope = .day
+    }
+
+    /// 跳到某一天，保持当前的月 / 周 / 日范围。
+    func jumpCalendar(to day: LocalDate) {
+        calendarFocus = day
+        calendarMonth = day.firstOfMonth
+    }
 }
 
 /// 日历拖动改期的日期计算。

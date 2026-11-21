@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 日历：月视图（6×7 网格）和周视图（7 列）。显示与每天有交集的执行实例（含已完成、已放弃），
+/// 日历：月视图（6×7 网格）、周视图（7 列）和单日视图。显示与每天有交集的执行实例（含已完成、已放弃），
 /// 可以把实例拖到其他日期改期。
 struct CalendarView: View {
     @Environment(AppModel.self) private var model
@@ -20,9 +20,7 @@ struct CalendarView: View {
     var body: some View {
         @Bindable var model = model
         let scope = model.calendarScope
-        let days = scope == .month
-            ? Self.gridDays(month: model.calendarMonth, weekStart: model.weekStart)
-            : Self.weekDays(containing: model.calendarFocus, weekStart: model.weekStart)
+        let days = visibleDays(scope)
         let rangeStart = days[0]
         let rangeEnd = days[days.count - 1]
         let visible = model.items(for: .calendar).filter {
@@ -37,17 +35,22 @@ struct CalendarView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 96)
+                .frame(width: 132)
                 Spacer()
                 Text("拖动任务到其他日期即可改期")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.fieldName)
+                DatePicker("跳转到", selection: Binding(get: { model.calendarFocus.date() },
+                                                     set: { model.jumpCalendar(to: LocalDate.today($0)) }),
+                           displayedComponents: .date)
+                    .datePickerStyle(.compact)
+                    .labelsHidden()
+                    .help("跳转到任意一天")
                 Button { step(-1) } label: { Image(systemName: "chevron.left") }
-                Button("今天") {
-                    model.calendarMonth = model.today.firstOfMonth
-                    model.calendarFocus = model.today
-                }
+                    .help(stepHelp(-1))
+                Button("今天") { model.jumpCalendar(to: model.today) }
                 Button { step(1) } label: { Image(systemName: "chevron.right") }
+                    .help(stepHelp(1))
             }
             .buttonStyle(.bordered)
 
@@ -66,17 +69,37 @@ struct CalendarView: View {
                         }
                     }
                 }
-            } else {
+            } else if scope == .week {
                 HStack(spacing: 6) {
                     ForEach(days, id: \.self) { day in
                         CalendarWeekColumn(day: day, isToday: day == model.today,
                                            items: visible.filter { $0.occurrence.overlaps(day, day) })
                     }
                 }
+            } else {
+                CalendarWeekColumn(day: model.calendarFocus, isToday: model.calendarFocus == model.today,
+                                   items: visible)
             }
         }
         .padding(.horizontal, 22)
         .padding(.bottom, 20)
+    }
+
+    private func visibleDays(_ scope: CalendarScope) -> [LocalDate] {
+        switch scope {
+        case .month: return Self.gridDays(month: model.calendarMonth, weekStart: model.weekStart)
+        case .week: return Self.weekDays(containing: model.calendarFocus, weekStart: model.weekStart)
+        case .day: return [model.calendarFocus]
+        }
+    }
+
+    private func stepHelp(_ direction: Int) -> String {
+        let word = direction < 0 ? "上" : "下"
+        switch model.calendarScope {
+        case .month: return word + "个月"
+        case .week: return word + "一周"
+        case .day: return direction < 0 ? "前一天" : "后一天"
+        }
     }
 
     private var weekdayHeader: some View {
@@ -91,6 +114,10 @@ struct CalendarView: View {
     }
 
     private func title(days: [LocalDate]) -> String {
+        if model.calendarScope == .day {
+            let day = model.calendarFocus
+            return "\(day.year)年\(day.month)月\(day.day)日 " + LocalDate.weekdayNames[day.weekday]
+        }
         if model.calendarScope == .month {
             let month = model.calendarMonth
             return "\(month.year)年\(month.month)月"
@@ -101,12 +128,10 @@ struct CalendarView: View {
     }
 
     private func step(_ direction: Int) {
-        if model.calendarScope == .month {
-            model.calendarMonth = model.calendarMonth.adding(months: direction).firstOfMonth
-        } else {
-            model.calendarFocus = model.calendarFocus.adding(days: 7 * direction)
-            model.calendarMonth = model.calendarFocus.firstOfMonth
-        }
+        let next = CalendarNavigation.step(scope: model.calendarScope, month: model.calendarMonth,
+                                           focus: model.calendarFocus, direction: direction)
+        model.calendarMonth = next.month
+        model.calendarFocus = next.focus
     }
 }
 
@@ -153,6 +178,9 @@ struct CalendarDayCell: View {
                     .foregroundStyle(isToday ? Color.white : (inMonth ? Theme.text : Theme.fieldName))
                     .padding(.horizontal, isToday ? 6 : 0)
                     .background(Capsule().fill(isToday ? Theme.accent : Color.clear))
+                    .contentShape(Rectangle())
+                    .onTapGesture { model.showDay(day) }
+                    .help("查看这一天")
                 Text(calendarLunarText(day))
                     .font(.system(size: 10))
                     .foregroundStyle(Theme.fieldName)
@@ -222,6 +250,9 @@ struct CalendarWeekColumn: View {
                     .foregroundStyle(isToday ? Color.white : Theme.text)
                     .padding(.horizontal, isToday ? 7 : 0)
                     .background(Capsule().fill(isToday ? Theme.accent : Color.clear))
+                    .contentShape(Rectangle())
+                    .onTapGesture { model.showDay(day) }
+                    .help("查看这一天")
                 Text(calendarLunarText(day))
                     .font(.system(size: 10))
                     .foregroundStyle(Theme.fieldName)
