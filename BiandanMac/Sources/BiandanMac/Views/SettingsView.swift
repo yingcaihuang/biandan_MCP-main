@@ -268,6 +268,50 @@ private struct InfoTile: View {
     }
 }
 
+/// 待同步队列里的一条：修改名称 · 对象、入队时间与尝试次数、最后一次错误，可重试或放弃。
+private struct OutboxEntryRow: View {
+    @Environment(AppModel.self) private var model
+    let entry: OutboxEntry
+
+    var body: some View {
+        let failed = entry.state == OutboxEntry.failed
+        let label = entry.payload?.label ?? entry.command
+        let subject = model.outboxSubject(entry)
+        let title: String = subject.map { label + " · " + $0 } ?? label
+        let iconColor: Color = failed ? Theme.overdue : Color(hex: 0xE8890C)
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: failed ? "xmark.octagon.fill" : "clock.arrow.circlepath")
+                .foregroundStyle(iconColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(1)
+                Text(verbatim: OutboxDisplay.detail(entry))
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.subtext)
+                if let error = entry.lastError, !error.isEmpty {
+                    Text(verbatim: error)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.overdue)
+                        .lineLimit(2)
+                        .help(error)
+                }
+            }
+            Spacer(minLength: 8)
+            Button(failed ? "重新写入" : "重试") {
+                let id = entry.opID
+                Task { await model.retryOutboxEntry(id) }
+            }
+            .buttonStyle(.themed)
+            Button("放弃") { model.discardOutboxEntry(entry.opID) }
+                .buttonStyle(.themedDestructive)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+}
+
 private struct NoteRow: View {
     let icon: String
     let text: String
@@ -522,6 +566,16 @@ private struct SyncPane: View {
                                 .buttonStyle(.themed)
                         }
                     }
+                }
+                ForEach(Array(model.outboxEntries.prefix(30)), id: \.opID) { entry in
+                    OutboxEntryRow(entry: entry)
+                }
+                if model.outboxEntries.count > 30 {
+                    NoteRow(icon: "ellipsis", text: "还有 \(model.outboxEntries.count - 30) 项未显示。")
+                }
+                if !model.outboxEntries.isEmpty {
+                    NoteRow(icon: "arrow.uturn.backward",
+                            text: "「放弃」会撤回这条修改，界面恢复为云端状态；排在它后面、依赖它的修改可能随之失败。")
                 }
                 NoteRow(icon: "info.circle",
                         text: "断网、超时或云端暂时不可用时，完成、改期、编辑等修改会先保存在本机，联网后按顺序自动写入。"

@@ -131,12 +131,36 @@ extension AppModel {
     }
 
     func refreshOutboxCounts() {
-        outboxPending = (try? store.outboxEntries(state: OutboxEntry.pending))?.count ?? 0
-        outboxFailed = (try? store.outboxEntries(state: OutboxEntry.failed))?.count ?? 0
+        let all = (try? store.outboxEntries()) ?? []
+        outboxEntries = all
+        outboxPending = all.filter { $0.state == OutboxEntry.pending }.count
+        outboxFailed = all.filter { $0.state == OutboxEntry.failed }.count
     }
 
     func clearFailedOutbox() {
         try? store.removeOutbox(state: OutboxEntry.failed)
+        refreshOutboxCounts()
+    }
+
+    /// 重试一条：已放弃的改回待同步（保持原来的顺序），然后按顺序写入。
+    func retryOutboxEntry(_ opID: String) async {
+        if let entry = outboxEntries.first(where: { $0.opID == opID }), entry.state == OutboxEntry.failed {
+            try? store.updateOutbox(opID, attempts: entry.attempts, lastError: entry.lastError,
+                                    state: OutboxEntry.pending)
+            refreshOutboxCounts()
+        }
+        await flushOutbox()
+    }
+
+    /// 放弃一条：从队列删除并撤掉它的乐观修改，界面恢复为云端状态。正在写入云端时不处理。
+    func discardOutboxEntry(_ opID: String) {
+        guard !isFlushingOutbox else {
+            operationError = "正在写入云端，请稍后再放弃。"
+            return
+        }
+        try? store.removeOutbox(opID)
+        releaseQueuedEdit(opID)
+        reloadSnapshot()
         refreshOutboxCounts()
     }
 

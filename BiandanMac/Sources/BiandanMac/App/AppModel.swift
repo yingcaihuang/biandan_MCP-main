@@ -166,6 +166,8 @@ final class AppModel {
     /// 重放时遇到永久错误、已放弃的命令数。
     var outboxFailed = 0
     var outboxLastError: String?
+    /// 待同步队列明细（待同步 + 已放弃，按入队顺序）。
+    var outboxEntries: [OutboxEntry] = []
     /// 入队命令 → 它的乐观修改，重放成功或放弃时移除。
     @ObservationIgnored var queuedEdits: [String: UUID] = [:]
     @ObservationIgnored var isFlushingOutbox = false
