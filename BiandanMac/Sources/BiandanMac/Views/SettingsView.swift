@@ -73,7 +73,7 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.background)
         }
-        .frame(width: 740, height: 540)
+        .frame(minWidth: 740, idealWidth: 820, maxWidth: .infinity, minHeight: 540, idealHeight: 640, maxHeight: .infinity)
         .ignoresSafeArea()
         .tint(Theme.accent)
     }

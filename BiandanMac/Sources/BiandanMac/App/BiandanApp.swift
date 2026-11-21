@@ -82,6 +82,8 @@ struct BiandanApp: App {
                 .registersMainWindowOpener()
                 .environment(model)
                 .frame(minWidth: 1100, minHeight: 680)
+                // 打开时铺满屏幕可用区域（菜单栏和 Dock 之外），不是全屏。
+                .background(WindowSetup(maximize: true))
                 .preferredColorScheme(.light)
                 .task { await model.bootstrap() }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -95,11 +97,12 @@ struct BiandanApp: App {
         Settings {
             SettingsView()
                 .environment(model)
+                .background(WindowSetup(resizable: true))
                 .preferredColorScheme(.light)
         }
-        // 去掉系统标题栏和标签栏，整窗使用主题侧栏布局。
+        // 去掉系统标题栏和标签栏，整窗使用主题侧栏布局。可以拖动边框放大，最小为默认尺寸。
         .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
 
         MenuBarExtra(isInserted: Binding(get: { model.showMenuBarExtra },
                                          set: { model.showMenuBarExtra = $0 })) {

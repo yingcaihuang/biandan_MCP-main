@@ -16,7 +16,8 @@ struct QuickAddGuideAnchor: View {
             .foregroundStyle(Theme.accent)
             .frame(width: 20, height: 20)
             .contentShape(Rectangle())
-            .hoverPopover(arrowEdge: .bottom) { _ in
+            // 往右弹出，不挡左侧栏。
+            .hoverPopover(arrowEdge: .trailing) { _ in
                 QuickAddGuide(listName: listName, onPick: onPick)
             }
     }
