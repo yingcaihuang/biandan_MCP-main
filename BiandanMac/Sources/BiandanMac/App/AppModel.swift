@@ -43,15 +43,16 @@ enum QuadrantRange: Int, CaseIterable, Identifiable {
 }
 
 enum SidebarItem: Hashable {
-    case today, next7, all, important, quadrant, calendar, undated, collected, completed, abandoned, focus, habits, stats
+    case overdue, today, next7, all, important, quadrant, calendar, undated, collected, completed, abandoned, focus, habits, stats
     case importer
     case conflicts
     case list(String)
 
-    static let views: [SidebarItem] = [.today, .next7, .all, .important, .quadrant, .calendar, .conflicts, .undated, .collected, .completed, .abandoned]
+    static let views: [SidebarItem] = [.overdue, .today, .next7, .all, .important, .quadrant, .calendar, .conflicts, .undated, .collected, .completed, .abandoned]
 
     var title: String {
         switch self {
+        case .overdue: return "逾期"
         case .today: return "今天"
         case .next7: return "近 7 天"
         case .all: return "全部待办"
@@ -73,6 +74,7 @@ enum SidebarItem: Hashable {
 
     var systemImage: String {
         switch self {
+        case .overdue: return "clock.badge.exclamationmark"
         case .today: return "sun.max"
         case .next7: return "calendar.badge.clock"
         case .all: return "tray.full"
@@ -790,6 +792,9 @@ final class AppModel {
         var query = OccurrenceQuery()
         query.text = searchText
         switch item {
+        case .overdue:
+            query.start = .minSupported
+            query.end = today.adding(days: -1)
         case .today:
             query.start = .minSupported
             query.end = today
@@ -823,11 +828,13 @@ final class AppModel {
 
     func items(for item: SidebarItem) -> [OccurrenceItem] {
         guard let query = query(for: item) else { return [] }
-        let result = snapshot.items(query)
-        return item == .undated ? result.filter { $0.task.undated } : result
+        var result = snapshot.items(query)
+        if item == .undated { result = result.filter { $0.task.undated } }
+        // 逾期的只在「逾期」里显示（日历除外），见 OverdueFilter。
+        return OverdueFilter.apply(result, for: item, today: today)
     }
 
-    /// 四象限：按当前侧栏范围取实例，再按「近 N 天」过滤（含逾期，不含无日期）。
+    /// 四象限：按当前侧栏范围取实例，再按「近 N 天」过滤（不含逾期和无日期；逾期的在「逾期」里）。
     /// 四象限取数的侧栏范围：日历、专注记录按「全部待办」处理。
     private var quadrantScope: SidebarItem {
         let scope = sidebarSelection ?? .all

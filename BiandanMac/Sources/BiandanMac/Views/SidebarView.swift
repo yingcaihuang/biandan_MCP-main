@@ -15,6 +15,8 @@ struct SidebarView: View {
                 ForEach(SidebarItem.views, id: \.self) { item in
                     if item == .conflicts {
                         conflictRow(conflictCount)
+                    } else if item == .overdue {
+                        overdueRow(counts.overdue)
                     } else {
                         Label(item.title, systemImage: item.systemImage)
                             .badge(badge(for: item, counts: counts))
@@ -32,7 +34,7 @@ struct SidebarView: View {
                     } icon: {
                         Circle().fill(list.swatch).frame(width: 10, height: 10)
                     }
-                    .badge(counts.perList[list.id3] ?? 0)
+                    .badge(counts.activeList(list.id3))
                     // 把任务卡片拖到待办单上即可移动（多选时整批移动）。
                     .sidebarDrop(.list(list.id3), model: model)
                     .themedContextMenu { close in
@@ -83,6 +85,21 @@ struct SidebarView: View {
         .navigationSplitViewColumnWidth(min: 210, ideal: 232, max: 300)
     }
 
+    /// 逾期：有逾期时图标和数字变红。所有逾期的日程都在这里查看和处理，其它视图不再显示。
+    private func overdueRow(_ count: Int) -> some View {
+        let icon = count > 0 ? AnyShapeStyle(Theme.overdue) : AnyShapeStyle(.tint)
+        let number: Text? = count > 0 ? Text(verbatim: "\(count)").foregroundColor(Theme.overdue).bold() : nil
+        return Label {
+            Text(SidebarItem.overdue.title)
+        } icon: {
+            Image(systemName: SidebarItem.overdue.systemImage)
+                .foregroundStyle(icon)
+        }
+        .badge(number)
+        .help(count > 0 ? "有 \(count) 项已经过了结束日期还没完成" : "没有逾期的日程")
+        .tag(SidebarItem.overdue)
+    }
+
     /// 日程冲突：有冲突时图标和数字变红。
     private func conflictRow(_ count: Int) -> some View {
         let icon = count > 0 ? AnyShapeStyle(Theme.overdue) : AnyShapeStyle(.tint)
@@ -102,10 +119,10 @@ struct SidebarView: View {
         switch item {
         case .today: return counts.today
         case .next7: return counts.next7Days
-        case .all: return counts.allPending
+        case .all: return counts.activePending
         case .undated: return counts.undated
-        case .collected: return counts.collected
-        case .important: return counts.important
+        case .collected: return counts.activeCollected
+        case .important: return counts.activeImportant
         case .completed: return counts.completed
         case .abandoned: return counts.abandoned
         default: return 0

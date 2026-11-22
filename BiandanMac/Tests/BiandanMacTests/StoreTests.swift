@@ -124,6 +124,23 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(counts.abandoned, 1)
     }
 
+    /// 逾期单独放在「逾期」里：其它待办视图和侧栏数字不算，日历和统计照算。
+    func testOverdueSeparated() {
+        let snapshot = sampleSnapshot()
+        let today = LocalDate(iso: "2026-11-20")!
+        let counts = snapshot.counts(today: today)
+        XCTAssertEqual(counts.overdue, 1)
+        XCTAssertEqual(counts.activePending, counts.allPending - 1)
+        XCTAssertEqual(counts.activeList("1"), (counts.perList["1"] ?? 0) - 1)
+        var all = OccurrenceQuery(status: .all)
+        all.includeUndated = true
+        let items = snapshot.items(all)
+        XCTAssertEqual(OverdueFilter.apply(items, for: .overdue, today: today).map(\.id), ["44"])
+        XCTAssertFalse(OverdueFilter.apply(items, for: .all, today: today).contains { $0.id == "44" })
+        XCTAssertFalse(OverdueFilter.apply(items, for: .today, today: today).contains { $0.id == "44" })
+        XCTAssertTrue(OverdueFilter.apply(items, for: .calendar, today: today).contains { $0.id == "44" })
+    }
+
     /// 侧栏「已完成」「已放弃」的数字要和点进去看到的条数一致。
     func testCompletedAbandonedCountsMatchViews() {
         let snapshot = sampleSnapshot()

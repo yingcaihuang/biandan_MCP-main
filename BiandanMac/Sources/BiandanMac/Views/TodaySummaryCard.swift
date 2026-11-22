@@ -5,6 +5,12 @@ struct TodaySummaryCard: View {
     @Environment(AppModel.self) private var model
     let item: SidebarItem
 
+    /// 百分比怎么算的。
+    private var progressNote: String {
+        if item == .undated { return "完成率 = 已完成 ÷ 无日期任务总数，不含已放弃" }
+        return ["完成率 = 已完成 ÷ 安排在", model.summaryRange.title, "的日程，不含已放弃；逾期的按原定日期计入"].joined()
+    }
+
     var body: some View {
         let progress = model.progressSummary(for: item)
         let label = model.progressLabel(for: item)
@@ -22,6 +28,10 @@ struct TodaySummaryCard: View {
                     Text(Greeting.subtitle(progress, label: label))
                         .font(.system(size: 12.5))
                         .foregroundStyle(Theme.subtext)
+                        .lineLimit(2)
+                    Text(verbatim: progressNote)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.fieldName)
                         .lineLimit(2)
                 }
                 Spacer(minLength: 8)

@@ -117,18 +117,15 @@ extension AppModel {
 
     // MARK: 菜单栏
 
-    /// 菜单栏图标旁的数字：今天 + 逾期的待办数。
+    /// 菜单栏图标旁的数字：今天的待办数（逾期的单独在主窗口「逾期」里）。
     var menuBarBadge: Int {
-        let counts = snapshot.counts(today: today, weekStart: weekStart)
-        return counts.today + counts.overdue
+        snapshot.counts(today: today, weekStart: weekStart).today
     }
 
-    /// 菜单栏列表：逾期在前，然后是今天的待办（不含无日期）。
+    /// 菜单栏列表：今天的待办（不含无日期和逾期）。
     func menuBarItems(limit: Int = 12) -> (items: [OccurrenceItem], total: Int) {
         let pending = snapshot.items(OccurrenceQuery())
-        let overdue = pending.filter { $0.isOverdue(today: today) }
-        let current = pending.filter { $0.occurrence.overlaps(today, today) }
-        let all = overdue + current
-        return (Array(all.prefix(limit)), all.count)
+        let current = pending.filter { $0.occurrence.overlaps(today, today) && !$0.isOverdue(today: today) }
+        return (Array(current.prefix(limit)), current.count)
     }
 }

@@ -50,12 +50,23 @@ struct SidebarCounts: Sendable, Equatable {
     var collected = 0
     var important = 0
     var overdue = 0
+    /// 逾期里各分类、重要、收藏各几项：侧栏这几项的数字要去掉逾期。
+    var overduePerList: [String: Int] = [:]
+    var overdueImportant = 0
+    var overdueCollected = 0
     /// 已完成：与「已完成」视图一致，含无日期任务。
     var completed = 0
     /// 已放弃：与「已放弃」视图一致，含无日期任务。
     var abandoned = 0
     var perList: [String: Int] = [:]
     var focusThisWeek = 0
+
+    /// 侧栏「全部待办」：不含逾期（逾期单独放在「逾期」里）。allPending 仍是全部待完成，统计用。
+    var activePending: Int { allPending - overdue }
+    var activeImportant: Int { important - overdueImportant }
+    var activeCollected: Int { collected - overdueCollected }
+    /// 侧栏分类后面的数字：不含逾期。perList 仍含逾期（删除分类时提示有几项）。
+    func activeList(_ id: String) -> Int { (perList[id] ?? 0) - (overduePerList[id] ?? 0) }
 }
 
 /// 内存中的只读数据快照，由 LocalStore 读出，供界面查询。
@@ -235,7 +246,12 @@ struct DataSnapshot: Sendable {
             }
             if occurrence.overlaps(today, today) { counts.today += 1 }
             if occurrence.overlaps(today, weekEnd) { counts.next7Days += 1 }
-            if let last = occurrence.endDate, last < today { counts.overdue += 1 }
+            if let last = occurrence.endDate, last < today {
+                counts.overdue += 1
+                counts.overduePerList[task.id3, default: 0] += 1
+                if task.important { counts.overdueImportant += 1 }
+                if task.collected { counts.overdueCollected += 1 }
+            }
         }
         let offset = floorMod(today.weekday - weekStart, 7)
         let monday = today.adding(days: -offset)

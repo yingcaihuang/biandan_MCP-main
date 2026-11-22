@@ -60,14 +60,15 @@ struct StatsView: View {
                     Spacer(minLength: 0)
                 }
                 StatsOverview(summary: summary)
+                StatsRateNotes(summary: summary)
                 StatsCard("完成趋势", subtitle: per + "统计完成的执行实例") {
                     StatsTrendChart(buckets: summary.buckets, unit: unit, metric: .completed)
                 }
                 HStack(alignment: .top, spacing: 14) {
-                    StatsCard("象限分布", subtitle: "待完成的任务") {
+                    StatsCard("象限分布", subtitle: "待完成的任务（含逾期）") {
                         StatsShareBars(rows: quadrantRows(summary))
                     }
-                    StatsCard("分类分布", subtitle: "待完成的任务") {
+                    StatsCard("分类分布", subtitle: "待完成的任务（含逾期）") {
                         StatsShareBars(rows: listRows(summary))
                     }
                 }
@@ -248,5 +249,34 @@ private struct StatsShareBar: View {
                 .foregroundStyle(Theme.text)
                 .frame(width: 32, alignment: .trailing)
         }
+    }
+}
+
+/// 统计页顶部的数字（尤其是百分比）怎么算的。
+private struct StatsRateNotes: View {
+    let summary: StatsSummary
+
+    private var lines: [String] {
+        [
+            ["按期完成率：这段时间内到期的 ", String(summary.dueTotal), " 项里已完成 ", String(summary.dueCompleted),
+             " 项；已放弃的（", String(summary.dueAbandoned), " 项）和逾期没完成的都算在分母里"].joined(),
+            "当前逾期：结束日期早于今天、还没完成也没放弃的日程，不随上面的时间范围变化；在侧栏「逾期」里查看和处理",
+            ["日均完成：完成数 ÷ ", String(summary.days), " 天；象限分布、分类分布统计待完成的任务（含逾期），同一任务只算一次"].joined(),
+        ]
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Image(systemName: "info.circle").font(.system(size: 10))
+                    Text(verbatim: line).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(Theme.subtext)
+        .padding(.horizontal, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

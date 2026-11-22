@@ -2,12 +2,12 @@ import Foundation
 
 /// 列表底部「已完成」分组的取数规则。
 enum ListCompletion {
-    /// 今天只看今天完成的，其余入口看近 7 天完成的；已完成、已放弃、日历、四象限、无日期、专注记录不显示这一组。
+    /// 今天只看今天完成的，其余入口看近 7 天完成的；逾期、已完成、已放弃、日历、四象限、无日期、专注记录不显示这一组。
     static func query(from base: OccurrenceQuery, item: SidebarItem, today: LocalDate) -> OccurrenceQuery? {
         switch item {
         case .today, .next7, .all, .important, .collected, .list:
             break
-        case .quadrant, .calendar, .undated, .completed, .abandoned, .focus, .habits, .stats, .conflicts, .importer:
+        case .overdue, .quadrant, .calendar, .undated, .completed, .abandoned, .focus, .habits, .stats, .conflicts, .importer:
             return nil
         }
         var query = base
