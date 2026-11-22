@@ -269,6 +269,8 @@ struct ScheduleCandidate: Identifiable, Equatable {
             input.reminderDate = date
             input.reminderTime = start
         }
+        // 没有时刻的也默认提醒（当天 9:00）。
+        ReminderPolicy.fillDefault(&input)
         return input
     }
 }

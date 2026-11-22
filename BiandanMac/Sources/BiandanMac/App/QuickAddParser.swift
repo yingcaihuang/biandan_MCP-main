@@ -145,6 +145,8 @@ enum QuickAddParser {
             input.habit = draft.habit
             input.endDate = seriesEnd(date, rule)
         }
+        // 没写时刻的也默认提醒（当天 9:00）。
+        ReminderPolicy.fillDefault(&input)
         return input
     }
 

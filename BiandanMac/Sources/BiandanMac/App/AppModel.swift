@@ -499,6 +499,8 @@ final class AppModel {
     @ObservationIgnored var openMainWindow: (() -> Void)?
     @ObservationIgnored var revealObserver: NSObjectProtocol?
     @ObservationIgnored var completeObserver: NSObjectProtocol?
+    /// 睡眠 / 醒来、正式版启动 / 退出的观察者。
+    @ObservationIgnored var workspaceObservers: [NSObjectProtocol] = []
 
     init() {
         // 先装好本地缓存的调休数据，重复规则展开时要用。
@@ -701,6 +703,7 @@ final class AppModel {
             lastSyncedAt = report.finishedAt
             reloadSnapshot()
             autoBackupIfNeeded()
+            backfillRemindersIfNeeded()
             syncThrottle.recordSuccess(at: report.finishedAt,
                                        records: snapshot.lists.count + snapshot.tasks.count
                                            + snapshot.occurrences.count + snapshot.focus.count)

@@ -71,6 +71,7 @@ final class ReminderTests: XCTestCase {
 
     func testPlanSelectsUpcomingPendingReminders() {
         let plan = ReminderPlanner.plan(sampleSnapshot(), now: at(2026, 11, 21, 8, 0), calendar: calendar)
+            .filter { $0.attempt == 1 }
         XCTAssertEqual(plan.map(\.occurrenceID), ["1", "52", "53"])
         XCTAssertEqual(plan.map(\.fireDate), [at(2026, 11, 21, 9, 0), at(2026, 11, 21, 20, 0), at(2026, 11, 22, 20, 0)])
         XCTAssertEqual(plan[0].title, "写周报")
@@ -82,6 +83,7 @@ final class ReminderTests: XCTestCase {
 
     func testPlanSkipsEverythingAfterFireTime() {
         let plan = ReminderPlanner.plan(sampleSnapshot(), now: at(2026, 11, 21, 21, 0), calendar: calendar)
+            .filter { $0.attempt == 1 }
         XCTAssertEqual(plan.map(\.occurrenceID), ["53"])
     }
 
@@ -105,5 +107,98 @@ final class ReminderTests: XCTestCase {
         let day = LocalDate(year: 2026, month: 12, day: 31)!
         let time = LocalTime(text: "23:45")!
         XCTAssertEqual(ReminderPlanner.fireDate(day, time, calendar: calendar), at(2026, 12, 31, 23, 45))
+    }
+
+    // MARK: 追加提醒、睡眠补发、默认提醒、补提醒、改期
+
+    func testFollowUpsWhenNotHandled() {
+        let chain = ReminderPlanner.plan(sampleSnapshot(), now: at(2026, 11, 21, 8, 0), calendar: calendar)
+            .filter { $0.occurrenceID == "1" }
+        XCTAssertEqual(chain.map(\.fireDate), [at(2026, 11, 21, 9, 0), at(2026, 11, 21, 9, 15), at(2026, 11, 21, 10, 15)])
+        XCTAssertEqual(chain.map(\.attempt), [1, 2, 3])
+        XCTAssertEqual(chain.map(\.subtitle), ["", "第 2 次提醒", "最后一次提醒"])
+        XCTAssertEqual(Set(chain.map(\.chainKey)).count, 1)
+        XCTAssertEqual(Set(chain.map(\.identifier)).count, 3)
+        // 第 1 次已经过了、还没处理：只剩追加的。
+        let later = ReminderPlanner.plan(sampleSnapshot(), now: at(2026, 11, 21, 9, 5), calendar: calendar)
+            .filter { $0.occurrenceID == "1" }
+        XCTAssertEqual(later.map(\.attempt), [2, 3])
+        // 点过稍后提醒：不再追加。
+        let snoozed = ReminderPlanner.plan(sampleSnapshot(), now: at(2026, 11, 21, 9, 5),
+                                           acknowledged: [chain[0].chainKey], calendar: calendar)
+            .filter { $0.occurrenceID == "1" }
+        XCTAssertTrue(snoozed.isEmpty)
+    }
+
+    func testMissedWhileAsleep() {
+        let plan = ReminderPlanner.plan(sampleSnapshot(), now: at(2026, 11, 21, 8, 0), calendar: calendar)
+        // 8:30 睡到 10:30：「写周报」的 9:00、9:15、10:15 都在睡眠中，只补最后一条。
+        let missed = ReminderPlanner.missed(plan, since: at(2026, 11, 21, 8, 30), now: at(2026, 11, 21, 10, 30),
+                                            delivered: [], acknowledged: [])
+        XCTAssertEqual(missed.map(\.occurrenceID), ["1"])
+        XCTAssertEqual(missed.first?.attempt, 3)
+        // 系统已经把最后一条发出来了：不再补。
+        XCTAssertTrue(ReminderPlanner.missed(plan, since: at(2026, 11, 21, 8, 30), now: at(2026, 11, 21, 10, 30),
+                                             delivered: [missed[0].identifier], acknowledged: []).isEmpty)
+    }
+
+    func testDefaultReminder() {
+        let day = LocalDate(year: 2026, month: 11, day: 24)!
+        var timed = CreateTaskInput(title: "开会")
+        timed.startDate = day
+        timed.startTime = LocalTime(hour: 14, minute: 30)
+        ReminderPolicy.fillDefault(&timed)
+        XCTAssertEqual(timed.reminderDate, day)
+        XCTAssertEqual(timed.reminderTime, LocalTime(hour: 14, minute: 30))
+
+        var allDay = CreateTaskInput(title: "打牌")
+        allDay.startDate = day
+        ReminderPolicy.fillDefault(&allDay)
+        XCTAssertEqual(allDay.reminderTime, ReminderPolicy.allDayTime)
+
+        var undated = CreateTaskInput(title: "随手记")
+        ReminderPolicy.fillDefault(&undated)
+        XCTAssertNil(undated.reminderTime)
+
+        var explicit = CreateTaskInput(title: "提前提醒")
+        explicit.startDate = day
+        explicit.reminderDate = day.adding(days: -1)
+        explicit.reminderTime = LocalTime(hour: 20, minute: 0)
+        ReminderPolicy.fillDefault(&explicit)
+        XCTAssertEqual(explicit.reminderDate, day.adding(days: -1))
+        XCTAssertEqual(explicit.reminderTime, LocalTime(hour: 20, minute: 0))
+
+        // AI 识别出只有日期的日程：当天 9:00 提醒。
+        var trip = ScheduleCandidate(title: "去杭州")
+        trip.date = day
+        XCTAssertEqual(trip.input(listID: "1")?.reminderTime, ReminderPolicy.allDayTime)
+    }
+
+    func testBackfill() {
+        let today = LocalDate(year: 2026, month: 11, day: 21)!
+        XCTAssertEqual(ReminderPolicy.backfill(sampleSnapshot(), today: today),
+                       [ReminderPolicy.Backfill(taskID: "3", date: today, time: ReminderPolicy.allDayTime)])
+        // 已经过去的不补。
+        XCTAssertTrue(ReminderPolicy.backfill(sampleSnapshot(), today: today.adding(days: 1)).isEmpty)
+    }
+
+    func testReminderFollowsReschedule() throws {
+        let old = LocalDate(year: 2026, month: 11, day: 21)!
+        let task = try XCTUnwrap(sampleSnapshot().tasks["1"])
+        let moved = ReminderPolicy.shifted(task, oldStart: old, newStart: old.adding(days: 2), newStartTime: nil)
+        XCTAssertEqual(moved?.date, old.adding(days: 2))
+        XCTAssertEqual(moved?.time, LocalTime(hour: 9, minute: 0))
+        XCTAssertNil(ReminderPolicy.shifted(task, oldStart: old, newStart: old, newStartTime: nil))
+        // 按开始时刻提醒的：改了开始时刻，提醒时刻跟着走。
+        var attributes = oneOff("9", title: "开会", remind: "2026-11-21", time: "10:00:00").0.attributes ?? [:]
+        attributes["validStartTime"] = .string("10:00:00")
+        let meeting = TaskDef(record: record(.task, "t9", attributes))
+        let retimed = ReminderPolicy.shifted(meeting, oldStart: old, newStart: old.adding(days: 1),
+                                             newStartTime: LocalTime(hour: 15, minute: 0))
+        XCTAssertEqual(retimed?.date, old.adding(days: 1))
+        XCTAssertEqual(retimed?.time, LocalTime(hour: 15, minute: 0))
+        // 没开提醒的不动。
+        XCTAssertNil(ReminderPolicy.shifted(try XCTUnwrap(sampleSnapshot().tasks["3"]), oldStart: old,
+                                            newStart: old.adding(days: 1), newStartTime: nil))
     }
 }

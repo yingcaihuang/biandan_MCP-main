@@ -130,6 +130,8 @@ extension BiandanService {
         if !input.subtasks.isEmpty && input.targetCount != nil {
             throw MCPToolError("Choose either subtasks or a numeric target.")
         }
+        // 没给提醒时默认按开始时刻提醒，没有时刻的当天 9:00（与 App 内新建一致）。
+        ReminderPolicy.fillDefault(&input)
         return input
     }
 

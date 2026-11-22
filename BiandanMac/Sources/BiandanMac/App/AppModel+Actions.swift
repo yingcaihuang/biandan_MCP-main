@@ -349,9 +349,18 @@ extension AppModel {
         let redo = OutboxCommand.rescheduleTask(taskID: taskID, start: start.iso, end: end?.iso,
                                                 startTime: startTime.map(BiandanService.clockText),
                                                 endTime: endTime.map(BiandanService.clockText))
-        let undo = UndoPlan.restoreSchedule(item.task)
+        // 提醒跟着改期平移；原来按开始时刻提醒的，改了时刻也跟着走。
+        let shift = ReminderPolicy.shifted(item.task, oldStart: item.occurrence.startDate, newStart: start,
+                                           newStartTime: startTime)
+        let undo = UndoPlan.restoreSchedule(item.task, restoreReminder: shift != nil)
         if await performQueued("改期", optimistic: edit, redo) {
-            registerUndo("改期", undo: undo, redo: [redo])
+            var redos = [redo]
+            if let shift {
+                await setTimeReminder(taskID, date: shift.date, time: shift.time, enabled: true)
+                redos.append(.setTimeReminder(taskID: taskID, date: shift.date.iso,
+                                              time: BiandanService.clockText(shift.time), enabled: true))
+            }
+            registerUndo("改期", undo: undo, redo: redos)
         }
     }
 

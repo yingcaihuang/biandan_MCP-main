@@ -13,8 +13,10 @@ extension AppModel {
     /// 按当前快照重新排定提醒。未启用或已退出登录时清除全部便单提醒；启动时读取凭据期间不处理。
     func scheduleReminders() {
         guard ReminderScheduler.isAvailable, authState != .checking else { return }
-        let requests = remindersEnabled && authState == .signedIn
-            ? ReminderPlanner.plan(snapshot, now: Date()) : []
+        // 开发版遇到正式版也在运行时不排，免得同一条提醒弹两次。
+        let active = remindersEnabled && authState == .signedIn && !ReminderScheduler.yieldsToRelease
+        let requests = active
+            ? ReminderPlanner.plan(snapshot, now: Date(), acknowledged: ReminderAcknowledgements.all()) : []
         reminders.schedule(requests) { [weak self] count in
             self?.scheduledReminderCount = count
         }
@@ -95,6 +97,68 @@ extension AppModel {
             MainActor.assumeIsolated { self?.drainReminderInbox() }
         }
         drainReminderInbox()
+        installWorkspaceObservers()
+    }
+
+    // MARK: 睡眠补发、正式版、补提醒
+
+    /// 电脑睡眠 / 醒来、正式版启动 / 退出时重新处理提醒。
+    private func installWorkspaceObservers() {
+        guard workspaceObservers.isEmpty, ReminderScheduler.isAvailable else { return }
+        let center = NSWorkspace.shared.notificationCenter
+        workspaceObservers.append(center.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reminders.noteSleep() }
+        })
+        workspaceObservers.append(center.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.handleWake() }
+        })
+        if let release = ReminderScheduler.releaseBundleID {
+            for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
+                workspaceObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                    let bundle = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
+                    guard bundle == release else { return }
+                    MainActor.assumeIsolated { self?.scheduleReminders() }
+                })
+            }
+        }
+    }
+
+    /// 醒来后先等几秒，让系统自己补发的先发出来，再补发还缺的，然后重新排定。
+    private func handleWake() {
+        Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            await self.deliverMissedReminders()
+            self.scheduleReminders()
+        }
+    }
+
+    /// 补发电脑睡眠期间错过、日程也还没处理的提醒。
+    func deliverMissedReminders() async {
+        guard remindersEnabled, authState == .signedIn, !ReminderScheduler.yieldsToRelease else { return }
+        var query = OccurrenceQuery()
+        query.includeUndated = true
+        let pending = Set(snapshot.items(query).map(\.id))
+        _ = await reminders.deliverMissed(pending: pending, acknowledged: ReminderAcknowledgements.all())
+    }
+
+    /// 一次性给还没结束、也没开时间提醒的日程补上提醒（每个版本只做一次，结果同步到云端）。
+    func backfillRemindersIfNeeded() {
+        let key = "biandan.reminderBackfillDone"
+        guard ReminderScheduler.isAvailable, remindersEnabled, authState == .signedIn, !DebugFlags.offline,
+              snapshot.lastPulledAt != nil, !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        let plan = ReminderPolicy.backfill(snapshot, today: today)
+        guard !plan.isEmpty else { return }
+        Task {
+            for item in plan {
+                await self.setTimeReminder(item.taskID, date: item.date, time: item.time, enabled: true)
+            }
+            self.reminderNotice = "已给 \(plan.count) 个还没开提醒的日程补上了提醒。"
+        }
     }
 
     // MARK: 主窗口

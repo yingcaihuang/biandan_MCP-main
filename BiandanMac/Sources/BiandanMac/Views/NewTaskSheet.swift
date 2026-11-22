@@ -67,7 +67,9 @@ struct NewTaskSheet: View {
     @State private var goalMode: GoalMode = .count
     @State private var targetCount = 1
     @State private var subtasks: [SubtaskDraft] = []
-    @State private var remind = false
+    @State private var remind = true
+    /// 手动改过提醒时间后，不再跟着开始时刻走。
+    @State private var remindTouched = false
     @State private var remindAt: Date
     @State private var saving = false
     @State private var repeats = false
@@ -90,6 +92,18 @@ struct NewTaskSheet: View {
 
     private var validStart: String { hasTime ? BiandanService.clockText(LocalTime.from(startClock)) : "00:00:00" }
     private var validEnd: String { hasTime ? BiandanService.clockText(LocalTime.from(endClock)) : "23:59:00" }
+
+    /// 没手动改过时，提醒跟着开始日期和时刻走；没有时刻的当天 9:00。
+    private var defaultRemindAt: Date {
+        let time = hasTime ? LocalTime.from(startClock) : ReminderPolicy.allDayTime
+        return time.date(on: LocalDate.today(startDay))
+    }
+
+    private var effectiveRemindAt: Date { remindTouched ? remindAt : defaultRemindAt }
+
+    private var remindAtBinding: Binding<Date> {
+        Binding(get: { effectiveRemindAt }, set: { remindAt = $0; remindTouched = true })
+    }
 
     private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -141,8 +155,8 @@ struct NewTaskSheet: View {
                     if remind {
                         ThemedRow("提醒于", field: "remindDate·remindTime") {
                             HStack(spacing: 6) {
-                                ThemedDateField(date: $remindAt, tint: quadrant.tint)
-                                ThemedTimeField(time: $remindAt, tint: quadrant.tint)
+                                ThemedDateField(date: remindAtBinding, tint: quadrant.tint)
+                                ThemedTimeField(time: remindAtBinding, tint: quadrant.tint)
                             }
                                 .labelsHidden()
                         }
@@ -251,8 +265,9 @@ struct NewTaskSheet: View {
                 input.endTime = LocalTime.from(endClock)
             }
             if remind {
-                input.reminderDate = LocalDate.today(remindAt)
-                input.reminderTime = LocalTime.from(remindAt)
+                let at = effectiveRemindAt
+                input.reminderDate = LocalDate.today(at)
+                input.reminderTime = LocalTime.from(at)
             }
             if repeats {
                 input.repeatRule = ruleDraft.rule

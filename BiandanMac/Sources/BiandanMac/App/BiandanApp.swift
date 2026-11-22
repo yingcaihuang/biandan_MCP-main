@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let id = content.userInfo["occurrenceID"] as? String
         switch ReminderAction(rawValue: response.actionIdentifier) {
         case .complete?:
+            ReminderAcknowledgements.cancelFollowUps(content.userInfo["chainKey"] as? String)
             if let id {
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
@@ -48,6 +49,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             return
         case let action?:
             if let seconds = action.snoozeSeconds {
+                // 点了稍后提醒：这一串不再追加，改由稍后提醒来提醒。
+                let chainKey = content.userInfo["chainKey"] as? String
+                ReminderAcknowledgements.mark(chainKey)
+                ReminderAcknowledgements.cancelFollowUps(chainKey)
                 let done = UncheckedCompletion(completionHandler)
                 ReminderSnooze.schedule(content, after: seconds) { done.call() }
                 return
