@@ -1,24 +1,92 @@
 import AppKit
+import OSLog
 import ScreenCaptureKit
 import Vision
 
 // MARK: - 框选屏幕区域、截图、OCR（全部在本机处理，图片只在内存里，不存盘、不上传）
 
 enum TextRecognizer {
+    /// 分条识别时每条的高度（像素）和相邻两条的重叠。
+    static let stripHeight = 600
+    static let stripOverlap = 80
+
     /// 识别图片里的文字（简体、繁体中文和英文），按阅读顺序返回每一行。
+    /// 整屏大图、深色背景、字又少时，精确识别偶尔整张返回空（同一张图每次都空）：
+    /// 这时切成几条横条分别识别再拼回去；还是空就用快速识别兜底。
     static func recognize(_ image: CGImage) async throws -> [String] {
         try await Task.detached(priority: .userInitiated) {
-            let request = VNRecognizeTextRequest()
-            request.recognitionLevel = .accurate
-            request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
-            request.usesLanguageCorrection = true
-            try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
-            let fragments = (request.results ?? []).compactMap { observation -> OCRFragment? in
-                guard let best = observation.topCandidates(1).first else { return nil }
-                return OCRFragment(text: best.string, box: observation.boundingBox)
+            var fragments = try fragments(in: image, level: .accurate)
+            if fragments.isEmpty && image.height > stripHeight {
+                fragments = try stripFragments(image)
+                if !fragments.isEmpty { CaptureDebug.logger.notice("整张识别为空，分条识别到 \(fragments.count, privacy: .public) 段") }
+            }
+            if fragments.isEmpty {
+                fragments = try self.fragments(in: image, level: .fast)
+                if !fragments.isEmpty { CaptureDebug.logger.notice("精确识别为空，快速识别到 \(fragments.count, privacy: .public) 段") }
             }
             return OCRLayout.lines(fragments)
         }.value
+    }
+
+    static func fragments(in image: CGImage, level: VNRequestTextRecognitionLevel) throws -> [OCRFragment] {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = level
+        request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
+        request.usesLanguageCorrection = level == .accurate
+        try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+        return (request.results ?? []).compactMap { observation -> OCRFragment? in
+            guard let best = observation.topCandidates(1).first,
+                  !best.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return OCRFragment(text: best.string, box: observation.boundingBox)
+        }
+    }
+
+    /// 横条：top 是这条在原图里的起始行（左上角原点，像素），height 是条高；owned 是这条负责的行范围（去掉重叠）。
+    struct Strip: Equatable {
+        let top: Int
+        let height: Int
+        let owned: Range<Int>
+    }
+
+    static func strips(height: Int, stripHeight: Int = stripHeight, overlap: Int = stripOverlap) -> [Strip] {
+        guard height > 0 else { return [] }
+        let count = max(Int((Double(height) / Double(stripHeight)).rounded(.up)), 1)
+        let step = Int((Double(height) / Double(count)).rounded(.up))
+        return (0..<count).map { index in
+            let start = index * step
+            let end = min(start + step, height)
+            let top = max(start - overlap, 0)
+            let bottom = min(end + overlap, height)
+            return Strip(top: top, height: bottom - top, owned: start..<end)
+        }
+    }
+
+    /// 横条里的归一化框（左下角原点）→ 整张图的归一化框。
+    static func mapBox(_ box: CGRect, strip: Strip, imageHeight: Int) -> CGRect {
+        let total = CGFloat(imageHeight)
+        let stripBottom = total - CGFloat(strip.top + strip.height)
+        let scale = CGFloat(strip.height) / total
+        return CGRect(x: box.minX, y: stripBottom / total + box.minY * scale, width: box.width, height: box.height * scale)
+    }
+
+    /// 框的中心在哪一行（左上角原点，像素）。
+    static func centerRow(_ box: CGRect, imageHeight: Int) -> Int {
+        Int(((1 - box.midY) * CGFloat(imageHeight)).rounded(.down))
+    }
+
+    private static func stripFragments(_ image: CGImage) throws -> [OCRFragment] {
+        var result: [OCRFragment] = []
+        for strip in strips(height: image.height) {
+            guard let piece = image.cropping(to: CGRect(x: 0, y: strip.top, width: image.width, height: strip.height))
+            else { continue }
+            for fragment in try fragments(in: piece, level: .accurate) {
+                let box = mapBox(fragment.box, strip: strip, imageHeight: image.height)
+                // 重叠区里的字两条都会认到，只留中心落在本条负责范围里的那一份。
+                guard strip.owned.contains(centerRow(box, imageHeight: image.height)) else { continue }
+                result.append(OCRFragment(text: fragment.text, box: box))
+            }
+        }
+        return result
     }
 }
 
@@ -50,7 +118,9 @@ enum ScreenRegionCapture {
         config.width = max(Int(rect.width * scale), 1)
         config.height = max(Int(rect.height * scale), 1)
         config.showsCursor = false
-        return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+        let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+        CaptureDebug.logger.notice("截图 rect=\(String(describing: rect), privacy: .public) screen=\(String(describing: frame), privacy: .public) scale=\(scale, privacy: .public) display=\(display.displayID, privacy: .public) source=\(String(describing: config.sourceRect), privacy: .public) excluded=\(own.count, privacy: .public) image=\(image.width, privacy: .public)x\(image.height, privacy: .public)")
+        return image
     }
 }
 
@@ -194,5 +264,31 @@ final class SelectionView: NSView {
         NSColor.black.withAlphaComponent(0.55).setFill()
         NSBezierPath(roundedRect: box, xRadius: 10, yRadius: 10).fill()
         hint.draw(at: NSPoint(x: box.minX + 16, y: box.minY + 8), withAttributes: attributes)
+    }
+}
+
+// MARK: - 排查：文字识别结果为空时在系统日志里记下截图尺寸和亮度（不存图、不上传）
+
+enum CaptureDebug {
+    static let logger = Logger(subsystem: "ai.racore.BiandanMac", category: "capture")
+
+    static func checkEmpty(_ lines: [String], image: CGImage) {
+        guard lines.allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return }
+        logger.error("文字识别为空 image=\(image.width, privacy: .public)x\(image.height, privacy: .public) brightness=\(brightness(image), privacy: .public)")
+    }
+
+    /// 0（全黑）到 1（全白）；缩到 32×32 取平均。
+    static func brightness(_ image: CGImage) -> Double {
+        let side = 32
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        guard let context = CGContext(data: &pixels, width: side, height: side, bitsPerComponent: 8,
+                                      bytesPerRow: side * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return -1 }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
+        var total = 0
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            total += Int(pixels[index]) + Int(pixels[index + 1]) + Int(pixels[index + 2])
+        }
+        return Double(total) / Double(side * side * 3 * 255)
     }
 }

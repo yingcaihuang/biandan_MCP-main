@@ -5,8 +5,8 @@ import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // 以 SwiftPM 可执行文件运行时也显示 Dock 图标和菜单栏。
-        NSApp.setActivationPolicy(.regular)
+        // 以 SwiftPM 可执行文件运行时也显示 Dock 图标和菜单栏；设置里选了隐藏 Dock 图标时只留菜单栏图标。
+        NSApp.setActivationPolicy(MenuBarDefaults.activationPolicy)
         // swift run 时没有 .app 包里的 AppIcon.icns，这里把官方图标设为 Dock 图标；打包后两者一致。
         if let icon = BrandIcon.image { NSApp.applicationIconImage = icon }
         NSApp.activate(ignoringOtherApps: true)

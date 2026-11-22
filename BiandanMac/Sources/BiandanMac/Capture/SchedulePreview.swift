@@ -26,6 +26,7 @@ enum ScheduleCaptureFlow {
                     let image = try await ScreenRegionCapture.capture(result.rect, on: result.screen)
                     stage(.ocr)
                     let lines = try await TextRecognizer.recognize(image)
+                    CaptureDebug.checkEmpty(lines, image: image)
                     await finish(lines: lines, model: model)
                 } catch {
                     fail("截图或识别失败：\(error.localizedDescription)")
@@ -54,6 +55,7 @@ enum ScheduleCaptureFlow {
                 let image = try await ScreenRegionCapture.capture(rect, on: screen)
                 stage(.ocr)
                 let lines = try await TextRecognizer.recognize(image)
+                CaptureDebug.checkEmpty(lines, image: image)
                 await finish(lines: lines, model: model)
             } catch {
                 fail("截图或识别失败：\(error.localizedDescription)")
@@ -91,6 +93,7 @@ enum ScheduleCaptureFlow {
             do {
                 stage(.ocr)
                 let lines = try await TextRecognizer.recognize(image)
+                CaptureDebug.checkEmpty(lines, image: image)
                 await finish(lines: lines, model: model)
             } catch {
                 fail("文字识别失败：\(error.localizedDescription)")
@@ -411,5 +414,30 @@ final class SchedulePreviewController {
         origin.x = min(max(origin.x, area.minX + 8), area.maxX - size.width - 8)
         origin.y = min(max(origin.y, area.minY + 8), area.maxY - size.height - 8)
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
+    }
+}
+
+// MARK: - 候选拖到主窗口日历
+
+@MainActor
+extension ScheduleCaptureFlow {
+    /// 改到那一天（跨天的保留天数，时刻不变），并勾选上。
+    static func moveCandidate(_ id: UUID, to day: LocalDate) {
+        let state = SchedulePreviewController.shared.state
+        guard let index = state.candidates.firstIndex(where: { $0.id == id }) else { return }
+        let today = state.model?.today ?? LocalDate.today()
+        var candidate = state.candidates[index]
+        if let start = candidate.date, let end = candidate.endDate {
+            candidate.endDate = day.adding(days: start.days(to: end))
+        } else {
+            candidate.endDate = nil
+        }
+        candidate.date = day
+        candidate.vagueDate = nil
+        candidate.include = true
+        candidate.review(today: today)
+        state.candidates[index] = candidate
+        let name = candidate.title.isEmpty ? "日程" : candidate.title
+        state.result = ["已把「", name, "」改到 ", DateText.title(day, today: today)].joined()
     }
 }

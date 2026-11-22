@@ -154,6 +154,11 @@ private struct CalendarDropModifier: ViewModifier {
     func body(content: Content) -> some View {
         content.dropDestination(for: String.self) { identifiers, _ in
             for identifier in identifiers {
+                // 确认卡片里拖来的候选日程：只改候选的日期，还没写进便单。
+                if let candidate = ScheduleCandidate.candidateID(fromDrag: identifier) {
+                    ScheduleCaptureFlow.moveCandidate(candidate, to: day)
+                    continue
+                }
                 Task { await model.dropOnDay(identifier, day: day) }
             }
             return !identifiers.isEmpty

@@ -328,7 +328,21 @@ final class AppModel {
         }
     }
     var showMenuBarExtra: Bool = MenuBarDefaults.isShown {
-        didSet { UserDefaults.standard.set(showMenuBarExtra, forKey: MenuBarDefaults.showKey) }
+        didSet {
+            UserDefaults.standard.set(showMenuBarExtra, forKey: MenuBarDefaults.showKey)
+            MenuBarDefaults.applyDockPolicy()
+        }
+    }
+    /// 菜单栏图标旁显示下一场倒计时（默认显示）。
+    var menuBarCountdown: Bool = MenuBarDefaults.showsCountdown {
+        didSet { UserDefaults.standard.set(menuBarCountdown, forKey: MenuBarDefaults.countdownKey) }
+    }
+    /// 隐藏 Dock 图标，只留菜单栏图标（菜单栏图标关掉时不生效）。
+    var hideDockIcon: Bool = MenuBarDefaults.hidesDock {
+        didSet {
+            UserDefaults.standard.set(hideDockIcon, forKey: MenuBarDefaults.hideDockKey)
+            MenuBarDefaults.applyDockPolicy()
+        }
     }
     /// 桌面浮窗球（默认显示）：单击框选识别日程，右键更多。
     /// 识别日程时，情景对应的分类不存在就建议新建（关掉后只在已有分类里选）。

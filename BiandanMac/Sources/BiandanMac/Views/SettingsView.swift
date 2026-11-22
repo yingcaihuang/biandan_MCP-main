@@ -1009,6 +1009,14 @@ private struct ReminderSettingsSection: View {
             SettingRow("在菜单栏显示便单", caption: "显示时关闭主窗口不会退出应用") {
                 ThemedSwitch(isOn: $model.showMenuBarExtra)
             }
+            SettingRow("菜单栏显示下一场倒计时", caption: "图标旁显示「设计评审 · 8 分钟后」，进行中时显示还剩多久") {
+                ThemedSwitch(isOn: $model.menuBarCountdown)
+            }
+            .disabled(!model.showMenuBarExtra)
+            SettingRow("隐藏 Dock 图标", caption: "只留菜单栏图标；隐藏后顶部菜单也不显示，从菜单栏面板打开便单和设置") {
+                ThemedSwitch(isOn: $model.hideDockIcon)
+            }
+            .disabled(!model.showMenuBarExtra)
             SettingRow("全局快速添加", caption: "在任何 App 里按快捷键弹出输入框记任务") {
                 ThemedSegmented(selection: $model.quickAddHotKey,
                                 options: QuickAddHotKey.allCases.map { ThemeOption(value: $0, title: $0.title) })

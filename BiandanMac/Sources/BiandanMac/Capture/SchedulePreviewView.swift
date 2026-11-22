@@ -109,6 +109,10 @@ struct SchedulePreviewView: View {
                     .foregroundStyle(Theme.subtext)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if !state.loading, let privacy = CapturePrivacy.note(source: state.source, decision: state.decision,
+                                                                 aiModel: state.usage?.model ?? model.aiModelName) {
+                CapturePrivacyLabel(note: privacy)
+            }
             if !state.loading && !state.timings.isEmpty {
                 CaptureStageStrip(timings: state.timings)
                     .help(CaptureTimingLog.summary())
@@ -419,16 +423,17 @@ struct ScheduleCandidateRow: View {
         let border: Color = conflict == nil ? Theme.line : Theme.overdue.opacity(0.6)
         let opacity: Double = candidate.include ? 1 : 0.55
         let tint = candidate.quadrant.tint
+        let doubts = candidate.doubts(today: today)
         VStack(alignment: .leading, spacing: 0) {
             // 勾选框不跟着变淡，免得看起来像不能点。
-            titleRow
+            titleRow.candidateDoubt(doubts[.title])
             VStack(alignment: .leading, spacing: 0) {
-                ThemedRow("日期") { dateControls }
+                ThemedRow("日期") { dateControls }.candidateDoubt(doubts[.date])
                 if candidate.date != nil {
-                    ThemedRow("时刻") { timeControls }
+                    ThemedRow("时刻") { timeControls }.candidateDoubt(doubts[.time])
                 }
                 ThemedRow("分类") { CandidateCategoryPicker(category: categoryBinding, tint: candidate.quadrant.tint) }
-                ThemedRow("地点") { locationControls }
+                ThemedRow("地点") { locationControls }.candidateDoubt(doubts[.location])
                 details
             }
             .opacity(opacity)
@@ -451,6 +456,7 @@ struct ScheduleCandidateRow: View {
             TextField("", text: $candidate.title, prompt: Text("要做什么？"))
                 .themedField()
             quadrantChip
+            dragHandle
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
@@ -652,6 +658,9 @@ struct ScheduleCandidateRow: View {
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 3) {
+            if let summary = doubtSummary {
+                Label(summary, systemImage: "questionmark.diamond.fill").foregroundStyle(Color(hex: 0xB07D00))
+            }
             if let note = candidate.note {
                 Label(note, systemImage: "exclamationmark.circle").foregroundStyle(Color(hex: 0xA86B00))
             }
@@ -1247,5 +1256,25 @@ struct DecisionCard: View {
             pieces.append(.tag(status, DecisionPalette.status))
         }
         return pieces
+    }
+}
+
+// MARK: - 候选：拖到日历、存疑汇总
+
+extension ScheduleCandidateRow {
+    /// 按住拖到主窗口的日历（月 / 周视图）某一天：只改这条候选的日期，点「添加选中」才写入。
+    var dragHandle: some View {
+        Image(systemName: "calendar.badge.plus")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(Theme.subtext)
+            .frame(width: 24, height: 24)
+            .contentShape(Rectangle())
+            .draggable(candidate.dragID) { CandidateDragPreview(title: candidate.title) }
+            .help("按住拖到主窗口的日历上，改到那一天")
+    }
+
+    var doubtSummary: String? {
+        let count = candidate.doubts(today: today).count
+        return count > 0 ? "黄色标出的 \(count) 项不太确定，添加前请核对" : nil
     }
 }
