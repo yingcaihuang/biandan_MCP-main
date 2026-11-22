@@ -5,7 +5,7 @@ import SwiftUI
 // MARK: - 设置窗口（⌘,）：左侧主题侧栏 + 右侧内容，替代系统 TabView。遵循 DESIGN.md。
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case account, sync, calendar, advanced
+    case account, sync, calendar, advanced, about
 
     var id: String { rawValue }
 
@@ -15,6 +15,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .sync: return "同步"
         case .calendar: return "日历"
         case .advanced: return "高级"
+        case .about: return "关于"
         }
     }
 
@@ -24,6 +25,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .sync: return "和手机、平板保持一致"
         case .calendar: return "一周起始与节假日调休"
         case .advanced: return "显示选项与本机文件"
+        case .about: return "版本与自动更新"
         }
     }
 
@@ -33,16 +35,18 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .sync: return "arrow.triangle.2.circlepath"
         case .calendar: return "calendar"
         case .advanced: return "slider.horizontal.3"
+        case .about: return "info.circle.fill"
         }
     }
 
-    /// 四个分区分别用四象限的颜色。
+    /// 前四个分区分别用四象限的颜色，「关于」用紫色。
     var tint: Color {
         switch self {
         case .account: return Quadrant.importantNotUrgent.tint
         case .sync: return Quadrant.notImportantUrgent.tint
         case .calendar: return Quadrant.importantUrgent.tint
         case .advanced: return Quadrant.neither.tint
+        case .about: return Color(hex: 0x8E5BD6)
         }
     }
 }
@@ -81,6 +85,7 @@ struct SettingsView: View {
                         case .sync: SyncPane()
                         case .calendar: CalendarPane()
                         case .advanced: AdvancedPane()
+                        case .about: AboutPane()
                         }
                     }
                     .padding(.horizontal, 28)
@@ -1441,6 +1446,101 @@ private struct DecisionSettingsSection: View {
                 status = TestStatus(ok: false, text: error.localizedDescription)
             }
             testing = false
+        }
+    }
+}
+
+// MARK: - 关于与更新：当前版本、检查更新、自动检查 / 自动安装 / 测试版开关、更新地址
+
+private struct AboutPane: View {
+    private let updater = AppUpdater.shared
+    private static let changelogURL = URL(string: "https://github.com/yingcaihuang/biandan_MCP-main/blob/main/BiandanMac/CHANGELOG.md")!
+
+    var body: some View {
+        @Bindable var updater = updater
+        let unavailable = updater.unavailableReason != nil
+        VStack(alignment: .leading, spacing: 18) {
+            header
+            InspectorSection("软件更新") {
+                SettingRow("当前版本 " + updater.version, caption: statusText) {
+                    Button {
+                        updater.checkForUpdates()
+                    } label: {
+                        Label(updater.status == .checking ? "检查中…" : "检查更新", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.themed)
+                    .disabled(unavailable || !updater.canCheck)
+                }
+                if case .failed(let message) = updater.status {
+                    NoteRow(icon: "exclamationmark.triangle", text: message)
+                }
+                SettingRow("自动检查更新", caption: "每天检查一次，安装前会征求你的确认") {
+                    ThemedSwitch(isOn: $updater.automaticChecks)
+                }
+                .disabled(unavailable)
+                SettingRow("自动下载并安装", caption: "发现新版本后在后台下载，退出便单时自动安装，不再询问") {
+                    ThemedSwitch(isOn: $updater.automaticDownloads)
+                }
+                .disabled(unavailable || !updater.automaticChecks)
+                SettingRow("接收测试版", caption: "提前用上还没正式发布的新功能，可能不太稳定") {
+                    ThemedSwitch(isOn: $updater.betaChannel)
+                }
+                .disabled(unavailable)
+                if let reason = updater.unavailableReason {
+                    NoteRow(icon: "info.circle", text: reason)
+                }
+            }
+            InspectorSection("更新方式") {
+                ThemedRow("更新地址") {
+                    Text(verbatim: AppUpdater.feedURL ?? "未配置")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Theme.subtext)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+                ThemedRow("安全校验") {
+                    Text("更新包要有 EdDSA 签名和同一个 Developer ID 签名，对不上不会安装")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.subtext)
+                }
+                ThemedRow("更新记录") {
+                    Button("在浏览器中查看") { NSWorkspace.shared.open(Self.changelogURL) }
+                        .buttonStyle(.themed)
+                }
+            }
+        }
+    }
+
+    private var header: some View {
+        VStack(spacing: 8) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 76, height: 76)
+                .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+            Text("便单")
+                .font(.system(size: 24, weight: .heavy))
+                .foregroundStyle(Theme.text)
+            Text(verbatim: "版本 \(updater.version)（\(updater.build)）")
+                .font(.system(size: 12))
+                .monospacedDigit()
+                .foregroundStyle(Theme.subtext)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+    }
+
+    private var lastText: String? {
+        updater.lastCheck.map { "上次检查：" + $0.formatted(date: .abbreviated, time: .shortened) }
+    }
+
+    private var statusText: String {
+        switch updater.status {
+        case .checking: return "正在检查更新…"
+        case .upToDate: return ["已是最新版本", lastText].compactMap { $0 }.joined(separator: " · ")
+        case .found(let version): return "发现新版本 " + version
+        case .failed: return ["检查没成功", lastText].compactMap { $0 }.joined(separator: " · ")
+        case .idle: return lastText ?? "尚未检查更新"
         }
     }
 }

@@ -4,6 +4,18 @@
 
 打 tag 时用 `Tools/tag_release.sh <版本号>`，脚本会从这里取出对应版本的说明作为 tag 说明。
 
+## [Unreleased]
+
+### 新功能
+
+- **自动更新**：接入 Sparkle 2，更新文件放在自己的服务器（`https://www.aigslb.link/biandan/mac/update/`）。默认每天检查一次，发现新版本弹窗显示更新说明，安装前征求确认；更新包必须有 EdDSA 签名、并且和当前版本同一个 Developer ID 签名才会安装。
+- 设置新增「关于」页：当前版本和构建号、上次检查时间、「检查更新」按钮，以及「自动检查更新」「自动下载并安装」「接收测试版」三个开关。菜单「便单 → 检查更新…」。开发版不检查更新。
+
+### 其他
+
+- 打包时把 Sparkle.framework 放进 `Contents/Frameworks` 并由内到外签名，Info.plist 写入更新地址和公钥；`NOTARIZE=1` 时签名后自动公证。
+- 新增 `Tools/notarize.sh`（公证并钉入票据）、`Tools/make_update.sh`（生成 `dist/update/`：更新包、更新说明、增量包、签过名的 appcast.xml）、`Tools/changelog_html.py`（从 CHANGELOG 生成更新说明网页）。
+
 ## [1.2.0] - 2026-11-22
 
 识别日程加入「AI 决策」：调用大模型之前先判断有没有日程，没有就不调用，省钱也省时间。确认卡片重新设计，统计新增 AI 决策报表。另外新增新手指引和四象限线索，并修复了一批规则识别的误识别。

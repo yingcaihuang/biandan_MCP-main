@@ -165,9 +165,24 @@ Tools/build_app.sh
 | `CONFIG` | `release`（默认）或 `debug` |
 | `VERSION` / `BUILD_NUMBER` | 版本号（在 tag 上时取 tag，否则默认 1.2.0）/ 构建号（默认当前时间 `yyyyMMddHHmm`） |
 | `TIMESTAMP=0` | 离线时跳过 Apple 时间戳服务器 |
+| `NOTARIZE=1` | 签名后提交 Apple 公证并钉入票据（需先保存 notarytool 凭据，见「自动更新」） |
+| `FEED_URL` / `SPARKLE_PUBLIC_KEY` | 自动更新的 appcast 地址和 EdDSA 公钥，默认写好；开发版不写入 |
 | `BUNDLE_ID` / `DISPLAY_NAME` / `DIST` / `APP_FILE` / `ENTITLEMENTS` | 标识符、显示名、输出目录、`.app` 文件名、权限文件。供 `Tools/dev_run.sh` 组装开发版用，正式打包不用设 |
 | `HARDENED=0` | 不启用 Hardened Runtime（开发版用，方便调试器附加） |
 | `PACKAGE=0` | 只生成 `.app`，不打 zip |
+
+### 自动更新（Sparkle）
+
+正式版用 [Sparkle 2](https://sparkle-project.org) 自动更新：每天检查一次 `https://www.aigslb.link/biandan/mac/update/appcast.xml`，发现新版本弹窗显示更新说明，用户确认后下载、校验、替换并重启。设置 → 关于里可以手动「检查更新」、关掉自动检查、打开「自动下载并安装」或「接收测试版」；菜单「便单 → 检查更新…」也可以。开发版（`ai.racore.BiandanMac.dev`）不检查更新。
+
+- **签名**：每个更新包都用 EdDSA 私钥签名，公钥写在 Info.plist（`SUPublicEDKey`）。私钥只在登录钥匙串里（账户 `ai.racore.BiandanMac`），不进仓库。**私钥丢了，已安装的便单就不认新的更新包**，务必备份：
+  `.build/artifacts/sparkle/Sparkle/bin/generate_keys --account ai.racore.BiandanMac -x ~/biandan-sparkle-private.key`（导出后放进密码管理器，删掉文件）；换机器导入用 `-f <文件>`。
+- **公证**：第一次先保存凭据 `xcrun notarytool store-credentials biandan-notary --apple-id <Apple ID> --team-id G48CJ2J7C8`（粘贴 App 专用密码）。之后 `NOTARIZE=1 Tools/build_app.sh` 签名后自动公证并钉入票据（`Tools/notarize.sh`）。
+- **发布一个新版本**：
+  1. 更新 CHANGELOG，提交，`Tools/tag_release.sh X.Y.Z --push`；
+  2. `Tools/make_update.sh`：打包、公证，在 `dist/update/` 生成 `Biandan-X.Y.Z.zip`、`Biandan-X.Y.Z.html`（更新说明，取自 CHANGELOG）、增量包和签过名的 `appcast.xml`。`--channel beta` 只推给打开了测试版的人，`--skip-build` 用 dist/ 里已有的包；
+  3. 把 `dist/update/` 同步到服务器，`appcast.xml` 最后传。`dist/update/` 本机要留着，下一版靠它保留旧条目、生成增量包。
+- **服务器**：只需静态文件 + HTTPS。`appcast.xml` 建议 `Cache-Control: max-age=300`；目录里不存在的文件要返回 404，不要兜底到网页首页，否则 App 会把首页当 appcast 解析报错。撤回某个版本：从 appcast.xml 删掉那一条。
 
 ### 测试
 

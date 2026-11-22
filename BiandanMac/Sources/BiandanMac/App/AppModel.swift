@@ -499,6 +499,8 @@ final class AppModel {
         guard !bootstrapped else { return }
         bootstrapped = true
         FloatingBallController.shared.apply(model: self)
+        // 自动更新：按计划检查（开发版、没配置更新地址的包不启用）。
+        AppUpdater.shared.start()
         if DebugFlags.offline {
             // 仅 Debug 排查：不读钥匙串、不联网、不启 MCP、不排提醒，只用本地库显示主界面。
             reloadSnapshot()

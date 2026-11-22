@@ -6,6 +6,8 @@
 #   CONFIG                 release（默认）或 debug
 #   VERSION / BUILD_NUMBER 版本号 / 构建号（HEAD 在 vX.Y.Z tag 上时版本号取 tag，不能另指定）
 #   TIMESTAMP=0            离线时跳过 Apple 时间戳服务器
+#   NOTARIZE=1             签名后提交 Apple 公证并钉入票据（见 Tools/notarize.sh）
+#   FEED_URL / SPARKLE_PUBLIC_KEY  自动更新的 appcast 地址和 EdDSA 公钥（开发版不写入）
 #   以下供 Tools/dev_run.sh 使用（组装开发版），正式打包不用设置：
 #   BUNDLE_ID / DISPLAY_NAME / DIST / APP_FILE / ENTITLEMENTS  标识符、显示名、输出目录、.app 文件名、权限文件
 #   HARDENED=0             不启用 Hardened Runtime（方便调试器附加）
@@ -24,6 +26,9 @@ DISPLAY_NAME="${DISPLAY_NAME:-便单}"
 DIST="${DIST:-$ROOT/dist}"
 APP="$DIST/${APP_FILE:-Biandan}.app"
 ENTITLEMENTS="${ENTITLEMENTS:-$ROOT/Tools/BiandanMac.entitlements}"
+# 自动更新（Sparkle）：appcast 地址和 EdDSA 公钥。私钥在钥匙串里（账户 ai.racore.BiandanMac），见 Tools/make_update.sh。
+FEED_URL="${FEED_URL:-https://www.aigslb.link/biandan/mac/update/appcast.xml}"
+SPARKLE_PUBLIC_KEY="${SPARKLE_PUBLIC_KEY:-70HMm/3664xGGXs5TucPsxcsYO8kOGF5ngpoHcRvU9k=}"
 
 cd "$ROOT"
 
@@ -86,6 +91,23 @@ rm -rf "${ICON_TMP:?}"
 cp "$BINARY" "$APP/Contents/MacOS/BiandanMac"
 # 依赖包的资源包（例如 GRDB 的隐私清单）一并放入。
 find "$BIN_DIR" -maxdepth 1 -name '*.bundle' -type d -exec cp -R {} "$APP/Contents/Resources/" \;
+# 自动更新用的 Sparkle.framework 放进 Contents/Frameworks（可执行文件的 rpath 指向这里）；ditto 保留里面的符号链接。
+if [ ! -d "$BIN_DIR/Sparkle.framework" ]; then
+    echo "找不到 Sparkle.framework：$BIN_DIR" >&2
+    exit 1
+fi
+mkdir -p "$APP/Contents/Frameworks"
+ditto "$BIN_DIR/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
+
+# 开发版（标识符以 .dev 结尾）不写更新地址，App 里的自动更新也就不启用，免得被正式版覆盖。
+UPDATE_KEYS=""
+if [[ "$BUNDLE_ID" != *.dev ]] && [ -n "$FEED_URL" ]; then
+    UPDATE_KEYS="    <key>SUFeedURL</key><string>$FEED_URL</string>
+    <key>SUPublicEDKey</key><string>$SPARKLE_PUBLIC_KEY</string>
+    <key>SUEnableAutomaticChecks</key><true/>
+    <key>SUScheduledCheckInterval</key><integer>86400</integer>
+    <key>SUAllowsAutomaticUpdates</key><true/>"
+fi
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -108,6 +130,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSHumanReadableCopyright</key><string>© Wuxi Chaorong Technology Co., Ltd.</string>
     <key>NSCalendarsFullAccessUsageDescription</key><string>便单需要读取「互联网账户」里邮箱日历（Exchange、Google、QQ、163 等）的日程，导入为便单任务。只读取，不会修改你的日历。</string>
     <key>NSCalendarsUsageDescription</key><string>便单需要读取「互联网账户」里邮箱日历的日程，导入为便单任务。只读取，不会修改你的日历。</string>
+${UPDATE_KEYS}
 </dict>
 </plist>
 PLIST
@@ -157,13 +180,28 @@ TS_FLAG="--timestamp"
 [ "${TIMESTAMP:-1}" = "0" ] && TS_FLAG="--timestamp=none"
 RUNTIME_FLAG="--options runtime"
 [ "${HARDENED:-1}" = "0" ] && RUNTIME_FLAG=""
+# Sparkle.framework 里的可执行部件由内到外逐个签名，最后签整个 App。
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+for item in "$SPARKLE/Versions/B/XPCServices/Installer.xpc" \
+            "$SPARKLE/Versions/B/XPCServices/Downloader.xpc" \
+            "$SPARKLE/Versions/B/Autoupdate" \
+            "$SPARKLE/Versions/B/Updater.app" \
+            "$SPARKLE"; do
+    [ -e "$item" ] || continue
+    EXTRA=""
+    [[ "$item" == *Downloader.xpc ]] && EXTRA="--preserve-metadata=entitlements"
+    codesign --force $RUNTIME_FLAG $TS_FLAG $EXTRA --sign "$IDENTITY" "$item"
+done
 codesign --force $RUNTIME_FLAG $TS_FLAG \
     --entitlements "$ENTITLEMENTS" \
     --identifier "$BUNDLE_ID" \
     --sign "$IDENTITY" "$APP"
+if [ "${NOTARIZE:-0}" = "1" ]; then
+    "$ROOT/Tools/notarize.sh" "$APP"
+fi
 
 echo "==> 校验"
-codesign --verify --strict --verbose=2 "$APP"
+codesign --verify --deep --strict --verbose=2 "$APP"
 codesign -dvv "$APP" 2>&1 | grep -E '^(Identifier|Authority|TeamIdentifier|Timestamp|Runtime Version|CodeDirectory)' || true
 echo "--- 指定要求（Designated Requirement）"
 codesign -d -r- "$APP" 2>&1 | sed -n 's/^designated => /  /p'

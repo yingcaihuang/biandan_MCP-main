@@ -126,6 +126,10 @@ struct BiandanCommands: Commands {
     let model: AppModel
 
     var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("检查更新…") { AppUpdater.shared.checkForUpdates() }
+                .disabled(AppUpdater.shared.unavailableReason != nil)
+        }
         CommandGroup(replacing: .newItem) {
             Button("新建任务") { model.newTaskPreset = model.makeNewTaskPreset() }
                 .keyboardShortcut("n", modifiers: .command)
