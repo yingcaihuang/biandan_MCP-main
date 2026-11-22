@@ -19,6 +19,7 @@ struct SidebarView: View {
                         Label(item.title, systemImage: item.systemImage)
                             .badge(badge(for: item, counts: counts))
                             .sidebarDrop(item, model: model)
+                            .tourAnchor(item == .next7 ? TourTarget.rowNext7 : nil)
                             .tag(item)
                     }
                 }
@@ -69,13 +70,16 @@ struct SidebarView: View {
                     .tag(SidebarItem.focus)
                 Label(SidebarItem.stats.title, systemImage: SidebarItem.stats.systemImage)
                     .tag(SidebarItem.stats)
+                    .tourAnchor(.stats)
                 Label(SidebarItem.importer.title, systemImage: SidebarItem.importer.systemImage)
                     .tag(SidebarItem.importer)
+                    .tourAnchor(.importer)
             }
         }
         .listStyle(.sidebar)
-        .safeAreaInset(edge: .top) { AccountCard().padding(.horizontal, 10).padding(.top, 6) }
-        .safeAreaInset(edge: .bottom) { SyncStatusBar().padding(10) }
+        .tourAnchor(.sidebar)
+        .safeAreaInset(edge: .top) { AccountCard().tourAnchor(.account).padding(.horizontal, 10).padding(.top, 6) }
+        .safeAreaInset(edge: .bottom) { SyncStatusBar().tourAnchor(.syncBar).padding(10) }
         .navigationSplitViewColumnWidth(min: 210, ideal: 232, max: 300)
     }
 

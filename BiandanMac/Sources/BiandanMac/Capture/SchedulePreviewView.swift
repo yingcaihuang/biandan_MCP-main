@@ -110,11 +110,11 @@ struct SchedulePreviewView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if !state.loading && !state.timings.isEmpty {
-                Label("耗时：" + state.timingText, systemImage: "stopwatch")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.subtext)
-                    .fixedSize(horizontal: false, vertical: true)
+                CaptureStageStrip(timings: state.timings)
                     .help(CaptureTimingLog.summary())
+            }
+            if let decision = state.decision, !state.loading {
+                DecisionCard(record: decision, after: decisionAfter)
             }
             if let usage = state.usage, !state.loading {
                 AIUsageTiles(usage: usage)
@@ -133,7 +133,56 @@ struct SchedulePreviewView: View {
 
     private var aiReady: Bool { model.aiExtractionMode != .off && model.aiKeyConfigured }
 
+    private var retryTitle: String {
+        state.decision?.outcome == .block ? "仍然用 " + model.aiModelName + " 识别" : "用 AI 识别"
+    }
+
+    private var retryHelp: String {
+        var text = "把识别到的文字发给 " + model.aiModelName + " 重新提取（不含截图）"
+        if state.decision?.outcome == .block, let saved = state.decision?.savedUSD {
+            text += "，预计约 " + AIUsageFormat.cost(saved)
+        }
+        return text
+    }
+
+    /// AI 决策卡片「之后」一行：拦下 / 放行之后实际发生了什么。
+    private var decisionAfter: [DecisionPiece] {
+        guard let record = state.decision else { return [] }
+        let count = state.candidates.count
+        let source = state.source ?? .rules
+        if record.outcome == .block {
+            if record.trigger == .fallback {
+                return [.plain("不再调用 AI 兜底，这段文字没有日程")]
+            }
+            var pieces: [DecisionPiece] = [.plain("改用 "), .tag(source.title, SourceTag.color(source))]
+            if count > 0 {
+                pieces.append(.plain("，找到 \(count) 条，"))
+                pieces.append(.strong("可能是误识别，默认不勾选", DecisionPalette.failed))
+            } else {
+                pieces.append(.plain("，也没有找到日程"))
+            }
+            return pieces
+        }
+        if source == .ai {
+            var pieces: [DecisionPiece] = [.chip(record.aiModel, DecisionPalette.model, false), .plain(" 找到 \(count) 条")]
+            if let usage = state.usage {
+                pieces.append(.plain(" · "))
+                pieces.append(.strong(AIUsageFormat.seconds(usage.seconds), DecisionPalette.time))
+                if let cost = usage.costUSD {
+                    pieces.append(.plain(" · "))
+                    pieces.append(.strong(AIUsageFormat.cost(cost), DecisionPalette.blocked))
+                }
+            }
+            return pieces
+        }
+        return [.plain("AI 没成功，改用 "), .tag(source.title, SourceTag.color(source)), .plain("，找到 \(count) 条")]
+    }
+
     private var emptyHint: String {
+        if state.decision?.outcome == .block {
+            return ["如果这里其实有日程，点下方「仍然用 ", model.aiModelName,
+                    " 识别」。这次会记作误拦，统计里能看到误拦率，方便调整灵敏度。"].joined()
+        }
         if state.source == .ai {
             return "AI 也没找到明确的日程。可以核对下面识别到的文字，或只框住聊天内容再试。"
         }
@@ -235,11 +284,11 @@ struct SchedulePreviewView: View {
                     Button {
                         ScheduleCaptureFlow.retryWithAI(model: model)
                     } label: {
-                        Label("用 AI 识别", systemImage: "sparkles")
+                        Label(retryTitle, systemImage: "sparkles")
                     }
                     .buttonStyle(.themed)
                     .disabled(state.saving)
-                    .help("把识别到的文字发给 \(model.aiModelName) 重新提取（不含截图）")
+                    .help(retryHelp)
                 } else if aiSetupReason == nil {
                     // 识别出了日程、但还没接入 AI：也给一个入口，想用 AI 再识别时去设置。
                     Button(action: openAISettings) {
@@ -252,6 +301,13 @@ struct SchedulePreviewView: View {
             Spacer(minLength: 6)
             if !signedIn {
                 Text("请先在便单主窗口登录").font(.system(size: 11)).foregroundStyle(Theme.overdue)
+            }
+            if signedIn && chosen.isEmpty && !state.candidates.isEmpty && !state.saving {
+                Text("先勾选左边的圆圈")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DecisionPalette.failed)
+                    .lineLimit(1)
+                    .help("这几条默认没有勾选，勾选后「添加选中」才能点")
             }
             if state.saving { ProgressView().controlSize(.small) }
             Button("取消", action: onClose).buttonStyle(.themed)
@@ -333,8 +389,10 @@ private struct SourceTag: View {
             .help(source.help)
     }
 
+    private var fillColor: Color { Self.color(source) }
+
     /// 端侧模型用琥珀色，AI 用蓝色，规则识别用灰色。
-    private var fillColor: Color {
+    static func color(_ source: ScheduleExtractionSource) -> Color {
         switch source {
         case .model: return Theme.accent
         case .ai: return Quadrant.notImportantUrgent.tint
@@ -362,14 +420,18 @@ struct ScheduleCandidateRow: View {
         let opacity: Double = candidate.include ? 1 : 0.55
         let tint = candidate.quadrant.tint
         VStack(alignment: .leading, spacing: 0) {
+            // 勾选框不跟着变淡，免得看起来像不能点。
             titleRow
-            ThemedRow("日期") { dateControls }
-            if candidate.date != nil {
-                ThemedRow("时刻") { timeControls }
+            VStack(alignment: .leading, spacing: 0) {
+                ThemedRow("日期") { dateControls }
+                if candidate.date != nil {
+                    ThemedRow("时刻") { timeControls }
+                }
+                ThemedRow("分类") { CandidateCategoryPicker(category: categoryBinding, tint: candidate.quadrant.tint) }
+                ThemedRow("地点") { locationControls }
+                details
             }
-            ThemedRow("分类") { CandidateCategoryPicker(category: categoryBinding, tint: candidate.quadrant.tint) }
-            ThemedRow("地点") { locationControls }
-            details
+            .opacity(opacity)
         }
         .padding(.leading, 4)
         .background(shape.fill(Theme.card))
@@ -378,7 +440,6 @@ struct ScheduleCandidateRow: View {
         }
         .clipShape(shape)
         .overlay(shape.stroke(border))
-        .opacity(opacity)
         .animation(.easeOut(duration: 0.15), value: candidate.quadrant)
     }
 
@@ -398,7 +459,7 @@ struct ScheduleCandidateRow: View {
     private var checkbox: some View {
         let on = candidate.include
         let icon = on ? "checkmark.circle.fill" : "circle"
-        let color: Color = on ? Theme.accent : Color(hex: 0xB9B09C)
+        let color: Color = on ? Theme.accent : Theme.accent.opacity(0.75)
         return Button {
             candidate.include.toggle()
         } label: {
@@ -408,7 +469,7 @@ struct ScheduleCandidateRow: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .help(on ? "不添加这一条" : "添加这一条")
+        .help(on ? "不添加这一条" : "勾选后才会添加这一条")
     }
 
     private var quadrantChip: some View {
@@ -439,6 +500,7 @@ struct ScheduleCandidateRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 ThemedMenuCaption("四象限")
                 QuadrantMiniGrid(current: quadrant) { picked in
+                    if picked != candidate.quadrant { candidate.quadrantReason = nil }
                     candidate.quadrant = picked
                     pickQuadrant = false
                 }
@@ -605,6 +667,9 @@ struct ScheduleCandidateRow: View {
             if let end = candidate.endDate, candidate.date != nil {
                 Label("跨天：到 " + DateText.title(end, today: today), systemImage: "arrow.right")
                     .foregroundStyle(Theme.subtext)
+            }
+            if let reason = candidate.quadrantReason {
+                Label(reason, systemImage: "flag.fill").foregroundStyle(Theme.subtext)
             }
             if let reason = candidate.categoryReason {
                 Label(reason, systemImage: "sparkles").foregroundStyle(Theme.subtext)
@@ -936,5 +1001,251 @@ private struct NewCategoryTag: View {
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
             .background(Capsule().fill(Theme.selectionFill))
+    }
+}
+
+// MARK: - AI 决策卡片：标题写明决策模型；结论、省下、依据、内容、之后各一行，关键字分色
+
+enum DecisionPalette {
+    /// 决策模型名：紫色。
+    static var decider: Color { Color(hex: 0x8E5BD6) }
+    /// 大模型名、放行：蓝色。
+    static var model: Color { Quadrant.notImportantUrgent.tint }
+    /// 拦下、省下的钱、高于门槛：绿色。
+    static var blocked: Color { Theme.done }
+    /// 没判断成功、需要留意：橙色。
+    static var failed: Color { Color(hex: 0xD9822B) }
+    /// 低于门槛：红棕。
+    static var low: Color { Color(hex: 0xB5532A) }
+    /// 用时：琥珀，和 AI 用量小卡片一致。
+    static var time: Color { Color(hex: 0xD99A00) }
+    /// 内容类型：浅青；状态：浅粉。
+    static var kind: Color { Color(hex: 0x2BB5B0) }
+    static var status: Color { Color(hex: 0xD9558C) }
+}
+
+enum DecisionPiece {
+    case text(String, Color, Bool)
+    case small(String)
+    /// 模型名：等宽字体胶囊；第三个参数为 true 时变浅、加删除线（被拦下，没有调用）。
+    case chip(String, Color, Bool)
+    /// 内容类型、状态、识别方式这类小标签。
+    case tag(String, Color)
+
+    static func plain(_ value: String) -> DecisionPiece { .text(value, Theme.text, false) }
+    static func strong(_ value: String, _ color: Color) -> DecisionPiece { .text(value, color, true) }
+}
+
+struct DecisionChip: View {
+    let text: String
+    let tint: Color
+    var mono = true
+    var faded = false
+
+    var body: some View {
+        let color: Color = faded ? tint.opacity(0.6) : tint
+        let font: Font = mono ? .system(size: 11, weight: .semibold, design: .monospaced) : .system(size: 11, weight: .semibold)
+        let fill: Double = faded ? 0.06 : 0.13
+        let stroke: Double = faded ? 0.25 : 0.4
+        Text(verbatim: text)
+            .strikethrough(faded, color: color)
+            .font(font)
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1.5)
+            .background(Capsule().fill(tint.opacity(fill)))
+            .overlay(Capsule().stroke(tint.opacity(stroke), lineWidth: 1))
+    }
+}
+
+private struct DecisionPieceView: View {
+    let piece: DecisionPiece
+
+    var body: some View {
+        switch piece {
+        case .text(let value, let color, let bold):
+            Text(verbatim: value)
+                .font(.system(size: 12, weight: bold ? .bold : .regular))
+                .foregroundStyle(color)
+        case .small(let value):
+            Text(verbatim: value)
+                .font(.system(size: 10.5))
+                .foregroundStyle(Theme.subtext)
+        case .chip(let value, let color, let faded):
+            DecisionChip(text: value, tint: color, mono: true, faded: faded)
+        case .tag(let value, let color):
+            DecisionChip(text: value, tint: color, mono: false)
+        }
+    }
+}
+
+private struct DecisionRow {
+    let label: String
+    let pieces: [DecisionPiece]
+}
+
+struct DecisionCard: View {
+    let record: DecisionRecord
+    /// 「之后」一行由确认卡片按这次的实际结果给出。
+    let after: [DecisionPiece]
+
+    private var style: (icon: String, tint: Color) {
+        switch record.outcome {
+        case .block: return ("line.3.horizontal.decrease.circle.fill", DecisionPalette.blocked)
+        case .pass: return ("arrow.right.circle.fill", DecisionPalette.model)
+        case .failed: return ("exclamationmark.circle.fill", DecisionPalette.failed)
+        }
+    }
+
+    var body: some View {
+        let tint = style.tint
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        let list = rows
+        return VStack(alignment: .leading, spacing: 6) {
+            header
+            ForEach(list.indices, id: \.self) { index in row(list[index]) }
+        }
+        .padding(.leading, 13)
+        .padding(.trailing, 10)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(shape.fill(tint.opacity(0.07)))
+        .overlay(alignment: .leading) { Rectangle().fill(tint).frame(width: 3) }
+        .clipShape(shape)
+        .overlay(shape.stroke(tint.opacity(0.3)))
+        .help(record.reason)
+    }
+
+    // MARK: 标题
+
+    private var providerText: String {
+        var parts: [String] = ["阿里云百炼"]
+        if let region = record.region { parts.append(region) }
+        parts.append(record.sensitivity.title + "档")
+        return parts.joined(separator: " · ")
+    }
+
+    private var header: some View {
+        let current = style
+        return HStack(spacing: 6) {
+            Image(systemName: current.icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(current.tint)
+            Text("AI 决策")
+                .font(.system(size: 12.5, weight: .heavy))
+                .foregroundStyle(Theme.text)
+            DecisionChip(text: record.decisionModel ?? DecisionSettings.model, tint: DecisionPalette.decider)
+            Text(verbatim: providerText)
+                .font(.system(size: 10.5))
+                .foregroundStyle(Theme.subtext)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 4)
+            Text(verbatim: "\(record.durationMs) 毫秒")
+                .font(.system(size: 11.5, weight: .bold))
+                .monospacedDigit()
+                .foregroundStyle(DecisionPalette.time)
+        }
+    }
+
+    private func row(_ item: DecisionRow) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(verbatim: item.label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.fieldName)
+                .frame(width: 28, alignment: .leading)
+                .padding(.top, 1.5)
+            CaptureFlowLayout(spacing: 2, lineSpacing: 3) {
+                ForEach(item.pieces.indices, id: \.self) { index in DecisionPieceView(piece: item.pieces[index]) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: 各行
+
+    private var rows: [DecisionRow] {
+        var list: [DecisionRow] = [DecisionRow(label: "结论", pieces: conclusion)]
+        if record.outcome == .block { list.append(DecisionRow(label: "省下", pieces: savings)) }
+        if let answers = record.answers {
+            list.append(DecisionRow(label: "依据", pieces: basis(answers)))
+            let content = contentPieces(answers)
+            if !content.isEmpty { list.append(DecisionRow(label: "内容", pieces: content)) }
+        }
+        if record.outcome == .failed, let error = record.error {
+            list.append(DecisionRow(label: "原因", pieces: [.strong(error, DecisionPalette.failed)]))
+        }
+        if !after.isEmpty { list.append(DecisionRow(label: "之后", pieces: after)) }
+        return list
+    }
+
+    private var conclusion: [DecisionPiece] {
+        let model = record.aiModel
+        switch record.outcome {
+        case .block:
+            return [.plain("没有日程 → "), .strong("已拦下", DecisionPalette.blocked), .plain("，没有调用 "),
+                    .chip(model, DecisionPalette.model, true)]
+        case .pass:
+            return [.plain("有日程 → "), .strong("放行", DecisionPalette.model), .plain("，交给 "),
+                    .chip(model, DecisionPalette.model, false), .plain(" 提取")]
+        case .failed:
+            let timedOut = (record.error ?? "").contains("超时")
+            let title: String = timedOut ? "判断超时（\(Int(DecisionSettings.timeout)) 秒）" : "没判断成功"
+            return [.plain(title + " → "), .strong("照常调用", DecisionPalette.failed), .plain(" "),
+                    .chip(model, DecisionPalette.model, false)]
+        }
+    }
+
+    private var savings: [DecisionPiece] {
+        var pieces: [DecisionPiece] = []
+        if let saved = record.savedUSD {
+            pieces.append(.strong(AIUsageFormat.cost(saved), DecisionPalette.blocked))
+        } else {
+            pieces.append(.small("费用无法估算"))
+        }
+        if let ms = record.savedMs {
+            pieces.append(.plain(" · 少等约 "))
+            pieces.append(.strong(AIUsageFormat.seconds(Double(ms) / 1000), DecisionPalette.time))
+        }
+        return pieces
+    }
+
+    private func basis(_ answers: DecisionAnswers) -> [DecisionPiece] {
+        let sensitivity = record.sensitivity
+        let p = answers.hasSchedule
+        let pLow = p < sensitivity.probabilityLimit
+        let pLimit = AIUsageFormat.percent(sensitivity.probabilityLimit)
+        let pColor: Color = pLow ? DecisionPalette.low : DecisionPalette.blocked
+        let pNote: String = pLow ? "（低于 " + pLimit + "）" : "（高于 " + pLimit + "）"
+        var pieces: [DecisionPiece] = [.plain("有日程概率 "), .strong(AIUsageFormat.percent(p), pColor), .small(pNote)]
+        var cLow = true
+        if let c = answers.clarity {
+            cLow = c < sensitivity.clarityLimit
+            let cLimit = String(format: "%.1f", sensitivity.clarityLimit)
+            let cColor: Color = cLow ? DecisionPalette.low : DecisionPalette.blocked
+            let cNote: String = cLow ? "（低于 " + cLimit + "）" : "（不低于 " + cLimit + "）"
+            pieces.append(.plain(" · 清晰度 "))
+            pieces.append(.strong(String(format: "%.1f/4", c), cColor))
+            pieces.append(.small(cNote))
+        }
+        // 不是因为概率、清晰度低被拦（例如内容是代码），把具体依据也写上。
+        if record.outcome == .block && !(pLow && cLow) {
+            pieces.append(.small(" · " + record.reason))
+        }
+        return pieces
+    }
+
+    private func contentPieces(_ answers: DecisionAnswers) -> [DecisionPiece] {
+        var pieces: [DecisionPiece] = []
+        if let kind = answers.kindTitle {
+            let confidence: String = answers.kindConfidence.map { " " + AIUsageFormat.percent($0) } ?? ""
+            pieces.append(.tag(kind + confidence, DecisionPalette.kind))
+        }
+        if let status = answers.statusTitle {
+            if !pieces.isEmpty { pieces.append(.plain(" ")) }
+            pieces.append(.tag(status, DecisionPalette.status))
+        }
+        return pieces
     }
 }

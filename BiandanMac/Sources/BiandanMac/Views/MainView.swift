@@ -17,6 +17,14 @@ struct MainView: View {
                 }
         }
         .onAppear { model.undoManager = undoManager }
+        .onAppear { Onboarding.shared.autoStartTourIfNeeded(model: model) }
+        .onChange(of: model.lastSyncedAt) { _, _ in Onboarding.shared.autoStartTourIfNeeded(model: model) }
+        .sheet(isPresented: Binding(get: { Onboarding.shared.welcomeReplay },
+                                    set: { if !$0 { Onboarding.shared.welcomeReplay = false } })) {
+            WelcomeView(replay: true)
+                .environment(model)
+                .frame(width: 880, height: 600)
+        }
         .background(WindowLevelSetter(floating: model.pinMainWindow))
         .background(MainKeyMonitor(model: model))
         .searchable(text: $model.searchText, placement: .toolbar, prompt: "搜索标题、备注、子任务")
@@ -82,9 +90,14 @@ struct ContentArea: View {
             // 问候卡片与今日完成率在所有任务视图顶部显示（统计始终是今天），记录页不显示。
             if !item.isRecordPage {
                 TodaySummaryCard(item: item)
+                    .tourAnchor(.summary)
+            }
+            if Onboarding.shared.checklistVisible(on: item) {
+                OnboardingChecklistCard()
             }
             if !item.isRecordPage {
                 QuickAddBar()
+                    .tourAnchor(.quickAdd)
             }
             Group {
                 if item == .focus {
@@ -121,6 +134,9 @@ struct ContentArea: View {
             }
             .animation(.easeInOut(duration: 0.2), value: showBar)
         }
+        .onChange(of: model.effectiveMode) { _, mode in
+            if mode == .quadrant { Onboarding.shared.mark(.quadrant) }
+        }
         // 换到别的视图时退出选择模式，免得批量操作作用到看不见的任务上。
         .onChange(of: model.sidebarSelection) { _, _ in
             if model.selectionMode { model.exitSelectionMode() }
@@ -149,6 +165,7 @@ struct ContentHeader: View {
                                 options: ContentMode.allCases.map { ThemeOption(value: $0, title: $0.title) },
                                 glass: true)
                     .help("切换视图（⌘1 – ⌘3）")
+                    .tourAnchor(.modeSwitch)
 
                 if model.effectiveMode == .quadrant {
                     ThemedSegmented(selection: Binding(get: { model.quadrantRange },
@@ -160,6 +177,7 @@ struct ContentHeader: View {
             }
             if !item.isRecordPage {
                 SelectionModeButton()
+                    .tourAnchor(.selection)
             }
             Button {
                 model.newTaskPreset = model.makeNewTaskPreset()
@@ -172,6 +190,7 @@ struct ContentHeader: View {
             }
             .buttonStyle(.plain)
             .help("新建任务（⌘N）")
+            .tourAnchor(.newTask)
         }
         .padding(.horizontal, 22)
         .padding(.top, 16)

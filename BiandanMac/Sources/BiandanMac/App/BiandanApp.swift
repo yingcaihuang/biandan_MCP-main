@@ -167,6 +167,13 @@ struct BiandanCommands: Commands {
             }
             .keyboardShortcut("t", modifiers: .command)
         }
+        CommandGroup(replacing: .help) {
+            Button("新手指引…") { Onboarding.shared.replayWelcome(model: model) }
+            Button("功能导览") { Onboarding.shared.startTour(model: model, bringToFront: true) }
+                .disabled(model.authState != .signedIn)
+            Button("上手清单") { Onboarding.shared.showChecklist(model: model, bringToFront: true) }
+                .disabled(model.authState != .signedIn)
+        }
     }
 }
 
@@ -175,15 +182,25 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        switch model.authState {
-        case .checking:
-            ProgressView("正在读取本机凭据…")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Theme.background)
-        case .signedOut, .signingIn:
-            LoginView()
-        case .signedIn:
-            MainView()
+        Group {
+            switch model.authState {
+            case .checking:
+                ProgressView("正在读取本机凭据…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Theme.background)
+            case .signedOut, .signingIn:
+                if Onboarding.shared.welcomeSeen || model.authState == .signingIn {
+                    LoginView()
+                } else {
+                    WelcomeView()
+                }
+            case .signedIn:
+                MainView()
+            }
+        }
+        .onChange(of: model.authState) { old, new in
+            guard old == .checking else { return }
+            Onboarding.shared.adoptExistingUser(hasData: new == .signedIn || !model.snapshot.tasks.isEmpty)
         }
     }
 }

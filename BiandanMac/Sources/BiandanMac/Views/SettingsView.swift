@@ -703,6 +703,7 @@ private struct AdvancedPane: View {
     var body: some View {
         @Bindable var model = model
         VStack(alignment: .leading, spacing: 18) {
+            OnboardingSettingsSection()
             InspectorSection("显示") {
                 ThemedRow("检查器中显示云端字段名") { ThemedSwitch(isOn: $model.showFieldNames) }
                 ThemedRow("完成圆圈使用分类颜色") { ThemedSwitch(isOn: $model.tintCheckboxByList) }
@@ -732,6 +733,7 @@ private struct AdvancedPane: View {
             CaptureSettingsSection()
             AISettingsSection()
                 .id(SettingsAnchor.ai.rawValue)
+            DecisionSettingsSection()
 
             MCPSettingsSection()
         }
@@ -1302,6 +1304,143 @@ private struct PathRow: View {
             NSWorkspace.shared.activateFileViewerSelecting([url])
         } else {
             NSWorkspace.shared.open(url.deletingLastPathComponent())
+        }
+    }
+}
+
+// MARK: - AI 决策（先判断再调用）
+
+private struct DecisionSettingsSection: View {
+    @Environment(AppModel.self) private var model
+    @State private var keyDraft = ""
+    @State private var keyError: String?
+    @State private var testing = false
+    @State private var status: TestStatus?
+
+    private struct TestStatus {
+        let ok: Bool
+        let text: String
+    }
+
+    private var trimmedKey: String { DecisionKeyStore.normalize(keyDraft) }
+
+    var body: some View {
+        @Bindable var settings = model
+        let endpointOK = DecisionSettings.endpoint(workspace: model.decisionWorkspace, region: model.decisionRegion) != nil
+        InspectorSection("AI 决策（先判断再调用）") {
+            SettingRow("先用决策模型判断", caption: enabledCaption) {
+                ThemedSwitch(isOn: $settings.decisionEnabled)
+                    .disabled(!model.decisionKeyConfigured && !model.decisionEnabled)
+            }
+            if let missing = missingText(endpointOK: endpointOK) {
+                NoteRow(icon: "exclamationmark.triangle", text: missing)
+            }
+            SettingRow("DashScope API Key", caption: "阿里云百炼的 API Key，存在本机钥匙串里，和 DeepSeek 的分开存") { keyField }
+            if let keyError {
+                NoteRow(icon: "exclamationmark.triangle", text: keyError)
+            }
+            SettingRow("业务空间 ID", caption: "百炼控制台里的业务空间 ID（如 llm-xxxx），也可以直接粘贴完整的接口地址") {
+                TextField("", text: $settings.decisionWorkspace, prompt: Text("llm-…"))
+                    .themedField()
+                    .frame(width: 250)
+            }
+            SettingRow("地域", caption: "要和业务空间所在的地域一致") {
+                ThemedSegmented(selection: $settings.decisionRegion,
+                                options: DecisionRegion.allCases.map { ThemeOption(value: $0, title: $0.title) })
+            }
+            SettingRow("灵敏度", caption: model.decisionSensitivity.caption) {
+                ThemedSegmented(selection: $settings.decisionSensitivity,
+                                options: DecisionSensitivity.allCases.map { ThemeOption(value: $0, title: $0.title) })
+            }
+            SettingRow("测试", caption: "用一句有日程、一句没有日程的示例各判断一次，显示结果和用时") {
+                HStack(spacing: 8) {
+                    if testing { ProgressView().controlSize(.small) }
+                    Button("测试", action: test)
+                        .buttonStyle(.themed)
+                        .disabled(!model.decisionKeyConfigured || !endpointOK || testing)
+                }
+            }
+            if let status {
+                NoteRow(icon: status.ok ? "checkmark.circle" : "exclamationmark.triangle", text: status.text)
+            }
+            SettingFootnotes(items: [
+                SettingFootnote(icon: "lock.shield",
+                                text: "只发送识别出的文字（和发给 AI 的是同一段），不发送截图；文字会经过阿里云百炼的服务器。"),
+                SettingFootnote(icon: "line.3.horizontal.decrease.circle",
+                                text: "判断没有日程时不调用 DeepSeek，卡片里会说明原因，可以点「仍然用 AI 识别」；判断超过 3 秒或出错时照常调用 AI，不会因此漏掉日程。手动点「用 AI 识别」时不经过判断。"),
+                SettingFootnote(icon: "chart.bar.xaxis",
+                                text: "每次判断的结果、用时和省下的费用记在本机，可在侧栏「统计 → AI 识别」查看；decision-model-preview 目前限时免费。"),
+            ], link: ("去百炼控制台申请 API Key", URL(string: "https://bailian.console.aliyun.com/?tab=model#/api-key")!))
+        }
+        .task { model.refreshDecisionKeyStatus() }
+    }
+
+    private var enabledCaption: String {
+        switch model.aiExtractionMode {
+        case .off: return "「AI 识别日程」是关闭的，开了这里也不会用到"
+        case .fallback: return "本机识别不到日程、准备交给 AI 之前，先判断有没有日程"
+        case .always: return "每次用 AI 之前先判断；判断没有日程就改用本机识别"
+        }
+    }
+
+    private func missingText(endpointOK: Bool) -> String? {
+        guard model.decisionEnabled else { return nil }
+        if !model.decisionKeyConfigured { return "还没有保存 DashScope API Key，识别时不会用到决策模型" }
+        if !endpointOK { return "业务空间 ID 或接口地址无效，识别时不会用到决策模型" }
+        if model.aiExtractionMode == .off { return "「AI 识别日程」目前是关闭的，决策模型只在要调用 AI 之前才用" }
+        return nil
+    }
+
+    private var keyField: some View {
+        let saved = model.decisionKeyConfigured
+        return HStack(spacing: 6) {
+            StatusPill(text: saved ? "已保存" : "未填写", color: saved ? Theme.done : Theme.subtext)
+            SecureField("", text: $keyDraft, prompt: Text(saved ? "输入新的可替换" : "sk-…"))
+                .themedField()
+                .frame(width: 170)
+                .onSubmit(saveKey)
+            Button("保存", action: saveKey)
+                .buttonStyle(.themed)
+                .disabled(trimmedKey.isEmpty)
+            if saved {
+                Button("清除") {
+                    DecisionKeyStore.clear()
+                    model.refreshDecisionKeyStatus()
+                    model.decisionEnabled = false
+                    status = nil
+                }
+                .buttonStyle(.themed)
+            }
+        }
+    }
+
+    private func saveKey() {
+        let key = trimmedKey
+        guard !key.isEmpty else { return }
+        do {
+            try DecisionKeyStore.save(key)
+            keyDraft = ""
+            keyError = nil
+            status = nil
+            model.refreshDecisionKeyStatus()
+        } catch {
+            keyError = error.localizedDescription
+        }
+    }
+
+    private func test() {
+        testing = true
+        status = nil
+        let settings = model.decisionSettings()
+        let today = model.today
+        Task { @MainActor in
+            do {
+                let text = try await DecisionGate.test(settings: settings, today: today)
+                status = TestStatus(ok: true, text: text)
+            } catch {
+                status = TestStatus(ok: false, text: error.localizedDescription)
+            }
+            testing = false
         }
     }
 }

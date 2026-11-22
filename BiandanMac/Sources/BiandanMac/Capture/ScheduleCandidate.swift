@@ -42,6 +42,8 @@ struct CaptureLine: Equatable, Sendable {
     var messageDate: LocalDate
     /// 这一行本身是聊天里的消息时间分隔行。
     var isTimestamp = false
+    /// 飞书、钉钉的消息头「黄彬 10:32」里发消息的人。
+    var sender: String? = nil
 }
 
 /// 微信 / 飞书聊天记录里的消息时间行，例如「14:32」「昨天 14:32」「星期三 10:20」「11月20日 09:15」。
@@ -88,6 +90,9 @@ enum ChatTimestamp {
             if let day = date(of: text, today: today) {
                 current = day
                 result.append(CaptureLine(text: text, messageDate: day, isTimestamp: true))
+            } else if let name = sender(of: text) {
+                // 消息头只带时刻，日期沿用上面的日期分隔行。
+                result.append(CaptureLine(text: text, messageDate: current, isTimestamp: true, sender: name))
             } else {
                 result.append(CaptureLine(text: text, messageDate: current))
             }
@@ -100,9 +105,34 @@ enum ChatTimestamp {
         lines.map { line in
             guard line.isTimestamp else { return line.text }
             let day = line.messageDate
+            if let sender = line.sender {
+                let parts: [String] = ["【发送人：", sender, "，消息时间：", day.iso, " ", LocalDate.weekdayNames[day.weekday], "】"]
+                return parts.joined()
+            }
             return "【消息时间：\(day.iso) \(LocalDate.weekdayNames[day.weekday])】"
         }
         .joined(separator: "\n")
+    }
+
+    /// 名字里出现这些词时，「评审 14:00」「明天 10:00」是日程，不是消息头。
+    private static let scheduleWords = [
+        "会", "评审", "复盘", "约", "课", "饭", "面试", "截止", "提交", "出发", "集合", "讨论", "电话", "对接",
+        "演示", "上线", "发布", "培训", "活动", "见面", "聚餐", "打卡", "汇报", "答辩", "考试", "航班", "高铁",
+        "今天", "明天", "后天", "今晚", "明晚", "今早", "明早", "周一", "周二", "周三", "周四", "周五", "周六",
+        "周日", "周天", "周末", "本周", "下周", "星期", "礼拜", "上午", "下午", "中午", "晚上", "早上", "凌晨",
+        "傍晚", "月底", "月初",
+        "meeting", "standup", "review", "sync", "call", "demo", "lunch", "dinner", "interview",
+    ]
+
+    /// 飞书、钉钉的消息头「黄彬 10:32」「Jerry.Law 10:35」：发消息的人 + 时刻。返回名字；不像消息头时返回 nil。
+    static func sender(of line: String) -> String? {
+        let text = line.replacingOccurrences(of: "：", with: ":").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.count <= 32,
+              let groups = match(#"^([^\d\s:,，。！？!?、；;（）()]{1,20})\s+"# + clock + "$", text) else { return nil }
+        let name = groups[1]
+        let lower = name.lowercased()
+        guard !scheduleWords.contains(where: { lower.contains($0) }) else { return nil }
+        return name
     }
 
     private static func match(_ pattern: String, _ text: String) -> [String]? {
@@ -143,6 +173,8 @@ struct ScheduleCandidate: Identifiable, Equatable {
     var note: String?
     /// 四象限（确认卡片里选择，默认不重要不紧急）。
     var quadrant: Quadrant = .neither
+    /// 自动定象限的依据（原文里的「重要」「紧急」或 AI 的判断），卡片里提示；手动改过就清掉。
+    var quadrantReason: String?
     /// 原文只说了「下午」「晚上」这类时段、没写具体时刻时记下这个词，卡片里提示补时刻。
     var vagueTime: String?
     /// 原文的日期只到一段时间（「12月中旬」「月底」）时记下原词，卡片里提示核对日期。
@@ -283,13 +315,18 @@ enum RuleScheduleExtractor {
             candidate.location = event.location ?? nearest(places, to: index) ?? ""
             candidate.source = event.source
             candidate.review(today: today, initial: true)
+            if event.deadline, let date = candidate.date, date < today {
+                // 截止日已经过去（「11/13 前修复，已经超期一周」）：仍然是要做的事，默认勾选，添加后显示为逾期。
+                candidate.include = true
+                candidate.note = "截止日已经过去 \(today.daysSinceEpoch - date.daysSinceEpoch) 天，添加后会显示为逾期"
+            }
             if event.cancelled {
                 candidate.include = false
                 candidate.note = "提到了取消或改期，默认不勾选，请确认"
             } else if event.question {
                 candidate.include = false
                 candidate.note = "像是在询问，还没定下来，默认不勾选"
-            } else if event.start == nil && title.count > RuleScheduleExtractor.longTitle {
+            } else if event.start == nil && title.count > RuleScheduleExtractor.longTitle && !event.deadline {
                 // 没有具体时刻、标题又很长：多半是把一整段文字当成了日程。
                 candidate.include = false
                 candidate.note = "没有具体时刻，标题也很长，可能不是日程，默认不勾选"

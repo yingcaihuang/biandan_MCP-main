@@ -8,7 +8,7 @@ import FoundationModels
 // MARK: - 识别日程：分阶段计时、预热端侧模型和文字识别
 
 enum CaptureStage: String, Codable, Hashable, Sendable {
-    case capture, ocr, model, rules, ai
+    case capture, ocr, model, rules, decision, ai
 
     var title: String {
         switch self {
@@ -16,6 +16,7 @@ enum CaptureStage: String, Codable, Hashable, Sendable {
         case .ocr: return "文字识别"
         case .model: return "端侧模型"
         case .rules: return "规则识别"
+        case .decision: return "AI 决策"
         case .ai: return "AI 识别"
         }
     }
@@ -26,6 +27,7 @@ enum CaptureStage: String, Codable, Hashable, Sendable {
         case .ocr: return "正在识别文字…"
         case .model: return "正在用端侧模型提取日程…"
         case .rules: return "正在用规则提取日程…"
+        case .decision: return "正在用 AI 决策判断有没有日程…"
         case .ai: return "正在用 AI 识别日程…"
         }
     }

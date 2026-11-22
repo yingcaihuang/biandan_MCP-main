@@ -354,6 +354,28 @@ final class AppModel {
     /// 钥匙串里有没有 API Key（打开设置、开始识别时刷新）。
     var aiKeyConfigured = false
 
+    /// AI 决策：调用 AI 之前先用百炼决策模型判断有没有日程。API Key 存在钥匙串里，见 DecisionKeyStore。
+    var decisionEnabled: Bool = UserDefaults.standard.bool(forKey: "biandan.decision.enabled") {
+        didSet { UserDefaults.standard.set(decisionEnabled, forKey: "biandan.decision.enabled") }
+    }
+
+    var decisionWorkspace: String = UserDefaults.standard.string(forKey: "biandan.decision.workspace") ?? "" {
+        didSet { UserDefaults.standard.set(decisionWorkspace, forKey: "biandan.decision.workspace") }
+    }
+
+    var decisionRegion: DecisionRegion =
+        DecisionRegion(rawValue: UserDefaults.standard.string(forKey: "biandan.decision.region") ?? "") ?? .beijing {
+        didSet { UserDefaults.standard.set(decisionRegion.rawValue, forKey: "biandan.decision.region") }
+    }
+
+    var decisionSensitivity: DecisionSensitivity =
+        DecisionSensitivity(rawValue: UserDefaults.standard.string(forKey: "biandan.decision.sensitivity") ?? "") ?? .balanced {
+        didSet { UserDefaults.standard.set(decisionSensitivity.rawValue, forKey: "biandan.decision.sensitivity") }
+    }
+
+    /// 钥匙串里有没有 DashScope API Key。
+    var decisionKeyConfigured = false
+
     /// 导入日程：已连接的来源、待确认的导入预览、进行中的导入和结果提示。
     var importSources: [ImportSource] = []
     var importPreview: ImportPreview?
@@ -389,6 +411,15 @@ final class AppModel {
 
     func refreshAIKeyStatus() {
         aiKeyConfigured = AIKeyStore.load() != nil
+    }
+
+    func refreshDecisionKeyStatus() {
+        decisionKeyConfigured = DecisionKeyStore.load() != nil
+    }
+
+    func decisionSettings() -> DecisionSettings {
+        DecisionSettings(enabled: decisionEnabled, workspace: decisionWorkspace, region: decisionRegion,
+                         sensitivity: decisionSensitivity, apiKey: DecisionKeyStore.load())
     }
 
     func aiExtractionSettings() -> AIExtractionSettings {

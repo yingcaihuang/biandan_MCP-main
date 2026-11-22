@@ -136,6 +136,12 @@ enum AIScheduleExtractor {
     7. source：这条日程依据的原文片段，原样摘录，不超过 80 个字，去掉行号。
     8. category：从「可选分类」里选一个最合适的名字，原样输出；都不合适时为空字符串。不要发明列表以外的名字。
     9. tentative：只是在询问或商量、还没定下来（如「明天有空吗？」「要不周五聚一下？」）时为 true，否则为 false。
+    10. important / urgent：四象限，布尔值。
+       - important：原文强调重要或不能忘时为 true，如「重要」「非常重要」「很重要」「重点」「务必」「一定要」「必须」「千万」「记得」「别忘了」「切记」「准时参加」「必到」「高优先级」「P0」；面试、考试、答辩、签约、航班高铁这类错过代价很大的事也为 true。
+       - urgent：原文强调要尽快处理时为 true，如「紧急」「紧急安排」「加急」「特急」「很急」「尽快」「马上」「立刻」「赶紧」「抓紧」「ASAP」「十万火急」；今天或明天就到期的截止事项也为 true。
+       - 原文说「不重要」「不急」「不着急」「慢慢来」「有空再」时对应为 false。没有任何线索时两者都为 false，不要给普通会议随意加重要或紧急。
+       - 原文直接写了四象限名称时按名称取值：「重要紧急」「重要且紧急」「第一象限」→ important true、urgent true；「重要但不紧急」「第二象限」→ true、false；「不重要但紧急」「第三象限」→ false、true；「不重要且不紧急」「第四象限」→ false、false。
+       - 四象限名称和「重要」「紧急」「记得」这类词只用来判断，不要写进 title。
 
     ## 其他要求
     - 同一件事只输出一次；一句话里有几件不同时间的事要分开输出。
@@ -144,10 +150,13 @@ enum AIScheduleExtractor {
 
     ## 示例（只说明格式和规则，不是要识别的文字）
     今天是 2026-11-21（周六），可选分类里有「工作」时，文字「3 阿里开发大会，明年5月15号，下午15:30在杭州西湖区文三社区举行」应输出：
-    {"events": [{"title": "参加阿里开发大会", "startDate": "2027-05-15", "startTime": "15:30", "endDate": "", "endTime": "", "location": "杭州西湖区文三社区", "locationQuery": "杭州市西湖区文三社区", "source": "阿里开发大会，明年5月15号，下午15:30在杭州西湖区文三社区举行", "category": "工作", "dateHint": "", "timeHint": "", "tentative": false}]}
+    {"events": [{"title": "参加阿里开发大会", "startDate": "2027-05-15", "startTime": "15:30", "endDate": "", "endTime": "", "location": "杭州西湖区文三社区", "locationQuery": "杭州市西湖区文三社区", "source": "阿里开发大会，明年5月15号，下午15:30在杭州西湖区文三社区举行", "category": "工作", "dateHint": "", "timeHint": "", "tentative": false, "important": false, "urgent": false}]}
+
+    文字「紧急安排：明天上午10点和客户过合同，非常重要」应输出：
+    {"events": [{"title": "和客户过合同", "startDate": "2026-11-22", "startTime": "10:00", "endDate": "", "endTime": "", "location": "", "locationQuery": "", "source": "紧急安排：明天上午10点和客户过合同，非常重要", "category": "工作", "dateHint": "", "timeHint": "", "tentative": false, "important": true, "urgent": true}]}
 
     ## 输出格式
-    {"events": [{"title": "", "startDate": "", "startTime": "", "endDate": "", "endTime": "", "location": "", "locationQuery": "", "source": "", "category": "", "dateHint": "", "timeHint": "", "tentative": false}]}
+    {"events": [{"title": "", "startDate": "", "startTime": "", "endDate": "", "endTime": "", "location": "", "locationQuery": "", "source": "", "category": "", "dateHint": "", "timeHint": "", "tentative": false, "important": false, "urgent": false}]}
     """
 
     private static let session: URLSession = {
@@ -305,6 +314,11 @@ enum AIScheduleExtractor {
             if candidate.start == nil, !event.timeHint.isEmpty { candidate.vagueTime = event.timeHint }
             if !event.category.isEmpty { candidate.suggestedCategory = event.category }
             if !event.locationQuery.isEmpty { candidate.locationQuery = event.locationQuery }
+            let judged = Quadrant(important: event.important, urgent: event.urgent)
+            if judged != .neither {
+                candidate.quadrant = judged
+                candidate.quadrantReason = "AI 判断为「" + judged.title + "」"
+            }
             if event.tentative {
                 candidate.include = false
                 candidate.note = "像是在询问，还没定下来，默认不勾选"
@@ -330,11 +344,11 @@ private struct AIReply: Decodable {
 private struct AIEvent: Decodable {
     var title = "", startDate = "", startTime = "", endDate = "", endTime = ""
     var location = "", source = "", category = "", dateHint = "", timeHint = "", locationQuery = ""
-    var tentative = false
+    var tentative = false, important = false, urgent = false
 
     enum CodingKeys: String, CodingKey {
         case title, startDate, startTime, endDate, endTime, location, source, category, dateHint, timeHint, tentative
-        case locationQuery
+        case locationQuery, important, urgent
     }
 
     init(from decoder: Decoder) throws {
@@ -353,10 +367,12 @@ private struct AIEvent: Decodable {
         dateHint = text(.dateHint)
         timeHint = text(.timeHint)
         locationQuery = text(.locationQuery)
-        if let flag = try? container.decode(Bool.self, forKey: .tentative) {
-            tentative = flag
-        } else {
-            tentative = text(.tentative).lowercased() == "true"
+        func flag(_ key: CodingKeys) -> Bool {
+            if let value = try? container.decode(Bool.self, forKey: key) { return value }
+            return text(key).lowercased() == "true"
         }
+        tentative = flag(.tentative)
+        important = flag(.important)
+        urgent = flag(.urgent)
     }
 }

@@ -7,6 +7,8 @@ import SwiftUI
 enum ScheduleCaptureFlow {
     static let screenRecordingSettings =
         URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
+    /// 这次的文字从哪里来，告诉 AI 决策。
+    private static var captureInput: CaptureInputSource = .region
 
     /// 框选屏幕区域识别。
     static func startRegion(model: AppModel, anchor: NSRect?) {
@@ -16,6 +18,7 @@ enum ScheduleCaptureFlow {
         FloatingBallController.shared.warmUpRecognizer()
         RegionSelector.shared.begin { result in
             guard let result else { return }
+            captureInput = .region
             begin(model: model, anchor: anchor)
             Task { @MainActor in
                 do {
@@ -43,6 +46,7 @@ enum ScheduleCaptureFlow {
             fail("找不到要截取的屏幕")
             return
         }
+        captureInput = .fullScreen
         let rect = screen.visibleFrame
         Task { @MainActor in
             do {
@@ -62,23 +66,26 @@ enum ScheduleCaptureFlow {
         let pasteboard = NSPasteboard.general
         if let text = pasteboard.string(forType: .string),
            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            fromText(text, model: model, anchor: anchor)
+            fromText(text, model: model, anchor: anchor, input: .clipboard)
         } else if let image = image(from: pasteboard) {
-            fromImage(image, model: model, anchor: anchor)
+            fromImage(image, model: model, anchor: anchor, input: .clipboard)
         } else {
             begin(model: model, anchor: anchor)
             fail("剪贴板里没有文字或图片。先在聊天里选中文字按 ⌘C，再点「识别剪贴板里的日程」。")
         }
     }
 
-    static func fromText(_ text: String, model: AppModel, anchor: NSRect?) {
+    static func fromText(_ text: String, model: AppModel, anchor: NSRect?, input: CaptureInputSource = .droppedText) {
+        captureInput = input
         begin(model: model, anchor: anchor)
         Task { @MainActor in
             await finish(lines: text.components(separatedBy: .newlines), model: model)
         }
     }
 
-    static func fromImage(_ image: CGImage, model: AppModel, anchor: NSRect?) {
+    static func fromImage(_ image: CGImage, model: AppModel, anchor: NSRect?,
+                          input: CaptureInputSource = .droppedImage) {
+        captureInput = input
         begin(model: model, anchor: anchor)
         Task { @MainActor in
             do {
@@ -139,6 +146,9 @@ enum ScheduleCaptureFlow {
         state.result = nil
         state.usage = nil
         state.candidates = []
+        // 手动重跑不经过 AI 决策；如果这次是被拦下后重跑，记下 AI 找到了几条，用来算误拦率。
+        let blockedID: UUID? = state.decision?.outcome == .block ? state.decision?.id : nil
+        state.decision = nil
         state.resetTiming()
         state.enter(.ai)
         FloatingBallController.shared.setBusy(true)
@@ -146,11 +156,12 @@ enum ScheduleCaptureFlow {
             do {
                 let result = try await AIScheduleExtractor.extract(lines, today: model.today, lists: lists,
                                                                    settings: settings, trigger: .manual)
-                state.candidates = ScheduleCategorizer.apply(result.candidates, lists: lists, fallback: state.listID,
+                state.candidates = ScheduleCategorizer.apply(PriorityCue.apply(result.candidates), lists: lists, fallback: state.listID,
                                                              allowNew: model.autoCreateCaptureCategory)
                 state.source = .ai
                 state.note = result.note(prefix: nil)
                 state.usage = result.usage
+                if let blockedID { DecisionLog.shared.markOverride(id: blockedID, events: result.candidates.count) }
                 state.finishTiming(source: "ai")
                 if model.autoLocateCapturePlace { locatePlaces() }
                 state.loading = false
@@ -201,16 +212,20 @@ enum ScheduleCaptureFlow {
         state.lines = annotated
         let lists = model.snapshot.lists.map { (id: $0.id3, name: $0.displayName) }
         let settings = model.aiExtractionSettings()
+        let decision = model.decisionSettings()
+        let input = captureInput
         let today = model.today
         let weekStart = model.weekStart
         let run = UUID()
         state.runID = run
         let task = Task { @MainActor in
             let extraction = await ScheduleExtractor.extract(annotated, today: today, weekStart: weekStart,
-                                                             lists: lists, ai: settings) { stage, warm in
+                                                             lists: lists, ai: settings, decision: decision,
+                                                             input: input) { stage, warm in
                 let current = SchedulePreviewController.shared.state
                 guard current.runID == run else { return }
                 current.enter(stage, warm: warm)
+                FloatingBallController.shared.setDecisionBusy(stage == .decision)
             } onSkip: { stage, reason in
                 let current = SchedulePreviewController.shared.state
                 guard current.runID == run else { return }
@@ -242,11 +257,13 @@ enum ScheduleCaptureFlow {
     private static func apply(_ extraction: ScheduleExtraction, lists: [(id: String, name: String)], model: AppModel) {
         let state = SchedulePreviewController.shared.state
         state.extractionTask = nil
-        state.candidates = ScheduleCategorizer.apply(extraction.candidates, lists: lists, fallback: state.listID,
+        state.candidates = ScheduleCategorizer.apply(PriorityCue.apply(extraction.candidates), lists: lists, fallback: state.listID,
                                                      allowNew: model.autoCreateCaptureCategory)
         state.source = extraction.source
         state.note = extraction.note
         state.usage = extraction.usage
+        state.decision = extraction.decision
+        FloatingBallController.shared.showDecision(extraction.decision)
         state.finishTiming(source: String(describing: extraction.source))
         if model.autoLocateCapturePlace { locatePlaces() }
         state.loading = false
@@ -274,6 +291,8 @@ final class SchedulePreviewState {
     var lines: [CaptureLine] = []
     /// 这次 AI 识别的用量，卡片里用彩色小卡片显示。
     var usage: AIUsageRecord?
+    /// 这次 AI 决策的结果（没用到时为 nil）。
+    var decision: DecisionRecord?
     var error: String?
     var needsScreenPermission = false
     var listID = TodoList.defaultID
@@ -320,6 +339,7 @@ final class SchedulePreviewController {
         state.loading = false
         state.saving = false
         state.result = nil
+        state.decision = nil
     }
 
     func present(model: AppModel, anchor: NSRect?) {

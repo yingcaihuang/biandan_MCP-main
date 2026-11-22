@@ -32,6 +32,8 @@ struct ScheduleExtraction {
     var note: String?
     /// 用了 AI 时这次调用的用量（用时、token、费用）。
     var usage: AIUsageRecord? = nil
+    /// 用了 AI 决策时这次的判断结果。
+    var decision: DecisionRecord? = nil
 }
 
 struct ScheduleExtractionFailure: Error {
@@ -52,13 +54,51 @@ enum FallbackNotice {
 
 /// 顺序：「总是用 AI」时先用 AI；否则端侧模型 → 规则识别，都没找到日程时再用 AI 兜底（需要已填 API Key）。
 enum ScheduleExtractor {
+    /// 开了 AI 决策时，调用大模型之前先判断有没有日程：「总是用 AI」被拦下就改用本机识别，
+    /// 「规则识别不到时」被拦下就不再兜底。判断失败照常调用。
     static func extract(_ lines: [CaptureLine], today: LocalDate, weekStart: Int,
                         lists: [(id: String, name: String)],
                         ai: AIExtractionSettings = .disabled,
+                        decision: DecisionSettings = .disabled,
+                        input: CaptureInputSource = .region,
                         onStage: (@MainActor @Sendable (CaptureStage, Bool?) -> Void)? = nil,
                         onSkip: (@MainActor @Sendable (CaptureStage, String) -> Void)? = nil) async -> ScheduleExtraction {
+        let box = DecisionBox()
+        var result = await extractCore(lines, today: today, weekStart: weekStart, lists: lists, ai: ai,
+                                       decision: decision, input: input, box: box, onStage: onStage, onSkip: onSkip)
+        result.decision = box.record
+        if let record = box.record, record.outcome == .block {
+            // 决策模型判断没有日程，本机却找到了：多半是误识别（页码、界面文字），默认不勾选。
+            let decider = record.decisionModel ?? DecisionSettings.model
+            result.candidates = result.candidates.map { candidate in
+                var item = candidate
+                item.include = false
+                item.note = decider + " 判断这段文字没有日程，可能是误识别，默认不勾选"
+                return item
+            }
+        }
+        return result
+    }
+
+    private static func extractCore(_ lines: [CaptureLine], today: LocalDate, weekStart: Int,
+                                    lists: [(id: String, name: String)], ai: AIExtractionSettings,
+                                    decision: DecisionSettings, input: CaptureInputSource, box: DecisionBox,
+                                    onStage: (@MainActor @Sendable (CaptureStage, Bool?) -> Void)?,
+                                    onSkip: (@MainActor @Sendable (CaptureStage, String) -> Void)?) async -> ScheduleExtraction {
         var note: String?
-        if ai.isReady && ai.mode == .always {
+        var skipAI = false
+        if ai.isReady && ai.mode == .always && decision.isReady {
+            await onStage?(.decision, nil)
+            let found = RuleScheduleExtractor.extract(lines, today: today, weekStart: weekStart, lists: lists)
+            let record = await DecisionGate.run(lines, today: today, source: input,
+                                                hints: DecisionHints.collect(lines, ruleCandidates: found.count),
+                                                settings: decision, ai: ai, trigger: .always)
+            box.record = record
+            if record.outcome == .block {
+                skipAI = true
+            }
+        }
+        if ai.isReady && ai.mode == .always && !skipAI {
             await onStage?(.ai, nil)
             do {
                 let result = try await AIScheduleExtractor.extract(lines, today: today, lists: lists,
@@ -97,6 +137,16 @@ enum ScheduleExtractor {
         await onStage?(.rules, nil)
         let candidates = RuleScheduleExtractor.extract(lines, today: today, weekStart: weekStart, lists: lists)
         if candidates.isEmpty && ai.isReady && ai.mode == .fallback {
+            if decision.isReady {
+                await onStage?(.decision, nil)
+                let record = await DecisionGate.run(lines, today: today, source: input,
+                                                    hints: DecisionHints.collect(lines, ruleCandidates: 0),
+                                                    settings: decision, ai: ai, trigger: .fallback)
+                box.record = record
+                if record.outcome == .block {
+                    return ScheduleExtraction(candidates: [], source: .rules, note: nil)
+                }
+            }
             await onStage?(.ai, nil)
             do {
                 let result = try await AIScheduleExtractor.extract(lines, today: today, lists: lists,

@@ -23,20 +23,23 @@ struct AIUsageStatsView: View {
 
     var body: some View {
         let log = AIUsageLog.shared
-        if log.records.isEmpty {
+        if log.records.isEmpty && DecisionLog.shared.records.isEmpty {
             ContentUnavailableView("还没有 AI 识别记录", systemImage: "sparkles",
                                    description: Text("在「设置 → 高级 → AI 识别日程」接入 DeepSeek 后，每次 AI 识别的用时、token 用量和预估费用都会记在这里"))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            report(AIUsageStats.summary(log.records, range: range, today: model.today, weekStart: model.weekStart))
+            report(AIUsageStats.summary(log.records, range: range, today: model.today, weekStart: model.weekStart),
+                   decision: DecisionStats.summary(DecisionLog.shared.records, range: range, today: model.today,
+                                                   weekStart: model.weekStart))
         }
     }
 
-    private func report(_ summary: AIUsageSummary) -> some View {
+    private func report(_ summary: AIUsageSummary, decision: DecisionSummary) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 toolbar(summary)
                 AIUsageOverview(summary: summary)
+                if decision.calls > 0 { DecisionStatsCard(summary: decision, range: range) }
                 if summary.calls == 0 {
                     Text("这段时间没有 AI 识别记录，换个时间范围看看。")
                         .font(.system(size: 12))
@@ -49,7 +52,10 @@ struct AIUsageStatsView: View {
             .padding(.bottom, 20)
         }
         .alert("清空 AI 识别记录？", isPresented: $confirmClear) {
-            Button("清空", role: .destructive) { AIUsageLog.shared.clear() }
+            Button("清空", role: .destructive) {
+                AIUsageLog.shared.clear()
+                DecisionLog.shared.clear()
+            }
             Button("取消", role: .cancel) {}
         } message: {
             Text("只清空本机的统计记录，不影响已添加的日程。")
@@ -65,6 +71,9 @@ struct AIUsageStatsView: View {
                 .foregroundStyle(Theme.subtext)
             Spacer(minLength: 0)
             Button("导出 CSV", action: export).buttonStyle(.themed)
+            if !DecisionLog.shared.records.isEmpty {
+                Button("导出 AI 决策 CSV", action: exportDecision).buttonStyle(.themed)
+            }
             Button("清空记录") { confirmClear = true }.buttonStyle(.themed)
         }
     }
@@ -76,6 +85,15 @@ struct AIUsageStatsView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         // 带 BOM，Excel 打开中文不乱码。
         let text = "\u{FEFF}" + AIUsageLog.shared.csv()
+        try? text.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func exportDecision() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = "便单 AI 决策记录.csv"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let text = "\u{FEFF}" + DecisionLog.shared.csv()
         try? text.write(to: url, atomically: true, encoding: .utf8)
     }
 }

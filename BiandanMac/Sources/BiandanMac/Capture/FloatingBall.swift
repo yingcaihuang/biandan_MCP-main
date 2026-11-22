@@ -12,6 +12,10 @@ final class FloatingBallState {
     var targeted = false
     var pressed = false
     var hovering = false
+    /// AI 决策判断中：光弧换成青色。
+    var decisionBusy = false
+    /// AI 决策的结果角标，几秒后消失。
+    var badge: DecisionOutcome?
 }
 
 final class FloatingBallPanel: NSPanel {
@@ -48,6 +52,38 @@ final class FloatingBallController {
 
     func setBusy(_ busy: Bool) {
         state.busy = busy
+        if !busy { state.decisionBusy = false }
+    }
+
+    private var badgeTask: Task<Void, Never>?
+
+    func setDecisionBusy(_ on: Bool) {
+        state.decisionBusy = on
+    }
+
+    /// 识别结束后在球的右上角显示 AI 决策的结果，约 6 秒后消失；鼠标移上去能看到说明。
+    func showDecision(_ record: DecisionRecord?) {
+        state.decisionBusy = false
+        badgeTask?.cancel()
+        guard let record else {
+            state.badge = nil
+            panel?.contentView?.toolTip = FloatingBallView.defaultTip
+            return
+        }
+        state.badge = record.outcome
+        let decider = record.decisionModel ?? DecisionSettings.model
+        let saved: String = record.savedUSD.map { " · 省 " + AIUsageFormat.cost($0) } ?? ""
+        switch record.outcome {
+        case .block: panel?.contentView?.toolTip = [decider, " 判断没有日程 · 没有调用 ", record.aiModel, saved].joined()
+        case .pass: panel?.contentView?.toolTip = [decider, " 判断有日程 · 已交给 ", record.aiModel, " 提取"].joined()
+        case .failed: panel?.contentView?.toolTip = [decider, " 没判断成功 · 照常调用 ", record.aiModel].joined()
+        }
+        badgeTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled, let self else { return }
+            self.state.badge = nil
+            self.panel?.contentView?.toolTip = FloatingBallView.defaultTip
+        }
     }
 
     /// 提前加载文字识别和端侧模型，第一次识别不用等。「总是用 AI」时不用端侧模型，只预热文字识别。
@@ -167,6 +203,7 @@ final class FloatingBallController {
 
 /// 球的 AppKit 外壳：自己处理点击、拖动、右键和拖入；画面交给 SwiftUI。
 final class FloatingBallView: NSView {
+    static let defaultTip = "单击框选识别日程 · 双击截取整个屏幕 · 右键更多 · 可把文字或图片拖进来"
     var onClick: (() -> Void)?
     /// 双击：截取整块屏幕。
     var onDoubleClick: (() -> Void)?
@@ -190,7 +227,7 @@ final class FloatingBallView: NSView {
         hosting.autoresizingMask = [.width, .height]
         addSubview(hosting)
         registerForDraggedTypes([.string, .fileURL, .tiff, .png])
-        toolTip = "单击框选识别日程 · 双击截取整个屏幕 · 右键更多 · 可把文字或图片拖进来"
+        toolTip = Self.defaultTip
     }
 
     required init?(coder: NSCoder) {
@@ -299,6 +336,7 @@ final class FloatingBallView: NSView {
 struct FloatingBallVisual: View {
     let state: FloatingBallState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    static let decisionColor = Color(hex: 0x22D3EE)
 
     var body: some View {
         let lit = state.targeted || state.hovering
@@ -308,12 +346,37 @@ struct FloatingBallVisual: View {
         TimelineView(.animation(minimumInterval: interval, paused: reduceMotion)) { context in
             SiriOrb(time: reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate,
                     speed: state.busy ? 3.2 : (lit ? 1.8 : 1),
-                    lit: lit, busy: state.busy, targeted: state.targeted)
+                    lit: lit, busy: state.busy, targeted: state.targeted,
+                    arcColor: state.decisionBusy ? Self.decisionColor : .white)
         }
         .frame(width: SiriOrb.diameter, height: SiriOrb.diameter)
         .scaleEffect(scale)
         .animation(.spring(response: 0.28, dampingFraction: 0.7), value: scale)
         .frame(width: FloatingBallController.size, height: FloatingBallController.size)
+        .overlay(alignment: .topTrailing) {
+            if let badge = state.badge {
+                DecisionBadge(outcome: badge).padding(7)
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.65), value: state.badge)
+    }
+}
+
+/// 球右上角的 AI 决策角标：绿色漏斗是拦下了，蓝色箭头是交给了 AI，灰色是没判断成功。
+private struct DecisionBadge: View {
+    let outcome: DecisionOutcome
+
+    var body: some View {
+        let icon: String = outcome == .block ? "line.3.horizontal.decrease" : (outcome == .pass ? "arrow.up.right" : "exclamationmark")
+        let tint: Color = outcome == .block ? Color(hex: 0x34C759) : (outcome == .pass ? Color(hex: 0x2F80ED) : Color(hex: 0x8E8E93))
+        Image(systemName: icon)
+            .font(.system(size: 8, weight: .heavy))
+            .foregroundStyle(.white)
+            .frame(width: 16, height: 16)
+            .background(Circle().fill(tint))
+            .overlay(Circle().stroke(.white, lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.22), radius: 1.5, y: 0.5)
+            .transition(.scale.combined(with: .opacity))
     }
 }
 
@@ -325,6 +388,7 @@ private struct SiriOrb: View {
     let lit: Bool
     let busy: Bool
     let targeted: Bool
+    let arcColor: Color
 
     private struct Blob {
         let color: Color
@@ -436,7 +500,7 @@ private struct SiriOrb: View {
     private var busyArc: some View {
         Circle()
             .trim(from: 0, to: 0.28)
-            .stroke(.white.opacity(0.95), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+            .stroke(arcColor.opacity(0.95), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
             .rotationEffect(.degrees(time.truncatingRemainder(dividingBy: 1) * 360))
             .padding(4)
     }

@@ -25,6 +25,8 @@ enum SentenceScheduleParser {
         var question = false
         /// 提到了取消、改期。
         var cancelled = false
+        /// 截止类：「11/13 前修复」「周五截止」「已经超期一周」。
+        var deadline = false
         var source: String
     }
 
@@ -77,7 +79,7 @@ enum SentenceScheduleParser {
         // 「周末时段」「周末价」「周末特惠」是名词，不是日期。
         "|(?:下下|下|本|这)?周末(?!时段|价|特价|特惠|优惠|折扣|套餐|版|档|费|模式)" +
         "|大后天|后天|明天|今天|今晚|明晚|今早|明早" +
-        #"|\d{1,2}[日号](?![楼栋室层座期线])"#)
+        #"|\d{1,2}[日号](?![楼栋室层座期线门厅房位机窗床柜台桌箱库仓馆]|会议室|会客室|包厢|车厢|教室|展厅)"#)
     /// 第 1 组月份数字，第 2 组「下个」「本」这类前缀，第 3 组上旬 / 中旬 / 下旬 / 初 / 中 / 底 / 末。
     private static let fuzzyMonthRegex = regex(
         #"^(?:(\d{1,2}|[一二三四五六七八九十]{1,3})月|(下下个?|下个?|本|这个?)?月)(上旬|中旬|下旬|初|中|底|末)?$"#)
@@ -104,6 +106,11 @@ enum SentenceScheduleParser {
         "（", "）", "(", ")", "【", "】", "[", "]", "-", "—", " ", "\u{3000}", "\t",
     ]
     private static let cancelWords = ["取消", "不去了", "不开了", "不来了", "改天", "延期", "推迟"]
+    private static let deadlineWords = ["截止", "截至", "deadline", "ddl", "到期", "超期", "逾期"]
+    /// 没写年份的「11/13」「11月13日」。
+    private static let bareMonthDayRegex = regex(#"^\d{1,2}(?:月\d{1,2}[日号]?|/\d{1,2})$"#)
+    /// 没写年份的日期过去不超过这么多天时指今年那天，更早的才算明年。
+    static let recentPastDays = 92
 
     // MARK: 入口
 
@@ -196,6 +203,7 @@ enum SentenceScheduleParser {
     private static func anchors(_ text: String, base: LocalDate, weekStart: Int) -> Anchors {
         var found = Anchors()
         for match in find(dateRegex, text) {
+            if isPageCounter(text, match.range) { continue }
             let piece = String(text[match.range]).filter { !$0.isWhitespace }
             let resolved: (date: LocalDate, period: String?, vague: String?)
             if let yearly = resolveWithYear(piece, base: base) {
@@ -203,7 +211,7 @@ enum SentenceScheduleParser {
             } else if let fuzzy = resolveFuzzy(piece, base: base) {
                 resolved = (fuzzy, nil, piece)
             } else if let exact = resolveDate(piece, base: base, weekStart: weekStart) {
-                resolved = (exact.date, exact.period, nil)
+                resolved = (recentPast(piece, exact.date, base: base), exact.period, nil)
             } else {
                 continue
             }
@@ -319,6 +327,27 @@ enum SentenceScheduleParser {
         return (found.date, found.period)
     }
 
+    /// 「11/13 前修复，已经超期一周」在 11 月 22 日说：指今年 11 月 13 日（已经过去），不是明年。
+    /// 过去超过 3 个月的才算明年（11 月说「1/5 开会」指明年 1 月 5 日）。
+    private static func recentPast(_ piece: String, _ date: LocalDate, base: LocalDate) -> LocalDate {
+        guard date.year == base.year + 1, !find(bareMonthDayRegex, piece).isEmpty,
+              let thisYear = LocalDate(year: base.year, month: date.month, day: date.day),
+              base.daysSinceEpoch - thisYear.daysSinceEpoch <= recentPastDays else { return date }
+        return thisYear
+    }
+
+    /// 「页面：1/1」「第 3/10 页」「Page 2/5」「进度 4/7」这类页码、进度，不是日期。
+    static func isPageCounter(_ text: String, _ range: Range<String.Index>) -> Bool {
+        guard text[range].contains("/") else { return false }
+        let before = String(text[text.startIndex..<range.lowerBound].suffix(6)).lowercased()
+        if ["页", "page", "进度", "进展"].contains(where: { before.contains($0) }) { return true }
+        if before.trimmingCharacters(in: .whitespaces).hasSuffix("第") { return true }
+        if let after = text[range.upperBound...].drop(while: { $0 == " " }).first, "页张条项篇步".contains(after) {
+            return true
+        }
+        return false
+    }
+
     // MARK: 一条日程
 
     private static func event(_ text: String, inherited: LocalDate?, base: LocalDate, weekStart: Int,
@@ -332,12 +361,19 @@ enum SentenceScheduleParser {
         if !found.hasTime, let match = find(periodRegex, text).first {
             vague = match.groups[0]
             removed.append(match.range)
+        } else if found.hasTime {
+            // 「后天晚上，19:10」：时段词和时刻被逗号隔开，留在标题里没有意义（「下午茶」这类后面不是标点的不动）。
+            for match in find(periodRegex, text) where !removed.contains(where: { $0.overlaps(match.range) }) {
+                let after = match.range.upperBound
+                if after == text.endIndex || "，,、 \u{3000}".contains(text[after]) { removed.append(match.range) }
+            }
         }
         let source = text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "，,")))
         var remaining = removing(removed, from: text)
         let place = extractPlace(remaining)
         if let place { remaining = place.rest }
-        var event = Event(title: cleanTitle(remaining), source: source)
+        // 「非常重要」「【紧急】」这类强调只用来定象限，不留在标题里。
+        var event = Event(title: cleanTitle(PriorityCue.stripTitle(cleanTitle(remaining))), source: source)
         event.location = place?.place
         event.date = found.date ?? inherited ?? base
         event.start = found.start
@@ -353,6 +389,11 @@ enum SentenceScheduleParser {
         event.vagueTime = vague
         event.question = question || source.hasSuffix("吗")
         event.cancelled = cancelWords.contains { text.contains($0) }
+        let lower = text.lowercased()
+        event.deadline = deadlineWords.contains { lower.contains($0) } || found.dateRanges.contains { range in
+            let after = text[range.upperBound...].drop(while: { $0.isWhitespace })
+            return after.hasPrefix("前") || after.hasPrefix("之前") || after.hasPrefix("以前")
+        }
         return event
     }
 

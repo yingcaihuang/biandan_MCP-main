@@ -55,6 +55,49 @@ final class ScheduleCategorizerTests: XCTestCase {
         XCTAssertEqual(suggest("打球", allowNew: false), .existing("8"))
     }
 
+    private func pick(_ title: String, source: String? = nil, location: String = "") -> CandidateCategory? {
+        ScheduleCategorizer.suggest(title: title, source: source ?? title, location: location, lists: [],
+                                    allowNew: true)?.category
+    }
+
+    func testRuleSentenceGetsCategory() {
+        let today = LocalDate(year: 2026, month: 11, day: 20)!
+        let lines = ChatTimestamp.annotate(["非常重要 后天晚上，19:10 在杭州西湖区文三社区举行数字街区看 Rokid 新品"],
+                                           today: today)
+        let rules = PriorityCue.apply(RuleScheduleExtractor.extract(lines, today: today, weekStart: 1, lists: []))
+        let found = ScheduleCategorizer.apply(rules, lists: [], fallback: TodoList.defaultID, allowNew: true)
+        XCTAssertEqual(found.first?.category, .new(name: "工作", colorIndex: 7))
+        XCTAssertEqual(found.first?.categoryReason?.contains("举行"), true)
+    }
+
+    func testWeakHintsNeedSupport() {
+        XCTAssertNil(pick("看新品"))
+        XCTAssertEqual(pick("看新品", source: "在园区举行看新品"), .new(name: "工作", colorIndex: 7))
+        XCTAssertEqual(pick("抢购新品"), .new(name: "购物", colorIndex: 16))
+    }
+
+    func testPlaceHints() {
+        XCTAssertEqual(pick("见张主任", source: "周三上午见张主任", location: "市第一人民医院"), .new(name: "健康", colorIndex: 1))
+        XCTAssertEqual(pick("接人", source: "周五晚上8点去接人", location: "萧山机场"), .new(name: "出行", colorIndex: 5))
+        XCTAssertNil(pick("碰一下", source: "明天下午碰一下", location: "文三社区"))
+    }
+
+    func testMoreSceneWords() {
+        XCTAssertEqual(pick("去健身房撸铁"), .new(name: "运动", colorIndex: 4))
+        XCTAssertEqual(pick("论文答辩"), .new(name: "学习", colorIndex: 8))
+        XCTAssertEqual(pick("拜访客户"), .new(name: "工作", colorIndex: 7))
+        XCTAssertEqual(pick("吃年夜饭"), .new(name: "家庭", colorIndex: 3))
+        XCTAssertEqual(pick("交电费"), .new(name: "生活", colorIndex: 2))
+        XCTAssertEqual(pick("看演唱会"), .new(name: "娱乐", colorIndex: 6))
+        XCTAssertEqual(pick("改签高铁"), .new(name: "出行", colorIndex: 5))
+        XCTAssertEqual(pick("去医院复查"), .new(name: "健康", colorIndex: 1))
+    }
+
+    func testHigherScoreWins() {
+        // 「婚礼」是情景词，「举行」只是弱线索。
+        XCTAssertEqual(pick("参加婚礼", source: "周六中午在酒店举行婚礼"), .new(name: "社交", colorIndex: 9))
+    }
+
     func testNoScene() {
         XCTAssertNil(suggest("随便写点东西"))
     }
