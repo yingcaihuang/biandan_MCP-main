@@ -71,7 +71,7 @@ final class QuickAddPanelController {
         panel.onEscape = { [weak self] in self?.hide() }
         let root = GlobalQuickAddView(onClose: { [weak self] in self?.hide() })
             .environment(model)
-            .preferredColorScheme(.light)
+            .preferredColorScheme(.dark)
         let hosting = NSHostingView(rootView: root)
         panel.contentView = hosting
         panel.setContentSize(hosting.fittingSize)
@@ -104,10 +104,10 @@ struct GlobalQuickAddView: View {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 20))
                     .foregroundStyle(Theme.accent)
-                TextField("", text: $text, prompt: Text("记一件事，回车保存"))
+                TextField("", text: $text, prompt: Text("记一件事，回车保存").foregroundColor(QuickAddPalette.placeholder))
                     .textFieldStyle(.plain)
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Theme.text)
+                    .foregroundStyle(QuickAddPalette.text)
                     .focused($focused)
                     .onSubmit { submit(draft) }
                     .onExitCommand { onClose() }
@@ -116,17 +116,17 @@ struct GlobalQuickAddView: View {
             }
             Group {
                 if !signedIn {
-                    Text("请先在便单主窗口登录华为账号").foregroundStyle(Theme.overdue)
+                    Text("请先在便单主窗口登录华为账号").foregroundStyle(QuickAddPalette.alert)
                 } else if let added {
-                    Text(verbatim: "已添加「\(added)」").foregroundStyle(Theme.done)
+                    Text(verbatim: "已添加「\(added)」").foregroundStyle(QuickAddPalette.done)
                 } else if let error {
-                    Text(verbatim: error).foregroundStyle(Theme.overdue)
+                    Text(verbatim: error).foregroundStyle(QuickAddPalette.alert)
                 } else if !draft.title.isEmpty {
-                    Text(verbatim: model.quickAddHint(draft, preset: preset)).foregroundColor(Theme.subtext)
+                    Text(verbatim: model.quickAddHint(draft, preset: preset)).foregroundColor(QuickAddPalette.hint)
                         + Text(verbatim: model.quickAddConflictText(draft, preset: preset).map { "  " + $0 } ?? "")
-                        .foregroundColor(Theme.overdue)
+                        .foregroundColor(QuickAddPalette.alert)
                 } else {
-                    Text("可写：明天下午3点、周五、每周一、@分类、#重要 · Esc 关闭").foregroundStyle(Theme.fieldName)
+                    Text("可写：明天下午3点、周五、每周一、@分类、#重要 · Esc 关闭").foregroundStyle(QuickAddPalette.muted)
                 }
             }
             .font(.system(size: 11.5))
@@ -136,9 +136,11 @@ struct GlobalQuickAddView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(width: 600, alignment: .leading)
-        // 面板窗口本身透明（NSPanel backgroundColor = .clear），玻璃能透出桌面。阴影由窗口提供。
+        // 这个面板浮在任意 App 上面，后面是什么内容不可控：透明玻璃会把后面窗口的字透出来，和输入的字叠在一起看不清。
+        // 所以这里单独处理：不用玻璃，用不透明的深色底 + 强调色描边，不管后面是什么都看得清。
+        // 阴影由窗口提供（窗口本身透明，只显示圆角卡片）。
         .floatingSurface(RoundedRectangle(cornerRadius: 14, style: .continuous),
-                         border: Theme.accent.opacity(0.6), shadowRadius: 0, glassBorder: true)
+                         fill: QuickAddPalette.background, border: QuickAddPalette.border, shadowRadius: 0, glass: false)
         // 每次弹出都清空并聚焦输入框。
         .task(id: model.globalQuickAddSession) {
             text = ""
@@ -168,4 +170,17 @@ struct GlobalQuickAddView: View {
             }
         }
     }
+}
+
+/// 全局快速添加框的深色配色：它浮在任意 App 上面，用深底浅字保证对比；主窗口主题不受影响。
+/// 报错红、成功绿在深底上会发暗，这里用调亮的版本。
+enum QuickAddPalette {
+    static let background = Color(hex: 0x24211D)
+    static let border = Theme.accent.opacity(0.85)
+    static let text = Color(hex: 0xF7F3EA)
+    static let placeholder = Color(hex: 0x9C9483)
+    static let hint = Color(hex: 0xD6CEBD)
+    static let muted = Color(hex: 0xA8A08F)
+    static let alert = Color(hex: 0xFF7A6E)
+    static let done = Color(hex: 0x7FD47C)
 }
