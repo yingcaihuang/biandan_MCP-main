@@ -239,7 +239,7 @@ struct DecisionStatsCard: View {
         let sensitivity = latest?.sensitivity ?? .balanced
         let parts: [String] = [
             "「", sensitivity.title, "」档：低于 ", AIUsageFormat.percent(sensitivity.probabilityLimit),
-            " 且清晰度低于 ", String(format: "%.1f", sensitivity.clarityLimit), " 才拦下",
+            " 且清晰度低于 ", String(format: "%.1f", sensitivity.clarityLimit), " 时拦下", sensitivity.extraRules,
         ]
         return parts.joined()
     }

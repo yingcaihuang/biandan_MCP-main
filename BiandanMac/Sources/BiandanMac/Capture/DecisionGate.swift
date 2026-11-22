@@ -35,6 +35,46 @@ enum DecisionSensitivity: String, CaseIterable, Codable, Sendable {
         }
     }
 
+    /// 清晰度达到这个值才算「事项、时间都明确」。
+    static let clearClarity: Double = 3
+
+    /// 有日程的概率低于这个值时，只要清晰度没到 clearClarity 也拦：
+    /// 界面、文档里零散的时间（「22:45」「11月21日」）会把清晰度抬到 1.5 以上，概率却只有个位数。
+    var floorLimit: Double {
+        switch self {
+        case .loose: return 0.05
+        case .balanced: return 0.10
+        case .strict: return 0.15
+        }
+    }
+
+    /// 内容是已经发生、已取消或与时间无关的事时，概率低于这个值就拦；nil 表示这一档不看这条。
+    var settledLimit: Double? {
+        switch self {
+        case .loose: return nil
+        case .balanced: return 0.15
+        case .strict: return 0.5
+        }
+    }
+
+    /// 内容像代码、界面文字，并且类型置信度不低于这个值时拦；nil 表示不看这条。
+    var machineTextConfidence: Double? {
+        switch self {
+        case .loose: return nil
+        case .balanced: return 0.8
+        case .strict: return 0.7
+        }
+    }
+
+    /// 除了「概率和清晰度都低」之外还会拦的情况，接在统计页的门槛说明后面。
+    var extraRules: String {
+        switch self {
+        case .loose: return "；概率低于 5% 时清晰度没到 3 也拦"
+        case .balanced: return "；概率低于 10%，或内容是已经发生、已取消的事且概率低于 15%，也拦"
+        case .strict: return "；概率低于 15%，或内容是已经发生、已取消的事且概率低于 50%，也拦"
+        }
+    }
+
     var title: String {
         switch self {
         case .loose: return "宽松"
@@ -46,7 +86,7 @@ enum DecisionSensitivity: String, CaseIterable, Codable, Sendable {
     var caption: String {
         switch self {
         case .loose: return "几乎只拦明显没有日程的内容，基本不会漏"
-        case .balanced: return "有日程的概率低于 30% 且清晰度低于 1.5 才拦；代码、界面文字拦得更积极"
+        case .balanced: return "有日程的概率低于 30% 且清晰度低于 1.5 时拦；概率低于 10%、或者是已经发生 / 取消的事也拦；代码、界面文字拦得更积极"
         case .strict: return "拦得多、省得多，偶尔会误拦，可以在卡片里点「仍然用 AI 识别」"
         }
     }
@@ -370,18 +410,17 @@ enum DecisionGate {
             let confidence = AIUsageFormat.percent(answers.kindConfidence)
             return "内容像是" + (answers.kindTitle ?? kind) + "（置信度 " + confidence + "），有日程的概率 " + probability
         }
-        switch sensitivity {
-        case .loose:
-            if p < sensitivity.probabilityLimit && c < sensitivity.clarityLimit { return block(lowReason) }
-        case .balanced:
-            if p < sensitivity.probabilityLimit && c < sensitivity.clarityLimit { return block(lowReason) }
-            if let text = machineText(minimum: 0.8) { return block(text) }
-        case .strict:
-            if p < sensitivity.probabilityLimit && c < sensitivity.clarityLimit { return block(lowReason) }
-            if let text = machineText(minimum: 0.7) { return block(text) }
-            if let status = answers.status, ["cancelled", "past", "none"].contains(status), p < 0.5 {
-                return block("内容像是" + (answers.statusTitle ?? status) + "，有日程的概率 " + probability)
-            }
+        if p < sensitivity.probabilityLimit && c < sensitivity.clarityLimit { return block(lowReason) }
+        // 概率极低时，清晰度多半是被界面上零散的时间抬高的：只要还没到「事项、时间都明确」就拦。
+        if p < sensitivity.floorLimit && c < DecisionSensitivity.clearClarity {
+            let floor = AIUsageFormat.percent(sensitivity.floorLimit)
+            return block(["有日程的概率只有 ", probability, "（低于 ", floor, "），清晰度 ", clarityText,
+                          "/4 多半是界面上的时间抬高的"].joined())
+        }
+        if let minimum = sensitivity.machineTextConfidence, let text = machineText(minimum: minimum) { return block(text) }
+        if let limit = sensitivity.settledLimit, let status = answers.status,
+           ["cancelled", "past", "none"].contains(status), p < limit {
+            return block(["内容像是", answers.statusTitle ?? status, "，有日程的概率 ", probability].joined())
         }
         return DecisionVerdict(outcome: .pass,
                                reason: "有日程的概率 " + probability + "，清晰度 " + clarityText + "/4，交给 AI 提取")
