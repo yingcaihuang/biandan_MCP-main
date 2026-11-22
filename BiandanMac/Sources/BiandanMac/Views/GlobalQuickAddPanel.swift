@@ -88,6 +88,7 @@ struct GlobalQuickAddView: View {
     @State private var saving = false
     @State private var error: String?
     @State private var added: String?
+    @State private var addedNote: String?
     @FocusState private var focused: Bool
 
     private var preset: NewTaskPreset {
@@ -112,13 +113,18 @@ struct GlobalQuickAddView: View {
                     .onSubmit { submit(draft) }
                     .onExitCommand { onClose() }
                     .disabled(saving || !signedIn)
-                if saving { ProgressView().controlSize(.small) }
+                if saving {
+                    if model.quickAddAIReady {
+                        Text("AI 整理中…").font(.system(size: 12)).foregroundStyle(QuickAddPalette.hint)
+                    }
+                    ProgressView().controlSize(.small)
+                }
             }
             Group {
                 if !signedIn {
                     Text("请先在便单主窗口登录华为账号").foregroundStyle(QuickAddPalette.alert)
                 } else if let added {
-                    Text(verbatim: "已添加「\(added)」").foregroundStyle(QuickAddPalette.done)
+                    Text(verbatim: "已添加「\(added)」" + (addedNote.map { " · " + $0 } ?? "")).foregroundStyle(QuickAddPalette.done)
                 } else if let error {
                     Text(verbatim: error).foregroundStyle(QuickAddPalette.alert)
                 } else if !draft.title.isEmpty {
@@ -126,7 +132,8 @@ struct GlobalQuickAddView: View {
                         + Text(verbatim: model.quickAddConflictText(draft, preset: preset).map { "  " + $0 } ?? "")
                         .foregroundColor(QuickAddPalette.alert)
                 } else {
-                    Text("可写：明天下午3点、周五、每周一、@分类、#重要 · Esc 关闭").foregroundStyle(QuickAddPalette.muted)
+                    Text(model.quickAddAIReady ? "随便写一句，回车后 AI 整理成标题、时间、地点；@分类、#重要 照样有效 · Esc 关闭"
+                         : "可写：明天下午3点、周五、每周一、@分类、#重要 · Esc 关闭").foregroundStyle(QuickAddPalette.muted)
                 }
             }
             .font(.system(size: 11.5))
@@ -146,6 +153,8 @@ struct GlobalQuickAddView: View {
             text = ""
             error = nil
             added = nil
+            addedNote = nil
+            model.refreshAIKeyStatus()
             saving = false
             try? await Task.sleep(for: .milliseconds(30))
             focused = true
@@ -153,16 +162,24 @@ struct GlobalQuickAddView: View {
     }
 
     private func submit(_ draft: QuickAddDraft) {
-        guard !saving, let input = QuickAddParser.input(draft, preset: preset) else { return }
+        guard !saving, !draft.title.isEmpty else { return }
+        let raw = text
         saving = true
         error = nil
         Task {
+            guard let outcome = await model.quickAddInput(raw, preset: preset) else {
+                saving = false
+                return
+            }
+            let input = outcome.input
             let ok = await model.createTask(input)
             saving = false
             if ok {
                 added = input.title
+                addedNote = outcome.note
                 text = ""
-                try? await Task.sleep(for: .milliseconds(600))
+                // 有提醒（例如 AI 没成功、改用了本机规则）时多停一会儿，让人看清。
+                try? await Task.sleep(for: .milliseconds(outcome.note == nil ? 600 : 1800))
                 onClose()
             } else {
                 error = model.operationError ?? "添加失败，请稍后重试"

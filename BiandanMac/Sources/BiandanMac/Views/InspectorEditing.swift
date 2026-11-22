@@ -376,9 +376,8 @@ struct TaskEditPanel: View {
                     .focused($titleFocused)
                     .onSubmit { saveText() }
                     .task(id: model.titleFocusRequest) { await focusTitleIfRequested() }
-                TextField("备注", text: $remark, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(2...6)
+                GrowingNoteEditor(text: $remark)
+                NoteLinkChips(text: remark)
                 if !content.attachments.isEmpty {
                     Text(verbatim: "附件 \(content.attachments.count) 个，修改备注时会保留")
                         .font(.system(size: 11))

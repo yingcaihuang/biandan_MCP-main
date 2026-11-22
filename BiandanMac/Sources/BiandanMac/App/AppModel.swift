@@ -368,6 +368,11 @@ final class AppModel {
     /// 钥匙串里有没有 API Key（打开设置、开始识别时刷新）。
     var aiKeyConfigured = false
 
+    /// 快速添加栏、全局快速添加、菜单栏快速添加：回车后先让 AI 整理（默认打开，见 QuickAddAI）。
+    var quickAddUsesAI: Bool = UserDefaults.standard.object(forKey: "biandan.quickAdd.ai") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(quickAddUsesAI, forKey: "biandan.quickAdd.ai") }
+    }
+
     /// AI 决策：调用 AI 之前先用百炼决策模型判断有没有日程。API Key 存在钥匙串里，见 DecisionKeyStore。
     var decisionEnabled: Bool = UserDefaults.standard.bool(forKey: "biandan.decision.enabled") {
         didSet { UserDefaults.standard.set(decisionEnabled, forKey: "biandan.decision.enabled") }

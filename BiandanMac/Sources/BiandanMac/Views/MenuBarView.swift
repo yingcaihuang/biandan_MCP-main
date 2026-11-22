@@ -345,22 +345,26 @@ private struct MenuBarQuickAdd: View {
                 .foregroundStyle(Theme.done)
                 .lineLimit(1)
         } else {
-            Text("回车保存，没写日期时记在今天")
+            Text(model.quickAddAIReady ? "回车后 AI 整理，没写日期时记在今天" : "回车保存，没写日期时记在今天")
                 .font(.system(size: 10.5))
                 .foregroundStyle(Theme.fieldName)
         }
     }
 
     private func submit(_ draft: QuickAddDraft, preset: NewTaskPreset) {
-        guard !saving, let input = QuickAddParser.input(draft, preset: preset) else { return }
+        guard !saving, !draft.title.isEmpty else { return }
+        let raw = text
         saving = true
-        let title = draft.title
         Task {
-            let ok = await model.createTask(input)
+            guard let outcome = await model.quickAddInput(raw, preset: preset) else {
+                saving = false
+                return
+            }
+            let ok = await model.createTask(outcome.input)
             saving = false
             if ok {
                 text = ""
-                done = "已添加「" + title + "」"
+                done = ["已添加「", outcome.input.title, "」", outcome.note.map { " · " + $0 } ?? ""].joined()
             }
         }
     }

@@ -3,7 +3,7 @@ import Foundation
 // MARK: - AI 识别的用量记录：每次调用的用时、token、费用估算，存在本机，供「统计 → AI 识别」使用
 
 enum AIUsageTrigger: String, Codable, CaseIterable, Sendable {
-    case fallback, always, manual, test
+    case fallback, always, manual, test, quickAdd
 
     var title: String {
         switch self {
@@ -11,6 +11,7 @@ enum AIUsageTrigger: String, Codable, CaseIterable, Sendable {
         case .always: return "总是用 AI"
         case .manual: return "手动重跑"
         case .test: return "测试连接"
+        case .quickAdd: return "快速添加"
         }
     }
 }

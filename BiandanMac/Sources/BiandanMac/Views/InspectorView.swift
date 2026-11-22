@@ -68,6 +68,8 @@ struct FieldRow: View {
     var field: String? = nil
     let value: String
     var valueColor: Color = Theme.text
+    /// 网址、邮箱显示成可点的链接（备注用）。
+    var linkify = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -76,7 +78,9 @@ struct FieldRow: View {
                 FieldTag(field)
             }
             Spacer(minLength: 8)
-            Text(value)
+            Group {
+                if linkify { Text(NoteLinks.attributed(value)) } else { Text(value) }
+            }
                 .foregroundStyle(valueColor)
                 .multilineTextAlignment(.trailing)
                 .textSelection(.enabled)
@@ -238,7 +242,7 @@ struct TaskInspector: View {
         let content = task.content
         let list = model.snapshot.list(task.id3)
         return InspectorSection("基本") {
-            FieldRow(label: "备注", field: "taskContent", value: content.remark.isEmpty ? "—" : content.remark)
+            FieldRow(label: "备注", field: "taskContent", value: content.remark.isEmpty ? "—" : content.remark, linkify: true)
             FieldRow(label: "附件", field: "taskContent",
                      value: content.attachments.isEmpty ? "无" : content.attachments.joined(separator: "\n"),
                      valueColor: Theme.subtext)

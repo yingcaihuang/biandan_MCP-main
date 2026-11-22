@@ -863,6 +863,10 @@ private struct AISettingsSection: View {
                 ThemedSegmented(selection: $settings.aiModelName,
                                 options: AIModelOption.allCases.map { ThemeOption(value: $0.rawValue, title: $0.title) })
             }
+            SettingRow("快速添加用 AI", caption: quickAddCaption) {
+                Toggle("", isOn: $settings.quickAddUsesAI)
+                    .toggleStyle(.switch).labelsHidden().controlSize(.mini)
+            }
             SettingRow("API Key", caption: "存在本机钥匙串里，不写进配置文件") { keyField }
             if let keyError {
                 NoteRow(icon: "exclamationmark.triangle", text: keyError)
@@ -899,6 +903,11 @@ private struct AISettingsSection: View {
                 .fill(Theme.accent.opacity(model.settingsHighlight == .ai ? 0.16 : 0))
                 .padding(-8)
         )
+    }
+
+    private var quickAddCaption: String {
+        if model.aiExtractionMode == .off { return "「使用 AI」是关闭的，快速添加只用本机规则" }
+        return "快速添加回车后先让 AI 整理成标题、日期、时刻、地点，最多等 \(Int(QuickAddAI.timeout)) 秒，失败时按本机规则添加"
     }
 
     private var modeCaption: String {

@@ -55,7 +55,7 @@ enum DecisionSavings {
     /// 有历史记录：按每字平均费用（换算成非高峰价）× 这次的字数，再按现在是否高峰调整；否则按价目估。
     static func estimate(characters: Int, model: String, host: String, history: [AIUsageRecord],
                          at date: Date) -> (cost: Double?, ms: Int) {
-        let recent = Array(history.filter { $0.success && $0.trigger != .test }.suffix(historyLimit))
+        let recent = Array(history.filter { $0.success && $0.trigger != .test && $0.trigger != .quickAdd }.suffix(historyLimit))
         let sameModel = recent.filter { $0.model == model }
         let pool = sameModel.isEmpty ? recent : sameModel
         let ms = pool.isEmpty ? fallbackMs : pool.map(\.durationMs).reduce(0, +) / pool.count
