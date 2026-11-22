@@ -9,6 +9,24 @@ private struct PreviewSizeKey: PreferenceKey {
     static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
 }
 
+/// 标题栏 + 底栏的总高度（两处相加）。
+private struct PreviewChromeKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value += nextValue() }
+}
+
+/// 中间内容（提示、候选、识别到的文字）不受限制时的高度。
+private struct PreviewBodyHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+private extension View {
+    func reportHeight<K: PreferenceKey>(_ key: K.Type) -> some View where K.Value == CGFloat {
+        background(GeometryReader { proxy in Color.clear.preference(key: key, value: proxy.size.height) })
+    }
+}
+
 struct SchedulePreviewView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openSettings) private var openSettings
@@ -16,24 +34,34 @@ struct SchedulePreviewView: View {
     let onClose: () -> Void
     let onResize: (CGSize) -> Void
     @State private var showText = false
+    @State private var chromeHeight: CGFloat = 0
+    @State private var bodyHeight: CGFloat = 0
+
+    /// 中间内容最多多高：卡片上限减去标题栏和底栏；没有上限时不限。
+    private var bodyLimit: CGFloat {
+        state.maxHeight > 0 ? max(state.maxHeight - chromeHeight, 160) : .infinity
+    }
+
+    /// 内容比屏幕可见区域还高（例如球在屏幕下方、候选又多），中间整体滚动，标题栏和按钮始终看得到。
+    private var scrollsBody: Bool { bodyHeight > bodyLimit + 0.5 }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Rectangle().fill(Theme.line).frame(height: 1)
-            VStack(alignment: .leading, spacing: 10) {
-                messages
-                if !state.candidates.isEmpty { candidateList }
-                if !state.recognizedText.isEmpty { recognizedText }
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if !state.loading {
+            VStack(spacing: 0) {
+                header
                 Rectangle().fill(Theme.line).frame(height: 1)
-                footer
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Theme.panel)
+            }
+            .reportHeight(PreviewChromeKey.self)
+            bodySection
+            if !state.loading {
+                VStack(spacing: 0) {
+                    Rectangle().fill(Theme.line).frame(height: 1)
+                    footer
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Theme.panel)
+                }
+                .reportHeight(PreviewChromeKey.self)
             }
         }
         .frame(width: 520)
@@ -46,6 +74,28 @@ struct SchedulePreviewView: View {
             Color.clear.preference(key: PreviewSizeKey.self, value: proxy.size)
         })
         .onPreferenceChange(PreviewSizeKey.self) { size in onResize(size) }
+        .onPreferenceChange(PreviewChromeKey.self) { height in chromeHeight = height }
+        .onPreferenceChange(PreviewBodyHeightKey.self) { height in bodyHeight = height }
+    }
+
+    private var bodyContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            messages
+            if !state.candidates.isEmpty { candidateList }
+            if !state.recognizedText.isEmpty { recognizedText }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .reportHeight(PreviewBodyHeightKey.self)
+    }
+
+    @ViewBuilder
+    private var bodySection: some View {
+        if scrollsBody {
+            ScrollView { bodyContent }.frame(height: bodyLimit)
+        } else {
+            bodyContent
+        }
     }
 
     // MARK: 标题栏
@@ -223,7 +273,7 @@ struct SchedulePreviewView: View {
                                      onLocate: { ScheduleCaptureFlow.locate(id: candidate.id) })
             }
         }
-        if state.candidates.count > 2 {
+        if state.candidates.count > 2 && !scrollsBody {
             ScrollView { rows }.frame(height: 430)
         } else {
             rows

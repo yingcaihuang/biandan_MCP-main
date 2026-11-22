@@ -307,6 +307,8 @@ final class SchedulePreviewState {
     var stageStart = Date()
     var timings: [CaptureStageTiming] = []
     var modelWarm: Bool?
+    /// 卡片最高多少（所在屏幕的可见区域减去边距）；内容更高时中间改成滚动。0 表示不限。
+    var maxHeight: CGFloat = 0
     @ObservationIgnored var runID = UUID()
     @ObservationIgnored var flowStart = Date()
     @ObservationIgnored var extractionTask: Task<Void, Never>?
@@ -331,6 +333,13 @@ final class SchedulePreviewController {
     let state = SchedulePreviewState()
     private var panel: SchedulePreviewPanel?
     private var anchor: NSRect?
+    /// 这次往上长（底边不动）还是往下长（顶边不动），见 PreviewPlacement.growsUp。
+    private var growsUp = false
+    private var area: CGRect?
+    private var lastSize: CGSize?
+    /// 上一次摆好的位置：尺寸变化时以它的顶边（往下长）或底边（往上长）为准。
+    private var lastFrame: CGRect?
+    private var resizeObserver: NSObjectProtocol?
 
     func reset() {
         state.candidates = []
@@ -350,7 +359,8 @@ final class SchedulePreviewController {
         let panel = self.panel ?? makePanel(model)
         self.panel = panel
         if let hosting = panel.contentView {
-            place(panel, size: hosting.fittingSize)
+            let fitting = hosting.fittingSize
+            place(panel, size: fitting.height > 1 ? fitting : (lastSize ?? CGSize(width: 520, height: 200)))
         }
         panel.makeKeyAndOrderFront(nil)
     }
@@ -377,25 +387,42 @@ final class SchedulePreviewController {
                                        onResize: { [weak self] size in self?.resize(to: size) })
             .environment(model)
             .preferredColorScheme(.light)
-        panel.contentView = NSHostingView(rootView: root)
+        let hosting = NSHostingView(rootView: root)
+        panel.contentView = hosting
+        // 托管视图会按内容自动改窗口尺寸，但它不知道该往上还是往下长（之前会长到 Dock 下面）：
+        // 每次尺寸变了都按 growsUp 重新摆一次，再收回可见区域里。
+        resizeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResizeNotification, object: panel, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.settle() }
+        }
         return panel
     }
 
-    /// 内容高度变化时保持顶边不动。
+    /// 内容高度变化时：往下长的保持顶边不动，往上长的保持底边不动，再收回可见区域里（不压菜单栏和 Dock）。
     private func resize(to size: CGSize) {
-        guard let panel, size.width > 0, size.height > 0 else { return }
-        var frame = panel.frame
-        guard abs(frame.height - size.height) > 0.5 || abs(frame.width - size.width) > 0.5 else { return }
-        let top = frame.maxY
-        frame.size = size
-        frame.origin.y = top - size.height
-        if let area = (panel.screen ?? NSScreen.main)?.visibleFrame, frame.minY < area.minY + 8 {
-            frame.origin.y = area.minY + 8
-        }
-        panel.setFrame(frame, display: true)
+        guard size.width > 0, size.height > 0 else { return }
+        lastSize = size
+        apply(size: size, reason: "content")
     }
 
-    /// 有球时摆在球旁边（球在右边就放左边），否则放在鼠标所在屏幕的上方。
+    /// 窗口尺寸被托管视图改过之后，按原来的锚定边重新摆。
+    private func settle() {
+        guard let panel else { return }
+        apply(size: panel.frame.size, reason: "window")
+    }
+
+    private func apply(size: CGSize, reason: String) {
+        guard let panel, size.width > 0, size.height > 0,
+              let area = area ?? panel.screen?.visibleFrame ?? NSScreen.main?.visibleFrame else { return }
+        let reference = lastFrame ?? panel.frame
+        let target = PreviewPlacement.resized(reference, to: size, growsUp: growsUp, area: area)
+        lastFrame = target
+        guard !PreviewPlacement.same(target, panel.frame) else { return }
+        panel.setFrame(target, display: true)
+    }
+
+    /// 有球时摆在球旁边（球在右边就放左边；球在下半屏就往上长），否则放在鼠标所在屏幕的上方。
     private func place(_ panel: NSPanel, size: CGSize) {
         let mouse = NSEvent.mouseLocation
         let screen = anchor.flatMap { rect in NSScreen.screens.first { $0.frame.intersects(rect) } }
@@ -404,16 +431,61 @@ final class SchedulePreviewController {
             panel.center()
             return
         }
-        var origin: CGPoint
+        self.area = area
+        growsUp = PreviewPlacement.growsUp(anchor: anchor, area: area)
+        state.maxHeight = PreviewPlacement.maxHeight(in: area)
+        let frame = PreviewPlacement.initialFrame(size: size, anchor: anchor, area: area)
+        lastFrame = frame
+        panel.setFrame(frame, display: true)
+    }
+}
+
+/// 确认卡片摆在哪里。坐标都是 AppKit 屏幕坐标（左下角原点），area 是屏幕可见区域（不含菜单栏和 Dock）。
+enum PreviewPlacement {
+    static let margin: CGFloat = 8
+    static let gap: CGFloat = 8
+
+    /// 球在下半屏时往上长（底边和球底对齐），否则往下长（顶边和球顶对齐）；没有球时往下长。
+    static func growsUp(anchor: CGRect?, area: CGRect) -> Bool {
+        guard let anchor else { return false }
+        return anchor.midY < area.midY
+    }
+
+    /// 卡片最高多少：可见区域上下各留一点边。
+    static func maxHeight(in area: CGRect) -> CGFloat {
+        max(area.height - margin * 2, 200)
+    }
+
+    static func initialFrame(size: CGSize, anchor: CGRect?, area: CGRect) -> CGRect {
+        let height = min(size.height, maxHeight(in: area))
+        let origin: CGPoint
         if let anchor {
-            let x = anchor.midX > area.midX ? anchor.minX - size.width - 8 : anchor.maxX + 8
-            origin = CGPoint(x: x, y: anchor.maxY - size.height)
+            let x = anchor.midX > area.midX ? anchor.minX - size.width - gap : anchor.maxX + gap
+            let y = growsUp(anchor: anchor, area: area) ? anchor.minY : anchor.maxY - height
+            origin = CGPoint(x: x, y: y)
         } else {
-            origin = CGPoint(x: area.midX - size.width / 2, y: area.maxY - area.height * 0.18 - size.height)
+            origin = CGPoint(x: area.midX - size.width / 2, y: area.maxY - area.height * 0.18 - height)
         }
-        origin.x = min(max(origin.x, area.minX + 8), area.maxX - size.width - 8)
-        origin.y = min(max(origin.y, area.minY + 8), area.maxY - size.height - 8)
-        panel.setFrame(CGRect(origin: origin, size: size), display: true)
+        return clamp(CGRect(origin: origin, size: CGSize(width: size.width, height: height)), to: area)
+    }
+
+    static func resized(_ frame: CGRect, to size: CGSize, growsUp: Bool, area: CGRect) -> CGRect {
+        let height = min(size.height, maxHeight(in: area))
+        let y = growsUp ? frame.minY : frame.maxY - height
+        return clamp(CGRect(x: frame.minX, y: y, width: size.width, height: height), to: area)
+    }
+
+    /// 收回可见区域里，四边各留 margin。
+    static func clamp(_ frame: CGRect, to area: CGRect) -> CGRect {
+        var result = frame
+        result.origin.x = min(max(frame.minX, area.minX + margin), area.maxX - frame.width - margin)
+        result.origin.y = min(max(frame.minY, area.minY + margin), area.maxY - frame.height - margin)
+        return result
+    }
+
+    static func same(_ a: CGRect, _ b: CGRect) -> Bool {
+        abs(a.minX - b.minX) < 0.5 && abs(a.minY - b.minY) < 0.5
+            && abs(a.width - b.width) < 0.5 && abs(a.height - b.height) < 0.5
     }
 }
 
