@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 日历：年视图（12 个小月历）、月视图（6×7 网格）、周视图（7 列）和单日视图。显示与每天有交集的执行实例（含已完成、已放弃），
+/// 日历：年视图（12 个小月历）、月视图（6×7 网格）、周视图和单日视图（按小时的时间轴，见 CalendarDayTimeline）。显示与每天有交集的执行实例（含已完成、已放弃），
 /// 可以把实例拖到其他日期改期。
 struct CalendarView: View {
     @Environment(AppModel.self) private var model
@@ -69,15 +69,10 @@ struct CalendarView: View {
                     }
                 }
             } else if scope == .week {
-                HStack(spacing: 6) {
-                    ForEach(days, id: \.self) { day in
-                        CalendarWeekColumn(day: day, isToday: day == model.today,
-                                           items: visible.filter { $0.occurrence.overlaps(day, day) })
-                    }
-                }
+                CalendarWeekTimeline(days: days, items: visible)
             } else {
-                CalendarWeekColumn(day: model.calendarFocus, isToday: model.calendarFocus == model.today,
-                                   items: visible)
+                CalendarDayTimeline(day: model.calendarFocus, isToday: model.calendarFocus == model.today,
+                                    items: visible)
             }
         }
         .padding(.horizontal, 22)
@@ -146,7 +141,7 @@ func calendarLunarText(_ day: LocalDate) -> String {
 }
 
 /// 把拖进来的实例改期到这一天。
-private struct CalendarDropModifier: ViewModifier {
+struct CalendarDropModifier: ViewModifier {
     @Environment(AppModel.self) private var model
     let day: LocalDate
     @Binding var targeted: Bool
@@ -234,69 +229,6 @@ struct CalendarDayCell: View {
         .overlay(RoundedRectangle(cornerRadius: 8)
             .stroke(targeted || isToday ? Theme.accent : Theme.line, lineWidth: targeted ? 2 : 1))
         .contentShape(RoundedRectangle(cornerRadius: 8))
-        .modifier(CalendarDropModifier(day: day, targeted: $targeted))
-    }
-}
-
-/// 周视图的一列：当天的完整任务卡片。
-struct CalendarWeekColumn: View {
-    @Environment(AppModel.self) private var model
-    let day: LocalDate
-    let isToday: Bool
-    let items: [OccurrenceItem]
-    @State private var targeted = false
-
-    var body: some View {
-        let weekend = day.pythonWeekday >= 5
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text(LocalDate.weekdayShortNames[day.weekday])
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(weekend ? Color(hex: 0xD9534A) : Theme.subtext)
-                Text(verbatim: "\(day.day)")
-                    .font(.system(size: 16, weight: .heavy))
-                    .monospacedDigit()
-                    .foregroundStyle(isToday ? Color.white : Theme.text)
-                    .padding(.horizontal, isToday ? 7 : 0)
-                    .background(Capsule().fill(isToday ? Theme.accent : Color.clear))
-                    .contentShape(Rectangle())
-                    .onTapGesture { model.showDay(day) }
-                    .help("查看这一天")
-                Text(calendarLunarText(day))
-                    .font(.system(size: 10))
-                    .foregroundStyle(Theme.fieldName)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                if !items.isEmpty {
-                    Text(verbatim: "\(items.count)")
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundStyle(Theme.subtext)
-                }
-            }
-            if items.isEmpty {
-                Text("拖到这里改期")
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(Theme.fieldName)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 12)
-                Spacer(minLength: 0)
-            } else {
-                ScrollView {
-                    VStack(spacing: 6) {
-                        ForEach(items) { item in
-                            OccurrenceCard(item: item)
-                        }
-                    }
-                }
-            }
-        }
-        .padding(8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 10)
-            .fill(targeted ? Theme.accent.opacity(0.14) : Theme.card))
-        .overlay(RoundedRectangle(cornerRadius: 10)
-            .stroke(targeted || isToday ? Theme.accent : Theme.line, lineWidth: targeted ? 2 : 1))
-        .contentShape(RoundedRectangle(cornerRadius: 10))
         .modifier(CalendarDropModifier(day: day, targeted: $targeted))
     }
 }
