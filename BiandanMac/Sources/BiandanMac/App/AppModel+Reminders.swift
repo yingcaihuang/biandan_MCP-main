@@ -89,7 +89,14 @@ extension AppModel {
             forName: .biandanOpenOccurrence, object: nil, queue: .main
         ) { [weak self] note in
             let id = note.userInfo?["occurrenceID"] as? String
-            MainActor.assumeIsolated { self?.revealOccurrence(id) }
+            MainActor.assumeIsolated {
+                if let id {
+                    self?.revealOccurrence(id)
+                } else {
+                    self?.showMainWindow()
+                    self?.drainPendingReveal()
+                }
+            }
         }
         completeObserver = NotificationCenter.default.addObserver(
             forName: .biandanCompleteOccurrence, object: nil, queue: .main
@@ -97,6 +104,7 @@ extension AppModel {
             MainActor.assumeIsolated { self?.drainReminderInbox() }
         }
         drainReminderInbox()
+        drainPendingReveal()
         installWorkspaceObservers()
     }
 
@@ -179,15 +187,7 @@ extension AppModel {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    /// 打开主窗口并在列表中选中某次执行。
-    func revealOccurrence(_ id: String?) {
-        showMainWindow()
-        guard let id, authState == .signedIn, snapshot.item(occurrenceID: id) != nil else { return }
-        sidebarSelection = .all
-        viewMode = .list
-        selectedOccurrenceID = id
-        showInspector = true
-    }
+    // revealOccurrence 见 NotificationReveal.swift。
 
     // MARK: 菜单栏
 

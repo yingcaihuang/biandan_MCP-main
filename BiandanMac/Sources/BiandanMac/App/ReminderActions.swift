@@ -92,6 +92,9 @@ enum ReminderSnooze {
 @MainActor
 enum ReminderInbox {
     static var pendingComplete: [String] = []
+    /// 点通知要打开的位置（见 NotificationReveal.swift），登录、加载完再处理。
+    static var pendingReveal: RevealTarget?
+    static var pendingRevealAt: Date?
 }
 
 extension Notification.Name {

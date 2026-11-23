@@ -253,6 +253,8 @@ final class AppModel {
     @ObservationIgnored var selectionAnchor: String?
     /// 键盘移动选中后要滚动到的实例（只由键盘设置，鼠标点击不滚动）。
     var keyboardScrollTarget: String?
+    /// 点通知打开某条时让列表滚过去（见 NotificationReveal.swift）。
+    var revealRequest: RevealRequest?
     /// 回车编辑标题：递增后检查器的标题输入框获得焦点。
     var titleFocusRequest = 0
     @ObservationIgnored var pendingTitleFocus = false
@@ -552,6 +554,7 @@ final class AppModel {
             authState = .signedIn
             // 通知上点「完成」把应用拉起时，登录状态读完再处理。
             drainReminderInbox()
+            drainPendingReveal()
             scheduleReminders()
             startAutoSync()
             await refreshRenewal()
@@ -713,6 +716,7 @@ final class AppModel {
             reloadSnapshot()
             autoBackupIfNeeded()
             backfillRemindersIfNeeded()
+            drainPendingReveal(afterSync: true)
             syncThrottle.recordSuccess(at: report.finishedAt,
                                        records: snapshot.lists.count + snapshot.tasks.count
                                            + snapshot.occurrences.count + snapshot.focus.count)

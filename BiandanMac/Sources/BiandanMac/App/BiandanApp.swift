@@ -60,9 +60,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         case nil:
             break
         }
+        let importSource = content.userInfo["importSourceID"] as? String
         DispatchQueue.main.async {
-            NotificationCenter.default.post(name: .biandanOpenOccurrence, object: nil,
-                                            userInfo: id.map { ["occurrenceID": $0] })
+            MainActor.assumeIsolated {
+                // 先记下要打开的位置：应用刚被通知拉起、还没读完登录状态时，登录后再打开。
+                if let id {
+                    ReminderInbox.reveal(.occurrence(id))
+                } else if importSource != nil {
+                    ReminderInbox.reveal(.importer)
+                }
+                NotificationCenter.default.post(name: .biandanOpenOccurrence, object: nil)
+            }
         }
         completionHandler()
     }

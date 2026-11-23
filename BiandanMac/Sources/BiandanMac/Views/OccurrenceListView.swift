@@ -68,6 +68,15 @@ struct OccurrenceListView: View {
                 guard let target else { return }
                 withAnimation(.easeInOut(duration: 0.15)) { proxy.scrollTo(target) }
             }
+            // 点通知打开时滚到那一条；刚切换分类、列表刚出现时也要滚。
+            .onChange(of: model.revealRequest) { _, request in
+                guard let request else { return }
+                withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(request.id, anchor: .center) }
+            }
+            .onAppear {
+                guard let request = model.revealRequest else { return }
+                DispatchQueue.main.async { proxy.scrollTo(request.id, anchor: .center) }
+            }
             }
         }
     }
