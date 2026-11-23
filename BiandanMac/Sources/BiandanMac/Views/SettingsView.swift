@@ -1482,7 +1482,7 @@ private struct AboutPane: View {
             InspectorSection("软件更新") {
                 SettingRow("当前版本 " + updater.version, caption: statusText) {
                     Button {
-                        updater.checkForUpdates()
+                        updater.checkForUpdates(reveal: false)
                     } label: {
                         Label(updater.status == .checking ? "检查中…" : "检查更新", systemImage: "arrow.clockwise")
                     }
@@ -1492,11 +1492,14 @@ private struct AboutPane: View {
                 if case .failed(let message) = updater.status {
                     NoteRow(icon: "exclamationmark.triangle", text: message)
                 }
+                if case .downloadFailed(let message) = updater.status {
+                    NoteRow(icon: "exclamationmark.triangle", text: "下载异常：" + message)
+                }
                 SettingRow("自动检查更新", caption: "每天检查一次，安装前会征求你的确认") {
                     ThemedSwitch(isOn: $updater.automaticChecks)
                 }
                 .disabled(unavailable)
-                SettingRow("自动下载并安装", caption: "发现新版本后在后台下载，退出便单时自动安装，不再询问") {
+                SettingRow("自动下载并安装", caption: "发现新版本就下载，工具栏显示进度；下完倒计时 60 秒后安装并重启（番茄钟计时中会等它结束）") {
                     ThemedSwitch(isOn: $updater.automaticDownloads)
                 }
                 .disabled(unavailable || !updater.automaticChecks)
@@ -1556,7 +1559,16 @@ private struct AboutPane: View {
         switch updater.status {
         case .checking: return "正在检查更新…"
         case .upToDate: return ["已是最新版本", lastText].compactMap { $0 }.joined(separator: " · ")
-        case .found(let version): return "发现新版本 " + version
+        case .found(let version): return "发现新版本 \(version)，点主窗口右上角的更新按钮安装"
+        case .downloading(let version, _, _):
+            let percent = updater.status.downloadFraction.map { " \(Int(($0 * 100).rounded(.down)))%" } ?? ""
+            return "正在下载 \(version)\(percent)"
+        case .extracting(let version, _): return "正在准备安装 \(version)"
+        case .countdown(let version, _): return "\(version) 已下载好，即将自动安装"
+        case .waiting(let version, let reason): return "\(version) 已下载好，\(reason)后安装"
+        case .installing(let version): return "正在安装 \(version)"
+        case .installOnQuit(let version): return "\(version) 会在退出便单时安装"
+        case .downloadFailed: return "下载更新包没成功"
         case .failed: return ["检查没成功", lastText].compactMap { $0 }.joined(separator: " · ")
         case .idle: return lastText ?? "尚未检查更新"
         }

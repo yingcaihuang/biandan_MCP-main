@@ -30,6 +30,9 @@ struct MainView: View {
         .searchable(text: $model.searchText, placement: .toolbar, prompt: "搜索标题、备注、子任务")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
+                UpdateToolbarButton()
+            }
+            ToolbarItem(placement: .primaryAction) {
                 PomodoroToolbarButton()
             }
             ToolbarItem(placement: .primaryAction) {
