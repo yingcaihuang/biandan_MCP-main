@@ -39,6 +39,21 @@ final class AppUpdateStatusTests: XCTestCase {
         XCTAssertNil(AppUpdateStatus.upToDate.version)
     }
 
+    func testAutomaticDownloadsDefaultsOn() throws {
+        let suite = "biandan.test.update.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertTrue(AppUpdatePreferences.automaticDownloads(defaults))
+        // 1.3.2 旧键里的「关」不算数。
+        defaults.set(false, forKey: appUpdateLegacyAutoInstallKey)
+        XCTAssertTrue(AppUpdatePreferences.automaticDownloads(defaults))
+        // 自己关掉的会记住。
+        defaults.set(false, forKey: appUpdateAutoInstallKey)
+        XCTAssertFalse(AppUpdatePreferences.automaticDownloads(defaults))
+        defaults.set(true, forKey: appUpdateAutoInstallKey)
+        XCTAssertTrue(AppUpdatePreferences.automaticDownloads(defaults))
+    }
+
     func testStageKeyIgnoresProgress() {
         XCTAssertEqual(AppUpdateStatus.downloading(version: "1", received: 1, expected: 9).stageKey,
                        AppUpdateStatus.downloading(version: "1", received: 5, expected: 9).stageKey)

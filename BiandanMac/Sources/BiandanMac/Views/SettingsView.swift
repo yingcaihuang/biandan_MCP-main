@@ -1495,7 +1495,7 @@ private struct AboutPane: View {
                 if case .downloadFailed(let message) = updater.status {
                     NoteRow(icon: "exclamationmark.triangle", text: "下载异常：" + message)
                 }
-                SettingRow("自动检查更新", caption: "每天检查一次，安装前会征求你的确认") {
+                SettingRow("自动检查更新", caption: "每天检查一次；关掉下面的「自动下载并安装」后，装不装由你决定") {
                     ThemedSwitch(isOn: $updater.automaticChecks)
                 }
                 .disabled(unavailable)

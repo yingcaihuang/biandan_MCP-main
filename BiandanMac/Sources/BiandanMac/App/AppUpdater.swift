@@ -9,14 +9,24 @@ import Sparkle
 // App 只安装签名和 SUPublicEDKey 对得上、并且和当前版本同一个 Developer ID 签名的包。
 // 界面不用 Sparkle 自带的窗口：AppUpdateUserDriver 把每一步报给 AppUpdater，显示在工具栏的更新按钮上
 // （发现新版本、下载进度、下载异常、安装倒计时），点开是更新面板。
-// 「自动下载并安装」是便单自己的开关，不用 Sparkle 的 automaticallyDownloadsUpdates（那个静默下载、拿不到进度）：
+// 「自动下载并安装」是便单自己的开关（默认打开），不用 Sparkle 的 automaticallyDownloadsUpdates（那个静默下载、拿不到进度）：
 // 发现新版本直接下载，下载完倒计时 60 秒后安装并重启；番茄钟计时中先等它结束。
 // 开发版（标识符以 .dev 结尾）、swift run 直接跑的可执行文件、没配置更新地址的包不启用，免得被正式版覆盖。
 
 /// 测试版渠道开关（appcast 里标了 sparkle:channel=beta 的版本只推给打开了它的人）。
 let appUpdateBetaKey = "biandan.update.beta"
-/// 自动下载并安装（便单自己的开关）。
-let appUpdateAutoInstallKey = "biandan.update.autoInstall"
+/// 自动下载并安装（便单自己的开关，没设置过时默认打开）。
+/// 1.3.2 用的是 biandan.update.autoInstall，首次启动时会把 Sparkle 默认的「关」写进去，分不清是不是用户自己关的，
+/// 所以换了键名：大家都从默认打开开始，旧键删掉。
+let appUpdateAutoInstallKey = "biandan.update.autoDownloadInstall"
+let appUpdateLegacyAutoInstallKey = "biandan.update.autoInstall"
+
+enum AppUpdatePreferences {
+    /// 没设置过就是打开。
+    static func automaticDownloads(_ defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: appUpdateAutoInstallKey) as? Bool ?? true
+    }
+}
 
 enum AppUpdateStatus: Equatable {
     case idle
@@ -144,7 +154,7 @@ final class AppUpdater {
     }
 
     /// 发现新版本就下载（工具栏显示进度），下载完倒计时 60 秒后安装并重启。
-    var automaticDownloads = UserDefaults.standard.bool(forKey: appUpdateAutoInstallKey) {
+    var automaticDownloads = AppUpdatePreferences.automaticDownloads() {
         didSet { UserDefaults.standard.set(automaticDownloads, forKey: appUpdateAutoInstallKey) }
     }
 
@@ -196,12 +206,9 @@ final class AppUpdater {
                                  userDriver: driver, delegate: delegate)
         self.updater = updater
         automaticChecks = updater.automaticallyChecksForUpdates
-        // 以前用的是 Sparkle 的静默自动下载：第一次沿用它的开关，之后由便单自己管。
-        if UserDefaults.standard.object(forKey: appUpdateAutoInstallKey) == nil {
-            automaticDownloads = updater.automaticallyDownloadsUpdates
-            UserDefaults.standard.set(automaticDownloads, forKey: appUpdateAutoInstallKey)
-        }
-        updater.automaticallyDownloadsUpdates = false
+        UserDefaults.standard.removeObject(forKey: appUpdateLegacyAutoInstallKey)
+        // Sparkle 自己的静默自动下载一直关着（拿不到进度），下载和安装由便单的开关管。
+        if updater.automaticallyDownloadsUpdates { updater.automaticallyDownloadsUpdates = false }
         lastCheck = updater.lastUpdateCheckDate
     }
 
