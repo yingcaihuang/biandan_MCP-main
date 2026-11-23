@@ -1,5 +1,5 @@
 #!/bin/bash
-# 一条命令发布 Mac 版：公证凭据 → 检查私钥、证书、服务器 → 打 tag → 打包、签名、公证、生成更新文件 → 上传 → 推送。
+# 一条命令发布 Mac 版：公证凭据 → 检查私钥、证书、服务器 → 打 tag → 打包、签名、公证、生成更新文件 → 上传 → 更新介绍页 → 推送。
 #
 # 用法（在 BiandanMac 目录）：
 #   Tools/release.sh 1.3.0                    发布 1.3.0
@@ -8,6 +8,7 @@
 # 其他参数：
 #   --no-push      上传后不推送分支和 tag（默认全部成功后推送到 origin）
 #   --skip-build   不重新打包，用 dist/ 里已有的包（传给 make_update.sh）
+#   --no-site      不更新介绍页 https://www.aigslb.link/biandan/mac/（测试版本来就不更新）
 #
 # .env（已被 git 忽略，权限 600）里的公证凭据按格式识别，行的顺序和前面的说明文字都不要紧：
 #   appleid:<Apple ID 邮箱>
@@ -34,13 +35,15 @@ CHANNEL=""
 PUSH=1
 CHECK=0
 SKIP_BUILD=0
+SITE=1
 while [ $# -gt 0 ]; do
     case "$1" in
         --check) CHECK=1 ;;
         --no-push) PUSH=0 ;;
         --skip-build) SKIP_BUILD=1 ;;
+        --no-site) SITE=0 ;;
         --channel) CHANNEL="${2:?--channel 后面要写渠道名，例如 beta}"; shift ;;
-        -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         [0-9]*) VERSION="$1" ;;
         *) echo "未知参数：$1" >&2; exit 2 ;;
     esac
@@ -162,14 +165,25 @@ echo "已公证，Gatekeeper 检查通过"
 step "5. 上传到 ${UPDATE_HOST}"
 "$HERE/Tools/sync_update.sh" || die "上传失败，没有推送。修好后单独运行 Tools/sync_update.sh，再推送分支和 tag"
 
+# ---- 6. 介绍页 ----
+# 更新包已经上线，介绍页没更新成功只提示，不中断发布。测试版不更新，免得下载按钮指向测试版。
+if [ -n "$CHANNEL" ]; then
+    step "6. 测试版不更新介绍页"
+elif [ "$SITE" = 0 ]; then
+    step "6. 没有更新介绍页（--no-site）。需要时运行：Tools/sync_site.sh"
+else
+    step "6. 更新介绍页"
+    "$HERE/Tools/sync_site.sh" || echo "⚠︎ 介绍页没更新成功（更新包已经上线），稍后单独运行 Tools/sync_site.sh"
+fi
+
 # ---- 6. 推送 ----
 if [ "$PUSH" = 1 ]; then
-    step "6. 推送分支和 ${TAG}"
+    step "7. 推送分支和 ${TAG}"
     BRANCH="$(git branch --show-current)"
     git push origin "$BRANCH"
     git push origin "$TAG"
 else
-    step "6. 没有推送（--no-push）。需要时运行：git push origin $(git branch --show-current) && git push origin ${TAG}"
+    step "7. 没有推送（--no-push）。需要时运行：git push origin $(git branch --show-current) && git push origin ${TAG}"
 fi
 
 echo

@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 其他
+
+- 新增功能介绍页 https://www.aigslb.link/biandan/mac/ ：按大类列出全部功能、可搜索，附各版本更新记录和最新版下载按钮（页面打开时读 appcast.xml，自动指向最新正式版）。`Tools/site_page.py` 从 CHANGELOG 生成页面，`Tools/sync_site.sh` 生成并上传；`Tools/release.sh` 发正式版时自动更新介绍页（测试版不更新，`--no-site` 可跳过）。
+
 ## [1.3.3] - 2026-11-23
 
 ### 改动
