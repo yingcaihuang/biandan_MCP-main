@@ -45,12 +45,12 @@ if [ ! -x "$BIN/generate_appcast" ]; then
     [ -x "$BIN/generate_appcast" ] || { echo "找不到 Sparkle 工具：$BIN" >&2; exit 1; }
 fi
 "$BIN/generate_keys" --account "$ACCOUNT" -p >/dev/null 2>&1 \
-    || { echo "钥匙串里没有账户「$ACCOUNT」的 Sparkle 私钥（从备份导入：generate_keys --account $ACCOUNT -f <文件>）" >&2; exit 1; }
+    || { echo "钥匙串里没有账户「${ACCOUNT}」的 Sparkle 私钥（从备份导入：generate_keys --account $ACCOUNT -f <文件>）" >&2; exit 1; }
 
 if [ "$BUILD" = 1 ]; then
     NOTARIZE="${NOTARIZE:-1}" "$HERE/Tools/build_app.sh"
 fi
-[ -f "dist/$ZIP_NAME" ] || { echo "找不到 dist/$ZIP_NAME（工作区有未提交改动时打出的是 -dev 包）" >&2; exit 1; }
+[ -f "dist/$ZIP_NAME" ] || { echo "找不到 dist/${ZIP_NAME}（工作区有未提交改动时打出的是 -dev 包）" >&2; exit 1; }
 if ! xcrun stapler validate dist/Biandan.app >/dev/null 2>&1; then
     echo "提醒：dist/Biandan.app 没有公证票据，用户首次打开会被 Gatekeeper 拦下。" >&2
 fi

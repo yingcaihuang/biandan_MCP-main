@@ -152,7 +152,7 @@ step "4. 打包、签名、公证，生成 dist/update/（公证通常 1–5 分
 ARGS=()
 [ -n "$CHANNEL" ] && ARGS+=(--channel "$CHANNEL")
 [ "$SKIP_BUILD" = 1 ] && ARGS+=(--skip-build)
-NOTARY_PROFILE="$PROFILE" NOTARIZE=1 "$HERE/Tools/make_update.sh" ${ARGS[@]+"${ARGS[@]}"}
+NOTARY_PROFILE="$PROFILE" NOTARIZE=1 "$HERE/Tools/make_update.sh" ${ARGS[@]+"${ARGS[@]}"} || die "生成更新文件失败，没有上传"
 xcrun stapler validate dist/Biandan.app >/dev/null 2>&1 \
     || die "dist/Biandan.app 没有公证票据，不上传（用户首次打开会被拦下）"
 spctl --assess --type execute dist/Biandan.app 2>/dev/null || die "Gatekeeper 不接受 dist/Biandan.app，不上传"
@@ -160,7 +160,7 @@ echo "已公证，Gatekeeper 检查通过"
 
 # ---- 5. 上传 ----
 step "5. 上传到 ${UPDATE_HOST}"
-"$HERE/Tools/sync_update.sh"
+"$HERE/Tools/sync_update.sh" || die "上传失败，没有推送。修好后单独运行 Tools/sync_update.sh，再推送分支和 tag"
 
 # ---- 6. 推送 ----
 if [ "$PUSH" = 1 ]; then

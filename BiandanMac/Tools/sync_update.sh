@@ -38,7 +38,7 @@ remote_size() { awk -v n="$1" '$1 == n { print $2 }' "$TMP/remote"; }
 
 # ---- 检查本地文件 ----
 APPCAST="$SRC/appcast.xml"
-[ -f "$APPCAST" ] || { echo "没有 $APPCAST，先运行 Tools/make_update.sh" >&2; exit 1; }
+[ -f "$APPCAST" ] || { echo "没有 ${APPCAST}，先运行 Tools/make_update.sh" >&2; exit 1; }
 { head -c 200 "$APPCAST" | grep -q '<?xml' && grep -q '<rss' "$APPCAST"; } \
     || { echo "appcast.xml 不是 RSS" >&2; exit 1; }
 grep -q 'sparkle:edSignature' "$APPCAST" || { echo "appcast.xml 里没有 EdDSA 签名" >&2; exit 1; }
@@ -55,7 +55,7 @@ while IFS= read -r url; do
         *) echo "appcast.xml 里有不在 $BASE/ 下的地址：$url" >&2; exit 1 ;;
     esac
     name="${url#"$BASE"/}"
-    [ -f "$SRC/$name" ] || { echo "appcast.xml 引用了 $name，但 dist/update/ 里没有" >&2; exit 1; }
+    [ -f "$SRC/$name" ] || { echo "appcast.xml 引用了 ${name}，但 dist/update/ 里没有" >&2; exit 1; }
     case "$name" in
         *.zip|*.delta) PACKAGES+=("$name") ;;
         *) NOTES+=("$name") ;;
@@ -78,7 +78,7 @@ for name in "${PACKAGES[@]}"; do
     if [ -z "$remote" ]; then
         UPLOAD+=("$name")
     elif [ "$remote" != "$(local_size "$name")" ]; then
-        echo "服务器上的 $name（$remote 字节）和本地（$(local_size "$name") 字节）不一样。" >&2
+        echo "服务器上的 ${name}（$remote 字节）和本地（$(local_size "$name") 字节）不一样。" >&2
         echo "已发布的包不能替换（用户和 CDN 可能已经拿到旧的），请换一个版本号重新打包。" >&2
         exit 1
     fi
@@ -86,7 +86,7 @@ done
 
 echo "版本 $LATEST → $HOST:$DIR"
 echo "  更新包：${#UPLOAD[@]} 个要上传，$((${#PACKAGES[@]} - ${#UPLOAD[@]})) 个服务器上已有"
-for name in ${UPLOAD[@]+"${UPLOAD[@]}"}; do echo "    + $name（$(local_size "$name") 字节）"; done
+for name in ${UPLOAD[@]+"${UPLOAD[@]}"}; do echo "    + ${name}（$(local_size "$name") 字节）"; done
 echo "  更新说明：${NOTES[*]:-无}"
 echo "  最后：appcast.xml"
 if [ "$DRY" = 1 ]; then
@@ -123,13 +123,13 @@ if curl -fsS "$BASE/appcast.xml" -o "$TMP/public.xml" 2>/dev/null \
     && grep -q "<sparkle:shortVersionString>$LATEST<" "$TMP/public.xml"; then
     echo "==> 公网的 appcast.xml 已经是 $LATEST"
 else
-    echo "提醒：公网的 appcast.xml 还不是 $LATEST，多半是 ESA 还缓存着旧内容。" >&2
+    echo "提醒：公网的 appcast.xml 还不是 ${LATEST}，多半是 ESA 还缓存着旧内容。" >&2
     echo "      到 ESA 控制台按 URL 刷新 $BASE/appcast.xml，或等最多 5 分钟。" >&2
 fi
 if [ -f "$SRC/$ZIP" ]; then
     length="$(curl -fsSI "$BASE/$ZIP" 2>/dev/null | awk -F': ' 'tolower($1) == "content-length" { gsub(/\r/, "", $2); print $2 }' | tail -1)"
     if [ "$length" = "$(local_size "$ZIP")" ]; then
-        echo "==> 公网可以下载 $ZIP（$length 字节）"
+        echo "==> 公网可以下载 ${ZIP}（$length 字节）"
     else
         echo "提醒：公网下载 $ZIP 的大小是「${length:-读不到}」，本地是 $(local_size "$ZIP")，请检查 ESA。" >&2
     fi
