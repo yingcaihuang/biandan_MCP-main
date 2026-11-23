@@ -17,7 +17,7 @@ extension AppModel {
         let active = remindersEnabled && authState == .signedIn && !ReminderScheduler.yieldsToRelease
         let requests = active
             ? ReminderPlanner.plan(snapshot, now: Date(), acknowledged: ReminderAcknowledgements.all()) : []
-        reminders.schedule(requests) { [weak self] count in
+        reminders.schedule(requests.map { self.reminderWithSound($0) }) { [weak self] count in
             self?.scheduledReminderCount = count
         }
         // 稍后提醒只保留仍待完成的实例。
@@ -101,6 +101,16 @@ extension AppModel {
     }
 
     // MARK: 睡眠补发、正式版、补提醒
+
+    /// 按「提醒声音」设置给每条提醒配声音：第几次、四象限、标题和提醒时刻。
+    func reminderWithSound(_ request: ReminderRequest) -> ReminderRequest {
+        var result = request
+        let task = snapshot.item(occurrenceID: request.occurrenceID)?.task
+        let clock = task.flatMap { LocalTime(text: $0.remindTime)?.shortText } ?? ""
+        result.sound = reminderSound.choice(attempt: request.attempt, quadrant: task?.quadrant ?? .neither,
+                                            title: request.title, clock: clock)
+        return result
+    }
 
     /// 电脑睡眠 / 醒来、正式版启动 / 退出时重新处理提醒。
     private func installWorkspaceObservers() {

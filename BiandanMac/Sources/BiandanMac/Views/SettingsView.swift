@@ -735,6 +735,7 @@ private struct AdvancedPane: View {
             }
 
             ReminderSettingsSection()
+            ReminderSoundSettingsSection()
             CaptureSettingsSection()
             AISettingsSection()
                 .id(SettingsAnchor.ai.rawValue)

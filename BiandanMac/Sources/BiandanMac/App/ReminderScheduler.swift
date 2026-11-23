@@ -37,6 +37,8 @@ struct ReminderRequest: Hashable, Sendable {
     var chainKey: String = ""
     /// 1 是第 1 次；2、3 是没处理时追加的。
     var attempt: Int = 1
+    /// 提醒声音，排提醒前按「提醒声音」设置填（见 AppModel.reminderWithSound）。
+    var sound: ReminderSoundChoice = .systemDefault
 
     var subtitle: String {
         switch attempt {
@@ -165,6 +167,9 @@ final class ReminderScheduler {
     /// 最近排进系统的计划（已经到点的保留一天），醒来后据此补发睡眠期间错过的提醒。
     private(set) var lastPlan: [ReminderRequest] = []
     private var sleptAt: Date?
+    /// 已经合成好的声音文件名；本次排定用到的文件，排完后其余的清掉。
+    private var renderedSounds: [ReminderSoundSpec: String] = [:]
+    private var usedSounds: Set<String> = []
 
     nonisolated init() {}
 
@@ -240,7 +245,7 @@ final class ReminderScheduler {
             .filter { pending.contains($0.occurrenceID) }
         var added = 0
         for item in missed {
-            let content = Self.content(item)
+            let content = await self.content(item)
             content.subtitle = item.attempt == 1 ? "电脑睡眠时错过的提醒" : "\(item.subtitle) · 电脑睡眠时错过"
             let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
             let id = "\(Self.latePrefix)\(item.identifier.dropFirst(Self.prefix.count))"
@@ -263,16 +268,34 @@ final class ReminderScheduler {
         lastPlan = due + requests
     }
 
-    private static func content(_ item: ReminderRequest) -> UNMutableNotificationContent {
+    /// 通知内容；声音按设置合成，失败时用系统默认。
+    private func content(_ item: ReminderRequest) async -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = item.title
         content.subtitle = item.subtitle
         content.body = item.body
-        content.sound = .default
+        content.sound = await sound(item.sound)
         content.threadIdentifier = "biandan.reminder"
         content.categoryIdentifier = ReminderAction.categoryID
         content.userInfo = ["occurrenceID": item.occurrenceID, "chainKey": item.chainKey]
         return content
+    }
+
+    private func sound(_ choice: ReminderSoundChoice) async -> UNNotificationSound {
+        guard case .rendered(let spec) = choice else { return .default }
+        if let name = renderedSounds[spec],
+           FileManager.default.fileExists(atPath: ReminderSoundSynth.directory.appendingPathComponent(name).path) {
+            usedSounds.insert(name)
+            return UNNotificationSound(named: UNNotificationSoundName(name))
+        }
+        do {
+            let name = try await Task.detached { try ReminderSoundSynth.render(spec) }.value
+            renderedSounds[spec] = name
+            usedSounds.insert(name)
+            return UNNotificationSound(named: UNNotificationSoundName(name))
+        } catch {
+            return .default
+        }
     }
 
     private func apply(_ requests: [ReminderRequest]) async -> Int {
@@ -287,7 +310,11 @@ final class ReminderScheduler {
         if signature == lastSignature && existing.count == requests.count { return requests.count }
         if !existing.isEmpty { center.removePendingNotificationRequests(withIdentifiers: existing) }
         lastSignature = signature
-        guard !requests.isEmpty else { return 0 }
+        usedSounds = []
+        guard !requests.isEmpty else {
+            ReminderSoundSynth.prune(keeping: [])
+            return 0
+        }
         let settings = await center.notificationSettings()
         guard Self.map(settings.authorizationStatus) == .authorized else {
             lastSignature = nil
@@ -298,13 +325,15 @@ final class ReminderScheduler {
             let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: item.fireDate)
             let trigger = UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)
             do {
-                try await center.add(UNNotificationRequest(identifier: item.identifier, content: Self.content(item),
+                let content = await content(item)
+                try await center.add(UNNotificationRequest(identifier: item.identifier, content: content,
                                                            trigger: trigger))
                 added += 1
             } catch {
                 continue
             }
         }
+        ReminderSoundSynth.prune(keeping: usedSounds)
         return added
     }
 }

@@ -322,6 +322,15 @@ final class AppModel {
     @ObservationIgnored var mcpGeneration: UUID?
 
     // 时间提醒通知（默认关闭）与菜单栏组件（默认显示）
+    /// 提醒声音（来源、语音、文案、四象限）。改了就重新排提醒。
+    var reminderSound: ReminderSoundSettings = ReminderSoundSettings.load() {
+        didSet {
+            guard reminderSound != oldValue else { return }
+            reminderSound.save()
+            scheduleReminders()
+        }
+    }
+
     var remindersEnabled: Bool = UserDefaults.standard.bool(forKey: DefaultsKey.remindersEnabled) {
         didSet {
             guard remindersEnabled != oldValue else { return }
