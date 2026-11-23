@@ -170,7 +170,7 @@ final class ReminderScheduler {
     /// 已经合成好的声音文件名；本次排定用到的文件，排完后其余的清掉。
     private var renderedSounds: [ReminderSoundSpec: String] = [:]
     private var usedSounds: Set<String> = []
-    /// MiniMax 失败后暂停调用到这个时间，期间改用本机语音。
+    /// MiniMax 失败后暂停调用到这个时间，期间只响提示音。
     private var cloudPausedUntil: Date?
 
     nonisolated init() {}
@@ -286,8 +286,9 @@ final class ReminderScheduler {
     private func sound(_ choice: ReminderSoundChoice) async -> UNNotificationSound {
         guard case .rendered(let spec) = choice else { return .default }
         if let name = await renderName(spec) { return UNNotificationSound(named: UNNotificationSoundName(name)) }
-        // MiniMax 失败：先用本机语音念同一句，再不行用系统默认。
-        if spec.engine == .minimax, let name = await renderName(spec.localFallback) {
+        // MiniMax 失败（或还没填 Key）：只响提示音，没有提示音就用系统默认。
+        let fallback = spec.chimeOnly
+        if !spec.text.isEmpty, !fallback.isEmpty, let name = await renderName(fallback) {
             return UNNotificationSound(named: UNNotificationSoundName(name))
         }
         return .default
@@ -301,14 +302,14 @@ final class ReminderScheduler {
             return name
         }
         let cached = manager.fileExists(atPath: directory.appendingPathComponent(ReminderSoundSynth.fileName(spec)).path)
-        if spec.engine == .minimax, !cached, let until = cloudPausedUntil, until > Date() { return nil }
+        if !spec.text.isEmpty, !cached, let until = cloudPausedUntil, until > Date() { return nil }
         do {
             let name = try await Task.detached { try await ReminderSoundSynth.render(spec) }.value
             renderedSounds[spec] = name
             usedSounds.insert(name)
             return name
         } catch {
-            if spec.engine == .minimax { cloudPausedUntil = Date().addingTimeInterval(600) }
+            if !spec.text.isEmpty { cloudPausedUntil = Date().addingTimeInterval(600) }
             return nil
         }
     }

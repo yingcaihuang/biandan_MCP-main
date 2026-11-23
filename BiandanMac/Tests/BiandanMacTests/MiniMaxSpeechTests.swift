@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import XCTest
 @testable import BiandanMac
@@ -13,8 +14,7 @@ final class MiniMaxSpeechTests: XCTestCase {
     }
 
     func testRequestBody() {
-        let spec = ReminderSoundSpec(text: "请及时处理", voice: "Cantonese_GentleLady", rate: 230, chime: "",
-                                     engine: .minimax, model: "")
+        let spec = ReminderSoundSpec(text: "请及时处理", voice: "Cantonese_GentleLady", rate: 230, chime: "", model: "")
         let body = MiniMaxSpeech.requestBody(spec)
         XCTAssertEqual(body["model"] as? String, MiniMaxSpeech.defaultModel)
         XCTAssertEqual(body["text"] as? String, "请及时处理")
@@ -29,7 +29,7 @@ final class MiniMaxSpeechTests: XCTestCase {
         XCTAssertEqual(audio?["channel"] as? Int, 1)
         XCTAssertEqual(audio?["sample_rate"] as? Int, 44_100)
         // 没选音色用默认，普通话。
-        let plain = MiniMaxSpeech.requestBody(ReminderSoundSpec(text: "x", voice: "", rate: 190, chime: "", engine: .minimax))
+        let plain = MiniMaxSpeech.requestBody(ReminderSoundSpec(text: "x", voice: "", rate: 190, chime: ""))
         XCTAssertEqual((plain["voice_setting"] as? [String: Any])?["voice_id"] as? String, MiniMaxSpeech.defaultVoice)
         XCTAssertEqual(plain["language_boost"] as? String, "Chinese")
         XCTAssertTrue(JSONSerialization.isValidJSONObject(plain))
@@ -69,34 +69,50 @@ final class MiniMaxSpeechTests: XCTestCase {
     func testSettingsUseMiniMax() {
         var settings = ReminderSoundSettings()
         settings.source = .voice
-        settings.engine = .minimax
         settings.style.cloudVoice = "Chinese (Mandarin)_Reliable_Executive"
         guard case .rendered(let spec) = settings.choice(attempt: 1, quadrant: .neither, title: "", clock: "") else {
             return XCTFail("AI 语音应合成声音")
         }
-        XCTAssertEqual(spec.engine, .minimax)
         XCTAssertEqual(spec.voice, "Chinese (Mandarin)_Reliable_Executive")
         XCTAssertEqual(spec.model, MiniMaxSpeech.defaultModel)
+        XCTAssertEqual(spec.rate, 190)
         XCTAssertEqual(spec.text, "你有新的日程需要关注，请及时处理")
-        // 同一句话换引擎是不同的文件；退回本机时用婷婷。
-        XCTAssertNotEqual(ReminderSoundSynth.fileName(spec), ReminderSoundSynth.fileName(spec.localFallback))
-        XCTAssertEqual(spec.localFallback.engine, .local)
-        XCTAssertEqual(spec.localFallback.voice, "")
-        XCTAssertEqual(spec.localFallback.text, spec.text)
-        // 本机引擎仍用本机语音。
-        settings.engine = .local
-        settings.style.voice = "Flo"
-        guard case .rendered(let local) = settings.choice(attempt: 1, quadrant: .neither, title: "", clock: "") else {
-            return XCTFail("AI 语音应合成声音")
-        }
-        XCTAssertEqual(local.engine, .local)
-        XCTAssertEqual(local.voice, "Flo")
+        // MiniMax 失败时只响提示音。
+        XCTAssertEqual(spec.chimeOnly, ReminderSoundSpec(text: "", voice: "", rate: 0, chime: "Glass"))
+        XCTAssertNotEqual(ReminderSoundSynth.fileName(spec), ReminderSoundSynth.fileName(spec.chimeOnly))
+        var silent = spec
+        silent.chime = ""
+        XCTAssertTrue(silent.chimeOnly.isEmpty)
     }
 
-    func testOldSettingsDecodeAsLocal() throws {
-        let old = try JSONDecoder().decode(ReminderSoundSettings.self, from: Data(#"{"source":"voice","style":{"voice":"Flo"}}"#.utf8))
-        XCTAssertEqual(old.engine, .local)
+    /// 以前选了「本机」引擎的设置：升级后改用 MiniMax 的默认音色，语速和提示音不变。
+    func testOldLocalEngineSettingsUseMiniMax() throws {
+        let json = #"{"source":"voice","engine":"local","style":{"voice":"Flo","rate":230,"chime":"Ping"}}"#
+        let old = try JSONDecoder().decode(ReminderSoundSettings.self, from: Data(json.utf8))
+        XCTAssertEqual(old.source, .voice)
         XCTAssertEqual(old.cloudModel, MiniMaxSpeech.defaultModel)
-        XCTAssertEqual(old.style.cloudVoice, MiniMaxSpeech.defaultVoice)
+        XCTAssertEqual(old.style, ReminderVoiceStyle(rate: 230, chime: "Ping", cloudVoice: MiniMaxSpeech.defaultVoice))
+        guard case .rendered(let spec) = old.choice(attempt: 1, quadrant: .neither, title: "", clock: "") else {
+            return XCTFail("AI 语音应合成声音")
+        }
+        XCTAssertEqual(spec.voice, MiniMaxSpeech.defaultVoice)
+        // 再存一次就没有 engine 和旧的语音名了。
+        let saved = String(decoding: try JSONEncoder().encode(old), as: UTF8.self)
+        XCTAssertFalse(saved.contains("engine"))
+        XCTAssertFalse(saved.contains("Flo"))
+    }
+
+    /// 文件名沿用以前的写法：已经合成好的 MiniMax 声音和提示音升级后照常用，不重新计费。
+    func testFileNameKeepsOldCacheKeys() {
+        func expected(_ key: String) -> String {
+            let digest = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
+            return ReminderSoundSynth.filePrefix + digest.prefix(16) + ".caf"
+        }
+        let speech = ReminderSoundSpec(text: "请及时处理", voice: "Chinese (Mandarin)_News_Anchor", rate: 190,
+                                       chime: "Glass", model: "speech-2.8-hd")
+        XCTAssertEqual(ReminderSoundSynth.fileName(speech),
+                       expected("v2|minimax|speech-2.8-hd|请及时处理|Chinese (Mandarin)_News_Anchor|190|Glass"))
+        let chime = ReminderSoundSpec(text: "", voice: "", rate: 0, chime: "Hero")
+        XCTAssertEqual(ReminderSoundSynth.fileName(chime), expected("v2|local||||0|Hero"))
     }
 }

@@ -54,11 +54,11 @@ final class ReminderSoundTests: XCTestCase {
         XCTAssertEqual(settings.style(for: .importantUrgent).chime, "Hero")
         XCTAssertEqual(settings.style(for: .neither), settings.style)
         settings.quadrantStyles[ReminderSoundSettings.quadrantKey(.neither)] =
-            ReminderVoiceStyle(voice: "Flo (中文（中国大陆）)", rate: 150, chime: "")
+            ReminderVoiceStyle(rate: 150, chime: "", cloudVoice: "Chinese (Mandarin)_Lyrical_Voice")
         guard case .rendered(let spec) = settings.choice(attempt: 1, quadrant: .neither, title: "", clock: "") else {
             return XCTFail("AI 语音应合成声音")
         }
-        XCTAssertEqual(spec.voice, "Flo (中文（中国大陆）)")
+        XCTAssertEqual(spec.voice, "Chinese (Mandarin)_Lyrical_Voice")
         XCTAssertEqual(spec.rate, 150)
         XCTAssertEqual(spec.chime, "")
         // 关掉四象限就都用默认。
@@ -80,7 +80,7 @@ final class ReminderSoundTests: XCTestCase {
         var settings = ReminderSoundSettings()
         settings.source = .voice
         settings.speakTitle = true
-        settings.quadrantStyles["importantUrgent"] = ReminderVoiceStyle(voice: "Reed", rate: 270, chime: "Ping")
+        settings.quadrantStyles["importantUrgent"] = ReminderVoiceStyle(rate: 270, chime: "Ping", cloudVoice: "Chinese (Mandarin)_HK_Flight_Attendant")
         let data = try JSONEncoder().encode(settings)
         XCTAssertEqual(try JSONDecoder().decode(ReminderSoundSettings.self, from: data), settings)
         // 旧版本没有的字段用默认值，不认识的来源也不报错。
@@ -93,26 +93,10 @@ final class ReminderSoundTests: XCTestCase {
         XCTAssertEqual(unknown.source, .systemDefault)
     }
 
-    func testVoiceListParsing() {
-        let output = """
-        Albert              en_US    # Hello! My name is Albert.
-        Eddy (中文（台湾）)       zh_TW    # 你好，我叫Eddy。
-        Eddy (中文（中国大陆）)     zh_CN    # 你好！我叫Eddy。
-        Sinji               zh_HK    # 你好！我叫善怡。
-        Tingting (中文（中国大陆）) zh_CN    # 你好！我叫婷婷。
-        Tingting (中文（中国大陆）) zh_CN    # 你好！我叫婷婷。
-        """
-        let voices = ReminderVoices.parse(output)
-        XCTAssertEqual(voices.map(\.name), ["Eddy (中文（中国大陆）)", "Tingting (中文（中国大陆）)", "Eddy (中文（台湾）)", "Sinji"])
-        XCTAssertEqual(voices.first?.title, "Eddy（普通话）")
-        XCTAssertEqual(voices.last?.title, "Sinji（粤语）")
-    }
-
-    /// 真的合成一段：提示音 + 语音，写成单声道 44.1kHz 的 .caf，再删掉。
-    func testRenderChimeAndSpeech() async throws {
-        try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: "/usr/bin/say"), "没有 say")
-        try XCTSkipUnless(FileManager.default.fileExists(atPath: ReminderSoundSynth.chimeURL("Glass").path), "没有 Glass")
-        let spec = ReminderSoundSpec(text: "测试提醒 \(UUID().uuidString.prefix(4))", voice: "", rate: 230, chime: "Glass")
+    /// 真的合成一段只有提示音的声音：单声道 44.1kHz 的 .caf，再删掉。有文字的要调 MiniMax，测试里不联网。
+    func testRenderChimeOnly() async throws {
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: ReminderSoundSynth.chimeURL("Hero").path), "没有 Hero")
+        let spec = ReminderSoundSpec(text: "", voice: "", rate: 0, chime: "Hero")
         let name = try await ReminderSoundSynth.render(spec)
         let url = ReminderSoundSynth.directory.appendingPathComponent(name)
         defer { try? FileManager.default.removeItem(at: url) }
@@ -120,14 +104,11 @@ final class ReminderSoundTests: XCTestCase {
         XCTAssertEqual(file.fileFormat.channelCount, 1)
         XCTAssertEqual(file.fileFormat.sampleRate, ReminderSoundSynth.sampleRate)
         let seconds = Double(file.length) / file.fileFormat.sampleRate
-        XCTAssertGreaterThan(seconds, 1)
+        XCTAssertGreaterThan(seconds, 0.1)
         XCTAssertLessThanOrEqual(seconds, ReminderSoundSynth.maxSeconds)
         // 第二次直接用已有文件。
         let again = try await ReminderSoundSynth.render(spec)
         XCTAssertEqual(again, name)
-        // 只有提示音也行。
-        let chimeOnly = try await ReminderSoundSynth.render(ReminderSoundSpec(text: "", voice: "", rate: 0, chime: "Hero"))
-        try? FileManager.default.removeItem(at: ReminderSoundSynth.directory.appendingPathComponent(chimeOnly))
     }
 
     func testCopywriterParsing() {

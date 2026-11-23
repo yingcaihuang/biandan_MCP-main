@@ -3,9 +3,9 @@ import AVFoundation
 import CryptoKit
 import Foundation
 
-// MARK: - 提醒声音：系统默认、系统音效，或用本机语音把一句话合成为提醒音
+// MARK: - 提醒声音：系统默认、系统音效，或用 MiniMax 把一句话合成为提醒音
 //
-// 通知只能播放 ~/Library/Sounds（或 App 包里）的声音文件，所以先用 /usr/bin/say 合成，
+// 通知只能播放 ~/Library/Sounds（或 App 包里）的声音文件，所以先用 MiniMax 在线合成，
 // 前面拼上一声系统提示音，转成 .caf 存进 ~/Library/Sounds，排提醒时按文件名指定。
 // 文件名带内容指纹：设置变了就是新文件（系统会缓存同名声音）；不再用的文件在排提醒时清掉。
 // 通知声音最长 30 秒，超过系统会改放默认声音，这里截到 29 秒。
@@ -22,41 +22,41 @@ enum ReminderSoundSource: String, CaseIterable, Codable, Sendable {
     }
 }
 
-/// 一种念法：语音、语速（每分钟字词数，传给 say -r）、说话前的提示音（空表示不加）。
+/// 一种念法：MiniMax 音色、语速档位（190 为正常，换算成 MiniMax 的 speed）、说话前的提示音（空表示不加）。
+/// 旧版本存的语音名（voice）不再读取。
 struct ReminderVoiceStyle: Codable, Hashable, Sendable {
-    var voice: String = ""
     var rate: Int = 190
     var chime: String = "Glass"
-    /// 语音引擎为 MiniMax 时用的音色 ID。
+    /// MiniMax 的音色 ID。
     var cloudVoice: String = MiniMaxSpeech.defaultVoice
 
     static let rates: [(value: Int, title: String)] = [(150, "慢"), (190, "正常"), (230, "快"), (270, "很快")]
 
-    private enum CodingKeys: String, CodingKey { case voice, rate, chime, cloudVoice }
+    private enum CodingKeys: String, CodingKey { case rate, chime, cloudVoice }
 }
 
 extension ReminderVoiceStyle {
     init(from decoder: Decoder) throws {
         self.init()
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        if let value = try? c.decodeIfPresent(String.self, forKey: .voice) { voice = value }
         if let value = try? c.decodeIfPresent(Int.self, forKey: .rate) { rate = value }
         if let value = try? c.decodeIfPresent(String.self, forKey: .chime) { chime = value }
         if let value = try? c.decodeIfPresent(String.self, forKey: .cloudVoice), !value.isEmpty { cloudVoice = value }
     }
 }
 
-/// 要合成的一段声音。text 为空时只有提示音。
+/// 要合成的一段声音。text 为空时只有提示音；有文字时用 MiniMax 合成，voice 是音色 ID，model 是模型。
 struct ReminderSoundSpec: Hashable, Sendable {
     var text: String
     var voice: String
     var rate: Int
     var chime: String
-    /// 本机 say 或 MiniMax 在线合成；MiniMax 时 voice 是音色 ID。
-    var engine: ReminderVoiceEngine = .local
     var model: String = ""
 
     var isEmpty: Bool { text.isEmpty && chime.isEmpty }
+
+    /// MiniMax 合成失败时的退路：只响提示音（没有提示音时是空的，改用系统默认声音）。
+    var chimeOnly: ReminderSoundSpec { ReminderSoundSpec(text: "", voice: "", rate: 0, chime: chime) }
 }
 
 enum ReminderSoundChoice: Hashable, Sendable {
@@ -83,11 +83,11 @@ struct ReminderSoundSettings: Codable, Hashable, Sendable {
     var titleTemplates = ReminderSoundSettings.defaultTemplates
     var perQuadrant = false
     var quadrantStyles: [String: ReminderVoiceStyle] = [:]
-    var engine: ReminderVoiceEngine = .local
     var cloudModel = MiniMaxSpeech.defaultModel
 
+    /// 以前的「语音引擎」（engine）已经去掉，AI 语音一律用 MiniMax；旧设置里的 engine 不再读取。
     private enum CodingKeys: String, CodingKey {
-        case source, systemSound, style, texts, speakTitle, titleTemplates, perQuadrant, quadrantStyles, engine, cloudModel
+        case source, systemSound, style, texts, speakTitle, titleTemplates, perQuadrant, quadrantStyles, cloudModel
     }
 
     static func quadrantKey(_ quadrant: Quadrant) -> String { String(describing: quadrant) }
@@ -136,14 +136,8 @@ struct ReminderSoundSettings: Codable, Hashable, Sendable {
     }
 
     func spec(attempt: Int, style: ReminderVoiceStyle, title: String, clock: String) -> ReminderSoundSpec {
-        let text = spokenText(attempt: attempt, title: title, clock: clock)
-        switch engine {
-        case .local:
-            return ReminderSoundSpec(text: text, voice: style.voice, rate: style.rate, chime: style.chime)
-        case .minimax:
-            return ReminderSoundSpec(text: text, voice: style.cloudVoice, rate: style.rate, chime: style.chime,
-                                     engine: .minimax, model: cloudModel)
-        }
+        ReminderSoundSpec(text: spokenText(attempt: attempt, title: title, clock: clock), voice: style.cloudVoice,
+                          rate: style.rate, chime: style.chime, model: cloudModel)
     }
 
     /// 一条提醒用什么声音。
@@ -189,7 +183,6 @@ extension ReminderSoundSettings {
         if let value = try? c.decodeIfPresent([String: ReminderVoiceStyle].self, forKey: .quadrantStyles) {
             quadrantStyles = value
         }
-        if let value = try? c.decodeIfPresent(ReminderVoiceEngine.self, forKey: .engine) { engine = value }
         if let value = try? c.decodeIfPresent(String.self, forKey: .cloudModel), !value.isEmpty { cloudModel = value }
     }
 }
@@ -226,9 +219,11 @@ enum ReminderSoundSynth {
         URL(fileURLWithPath: "/System/Library/Sounds/\(name).aiff")
     }
 
-    /// 内容相同文件名就相同；改了文字、语音、语速或提示音就是新文件。
+    /// 内容相同文件名就相同；改了文字、音色、模型、语速或提示音就是新文件。
+    /// 第二段沿用以前的写法（有文字是 minimax，只有提示音是 local），已经合成好的声音升级后照常用，不用重新计费。
     static func fileName(_ spec: ReminderSoundSpec) -> String {
-        let key = "v2|\(spec.engine.rawValue)|\(spec.model)|\(spec.text)|\(spec.voice)|\(spec.rate)|\(spec.chime)"
+        let kind = spec.text.isEmpty ? "local" : "minimax"
+        let key = "v2|\(kind)|\(spec.model)|\(spec.text)|\(spec.voice)|\(spec.rate)|\(spec.chime)"
         let digest = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
         return filePrefix + digest.prefix(16) + ".caf"
     }
@@ -250,12 +245,7 @@ enum ReminderSoundSynth {
             if !spec.text.isEmpty { parts.append(try silence(0.15, format: format)) }
         }
         if !spec.text.isEmpty {
-            let speech: URL
-            if spec.engine == .minimax {
-                speech = try await MiniMaxSpeech.synthesizeFile(spec)
-            } else {
-                speech = try speak(spec)
-            }
+            let speech = try await MiniMaxSpeech.synthesizeFile(spec)
             defer { try? manager.removeItem(at: speech) }
             parts.append(try load(speech, as: format))
         }
@@ -281,40 +271,6 @@ enum ReminderSoundSynth {
     }
 
     // MARK: 内部
-
-    /// 用 say 把文字念成 AIFF。指定的语音不可用时退回婷婷，再退回系统默认语音。
-    private static func speak(_ spec: ReminderSoundSpec) throws -> URL {
-        let manager = FileManager.default
-        let input = manager.temporaryDirectory.appendingPathComponent("biandan-say-\(UUID().uuidString).txt")
-        let output = manager.temporaryDirectory.appendingPathComponent("biandan-say-\(UUID().uuidString).aiff")
-        try spec.text.write(to: input, atomically: true, encoding: .utf8)
-        defer { try? manager.removeItem(at: input) }
-        var voices = [spec.voice.isEmpty ? "Tingting" : spec.voice]
-        if voices[0] != "Tingting" { voices.append("Tingting") }
-        voices.append("")
-        for voice in voices where try runSay(voice: voice, rate: spec.rate, input: input, output: output) {
-            return output
-        }
-        throw ReminderSoundError(message: "本机语音合成失败")
-    }
-
-    private static func runSay(voice: String, rate: Int, input: URL, output: URL) throws -> Bool {
-        try? FileManager.default.removeItem(at: output)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/say")
-        var arguments = ["-o", output.path, "-f", input.path]
-        if !voice.isEmpty { arguments += ["-v", voice] }
-        if rate > 0 { arguments += ["-r", String(rate)] }
-        process.arguments = arguments
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0,
-              let size = (try? FileManager.default.attributesOfItem(atPath: output.path))?[.size] as? NSNumber,
-              size.intValue > 0 else { return false }
-        return true
-    }
 
     /// 读一个音频文件并转成目标格式（单声道、44.1kHz、Float32）。
     private static func load(_ url: URL, as format: AVAudioFormat) throws -> AVAudioPCMBuffer {
@@ -389,64 +345,6 @@ enum ReminderSoundSynth {
     }
 }
 
-// MARK: - 本机中文语音
-
-struct ReminderVoice: Hashable, Identifiable, Sendable {
-    /// 传给 say -v 的完整名字，如「Eddy (中文（中国大陆）)」。
-    let name: String
-    let locale: String
-    var id: String { name }
-
-    var title: String {
-        let short = name.components(separatedBy: " (").first ?? name
-        let region: String
-        switch locale {
-        case "zh_CN": region = "普通话"
-        case "zh_TW": region = "台湾"
-        case "zh_HK": region = "粤语"
-        default: region = locale
-        }
-        return "\(short)（\(region)）"
-    }
-}
-
-enum ReminderVoices {
-    /// 解析 `say -v ?` 的输出，只留中文语音，普通话在前，同名只留一个。
-    static func parse(_ output: String) -> [ReminderVoice] {
-        var seen = Set<String>()
-        var result: [ReminderVoice] = []
-        for line in output.split(separator: "\n") {
-            let left = line.components(separatedBy: "#").first ?? ""
-            var tokens = left.trimmingCharacters(in: .whitespaces).components(separatedBy: " ").filter { !$0.isEmpty }
-            guard let locale = tokens.popLast(), locale.hasPrefix("zh_") else { continue }
-            let name = tokens.joined(separator: " ")
-            guard !name.isEmpty, seen.insert(name).inserted else { continue }
-            result.append(ReminderVoice(name: name, locale: locale))
-        }
-        let order = ["zh_CN": 0, "zh_TW": 1, "zh_HK": 2]
-        return result.enumerated()
-            .sorted { (order[$0.element.locale] ?? 9, $0.offset) < (order[$1.element.locale] ?? 9, $1.offset) }
-            .map(\.element)
-    }
-
-    static func load() async -> [ReminderVoice] {
-        await Task.detached { parse(list()) }.value
-    }
-
-    private static func list() -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/say")
-        process.arguments = ["-v", "?"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return "" }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        return String(data: data, encoding: .utf8) ?? ""
-    }
-}
-
 // MARK: - 试听
 
 @MainActor
@@ -477,7 +375,7 @@ enum ReminderSoundPlayer {
     }
 }
 
-// MARK: - AI 写文案（DeepSeek，只生成文字，语音仍在本机合成）
+// MARK: - AI 写文案（DeepSeek，只生成文字，语音由 MiniMax 合成）
 
 enum ReminderCopyStyle: String, CaseIterable, Sendable {
     case formal, casual, humor, gentle

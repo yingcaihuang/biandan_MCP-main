@@ -7,17 +7,6 @@ import Security
 //      https://platform.minimax.cn/docs/api-reference/voice-management-get.md（POST /v1/get_voice）
 // API Key 存在钥匙串里，不写进任何文件。只发送要念的那一句话。
 
-enum ReminderVoiceEngine: String, CaseIterable, Codable, Sendable {
-    case local, minimax
-
-    var title: String {
-        switch self {
-        case .local: return "本机"
-        case .minimax: return "MiniMax"
-        }
-    }
-}
-
 // MARK: - API Key（钥匙串）
 
 enum MiniMaxKeyStore {
@@ -76,13 +65,6 @@ struct MiniMaxVoice: Hashable, Identifiable, Sendable {
     }
 }
 
-extension ReminderSoundSpec {
-    /// MiniMax 失败时改用本机语音念同一句（婷婷）。
-    var localFallback: ReminderSoundSpec {
-        ReminderSoundSpec(text: text, voice: "", rate: rate, chime: chime)
-    }
-}
-
 // MARK: - 请求
 
 enum MiniMaxSpeech {
@@ -105,7 +87,7 @@ enum MiniMaxSpeech {
         return URLSession(configuration: configuration)
     }()
 
-    /// 本机语速（每分钟字词数，190 为正常）换成 MiniMax 的 speed（0.5–2，1 为正常）。
+    /// 语速档位（150 / 190 / 230 / 270，190 为正常）换成 MiniMax 的 speed（0.5–2，1 为正常）。
     static func speed(forRate rate: Int) -> Double {
         guard rate > 0 else { return 1 }
         return min(max((Double(rate) / 190 * 10).rounded() / 10, 0.5), 2)
