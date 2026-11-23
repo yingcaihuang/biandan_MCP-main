@@ -170,6 +170,8 @@ final class ReminderScheduler {
     /// 已经合成好的声音文件名；本次排定用到的文件，排完后其余的清掉。
     private var renderedSounds: [ReminderSoundSpec: String] = [:]
     private var usedSounds: Set<String> = []
+    /// MiniMax 失败后暂停调用到这个时间，期间改用本机语音。
+    private var cloudPausedUntil: Date?
 
     nonisolated init() {}
 
@@ -283,18 +285,31 @@ final class ReminderScheduler {
 
     private func sound(_ choice: ReminderSoundChoice) async -> UNNotificationSound {
         guard case .rendered(let spec) = choice else { return .default }
-        if let name = renderedSounds[spec],
-           FileManager.default.fileExists(atPath: ReminderSoundSynth.directory.appendingPathComponent(name).path) {
-            usedSounds.insert(name)
+        if let name = await renderName(spec) { return UNNotificationSound(named: UNNotificationSoundName(name)) }
+        // MiniMax 失败：先用本机语音念同一句，再不行用系统默认。
+        if spec.engine == .minimax, let name = await renderName(spec.localFallback) {
             return UNNotificationSound(named: UNNotificationSoundName(name))
         }
+        return .default
+    }
+
+    private func renderName(_ spec: ReminderSoundSpec) async -> String? {
+        let directory = ReminderSoundSynth.directory
+        let manager = FileManager.default
+        if let name = renderedSounds[spec], manager.fileExists(atPath: directory.appendingPathComponent(name).path) {
+            usedSounds.insert(name)
+            return name
+        }
+        let cached = manager.fileExists(atPath: directory.appendingPathComponent(ReminderSoundSynth.fileName(spec)).path)
+        if spec.engine == .minimax, !cached, let until = cloudPausedUntil, until > Date() { return nil }
         do {
-            let name = try await Task.detached { try ReminderSoundSynth.render(spec) }.value
+            let name = try await Task.detached { try await ReminderSoundSynth.render(spec) }.value
             renderedSounds[spec] = name
             usedSounds.insert(name)
-            return UNNotificationSound(named: UNNotificationSoundName(name))
+            return name
         } catch {
-            return .default
+            if spec.engine == .minimax { cloudPausedUntil = Date().addingTimeInterval(600) }
+            return nil
         }
     }
 

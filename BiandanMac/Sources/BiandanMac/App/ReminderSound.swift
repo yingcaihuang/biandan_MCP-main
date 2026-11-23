@@ -27,10 +27,12 @@ struct ReminderVoiceStyle: Codable, Hashable, Sendable {
     var voice: String = ""
     var rate: Int = 190
     var chime: String = "Glass"
+    /// 语音引擎为 MiniMax 时用的音色 ID。
+    var cloudVoice: String = MiniMaxSpeech.defaultVoice
 
     static let rates: [(value: Int, title: String)] = [(150, "慢"), (190, "正常"), (230, "快"), (270, "很快")]
 
-    private enum CodingKeys: String, CodingKey { case voice, rate, chime }
+    private enum CodingKeys: String, CodingKey { case voice, rate, chime, cloudVoice }
 }
 
 extension ReminderVoiceStyle {
@@ -40,6 +42,7 @@ extension ReminderVoiceStyle {
         if let value = try? c.decodeIfPresent(String.self, forKey: .voice) { voice = value }
         if let value = try? c.decodeIfPresent(Int.self, forKey: .rate) { rate = value }
         if let value = try? c.decodeIfPresent(String.self, forKey: .chime) { chime = value }
+        if let value = try? c.decodeIfPresent(String.self, forKey: .cloudVoice), !value.isEmpty { cloudVoice = value }
     }
 }
 
@@ -49,6 +52,9 @@ struct ReminderSoundSpec: Hashable, Sendable {
     var voice: String
     var rate: Int
     var chime: String
+    /// 本机 say 或 MiniMax 在线合成；MiniMax 时 voice 是音色 ID。
+    var engine: ReminderVoiceEngine = .local
+    var model: String = ""
 
     var isEmpty: Bool { text.isEmpty && chime.isEmpty }
 }
@@ -77,9 +83,11 @@ struct ReminderSoundSettings: Codable, Hashable, Sendable {
     var titleTemplates = ReminderSoundSettings.defaultTemplates
     var perQuadrant = false
     var quadrantStyles: [String: ReminderVoiceStyle] = [:]
+    var engine: ReminderVoiceEngine = .local
+    var cloudModel = MiniMaxSpeech.defaultModel
 
     private enum CodingKeys: String, CodingKey {
-        case source, systemSound, style, texts, speakTitle, titleTemplates, perQuadrant, quadrantStyles
+        case source, systemSound, style, texts, speakTitle, titleTemplates, perQuadrant, quadrantStyles, engine, cloudModel
     }
 
     static func quadrantKey(_ quadrant: Quadrant) -> String { String(describing: quadrant) }
@@ -128,8 +136,14 @@ struct ReminderSoundSettings: Codable, Hashable, Sendable {
     }
 
     func spec(attempt: Int, style: ReminderVoiceStyle, title: String, clock: String) -> ReminderSoundSpec {
-        ReminderSoundSpec(text: spokenText(attempt: attempt, title: title, clock: clock),
-                          voice: style.voice, rate: style.rate, chime: style.chime)
+        let text = spokenText(attempt: attempt, title: title, clock: clock)
+        switch engine {
+        case .local:
+            return ReminderSoundSpec(text: text, voice: style.voice, rate: style.rate, chime: style.chime)
+        case .minimax:
+            return ReminderSoundSpec(text: text, voice: style.cloudVoice, rate: style.rate, chime: style.chime,
+                                     engine: .minimax, model: cloudModel)
+        }
     }
 
     /// 一条提醒用什么声音。
@@ -175,6 +189,8 @@ extension ReminderSoundSettings {
         if let value = try? c.decodeIfPresent([String: ReminderVoiceStyle].self, forKey: .quadrantStyles) {
             quadrantStyles = value
         }
+        if let value = try? c.decodeIfPresent(ReminderVoiceEngine.self, forKey: .engine) { engine = value }
+        if let value = try? c.decodeIfPresent(String.self, forKey: .cloudModel), !value.isEmpty { cloudModel = value }
     }
 }
 
@@ -212,13 +228,13 @@ enum ReminderSoundSynth {
 
     /// 内容相同文件名就相同；改了文字、语音、语速或提示音就是新文件。
     static func fileName(_ spec: ReminderSoundSpec) -> String {
-        let key = "v1|\(spec.text)|\(spec.voice)|\(spec.rate)|\(spec.chime)"
+        let key = "v2|\(spec.engine.rawValue)|\(spec.model)|\(spec.text)|\(spec.voice)|\(spec.rate)|\(spec.chime)"
         let digest = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
         return filePrefix + digest.prefix(16) + ".caf"
     }
 
     /// 合成并存进 ~/Library/Sounds，返回文件名（已经有了就直接返回）。耗时，不要在主线程调用。
-    static func render(_ spec: ReminderSoundSpec) throws -> String {
+    static func render(_ spec: ReminderSoundSpec) async throws -> String {
         guard !spec.isEmpty else { throw ReminderSoundError(message: "没有要播放的内容") }
         let name = fileName(spec)
         let target = directory.appendingPathComponent(name)
@@ -234,7 +250,12 @@ enum ReminderSoundSynth {
             if !spec.text.isEmpty { parts.append(try silence(0.15, format: format)) }
         }
         if !spec.text.isEmpty {
-            let speech = try speak(spec)
+            let speech: URL
+            if spec.engine == .minimax {
+                speech = try await MiniMaxSpeech.synthesizeFile(spec)
+            } else {
+                speech = try speak(spec)
+            }
             defer { try? manager.removeItem(at: speech) }
             parts.append(try load(speech, as: format))
         }
@@ -442,7 +463,7 @@ enum ReminderSoundPlayer {
             return nil
         case .rendered(let spec):
             do {
-                let name = try await Task.detached { try ReminderSoundSynth.render(spec) }.value
+                let name = try await Task.detached { try await ReminderSoundSynth.render(spec) }.value
                 let url = ReminderSoundSynth.directory.appendingPathComponent(name)
                 guard let sound = NSSound(contentsOf: url, byReference: true) else { return "读不了生成的声音文件" }
                 current = sound

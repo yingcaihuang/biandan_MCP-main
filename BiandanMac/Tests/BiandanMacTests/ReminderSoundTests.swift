@@ -109,11 +109,11 @@ final class ReminderSoundTests: XCTestCase {
     }
 
     /// 真的合成一段：提示音 + 语音，写成单声道 44.1kHz 的 .caf，再删掉。
-    func testRenderChimeAndSpeech() throws {
+    func testRenderChimeAndSpeech() async throws {
         try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: "/usr/bin/say"), "没有 say")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: ReminderSoundSynth.chimeURL("Glass").path), "没有 Glass")
         let spec = ReminderSoundSpec(text: "测试提醒 \(UUID().uuidString.prefix(4))", voice: "", rate: 230, chime: "Glass")
-        let name = try ReminderSoundSynth.render(spec)
+        let name = try await ReminderSoundSynth.render(spec)
         let url = ReminderSoundSynth.directory.appendingPathComponent(name)
         defer { try? FileManager.default.removeItem(at: url) }
         let file = try AVAudioFile(forReading: url)
@@ -123,9 +123,10 @@ final class ReminderSoundTests: XCTestCase {
         XCTAssertGreaterThan(seconds, 1)
         XCTAssertLessThanOrEqual(seconds, ReminderSoundSynth.maxSeconds)
         // 第二次直接用已有文件。
-        XCTAssertEqual(try ReminderSoundSynth.render(spec), name)
+        let again = try await ReminderSoundSynth.render(spec)
+        XCTAssertEqual(again, name)
         // 只有提示音也行。
-        let chimeOnly = try ReminderSoundSynth.render(ReminderSoundSpec(text: "", voice: "", rate: 0, chime: "Hero"))
+        let chimeOnly = try await ReminderSoundSynth.render(ReminderSoundSpec(text: "", voice: "", rate: 0, chime: "Hero"))
         try? FileManager.default.removeItem(at: ReminderSoundSynth.directory.appendingPathComponent(chimeOnly))
     }
 
