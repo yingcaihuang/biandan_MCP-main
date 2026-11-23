@@ -29,18 +29,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         completionHandler([.banner, .list, .sound])
     }
 
-    /// 点击通知：打开主窗口并选中对应的执行实例。点操作按钮：完成（后台）或稍后提醒。
+    /// 点击通知：打开主窗口并选中对应的执行实例。点操作按钮：完成、放弃本次（后台）或稍后提醒。
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completionHandler: @escaping () -> Void) {
         let content = response.notification.request.content
         let id = content.userInfo["occurrenceID"] as? String
         switch ReminderAction(rawValue: response.actionIdentifier) {
-        case .complete?:
+        case .complete?, .abandon?:
             ReminderAcknowledgements.cancelFollowUps(content.userInfo["chainKey"] as? String)
+            let abandon = response.actionIdentifier == ReminderAction.abandon.rawValue
             if let id {
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
-                        ReminderInbox.pendingComplete.append(id)
+                        if abandon {
+                            ReminderInbox.pendingAbandon.append(id)
+                        } else {
+                            ReminderInbox.pendingComplete.append(id)
+                        }
                         NotificationCenter.default.post(name: .biandanCompleteOccurrence, object: nil)
                     }
                 }

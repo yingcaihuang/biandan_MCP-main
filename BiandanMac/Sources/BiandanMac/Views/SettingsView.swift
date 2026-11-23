@@ -1036,7 +1036,7 @@ private struct ReminderSettingsSection: View {
             }
             SettingFootnotes(items: [
                 SettingFootnote(icon: "bell",
-                                text: "一次性任务按提醒日期和时刻通知；重复任务排定近 14 天、最多 60 条。通知上可以直接点「完成」或稍后提醒。地点提醒仍由手机处理。"),
+                                text: "一次性任务按提醒日期和时刻通知；重复任务排定近 14 天、最多 60 条。通知上可以直接点「完成」「放弃本次」或稍后提醒。地点提醒仍由手机处理。"),
                 SettingFootnote(icon: "keyboard",
                                 text: "快速添加的写法与快速添加栏相同，没写日期时默认今天，不需要辅助功能权限。"),
             ])
