@@ -417,4 +417,4 @@ void loop() {
 | nginx | `/etc/nginx/snippets/biandan-api.conf`，由 `/etc/nginx/conf.d/default.conf` 的 443 段 include |
 | 日志 | `journalctl -u biandan-api`（只记推送、认证失败，不记日程内容） |
 
-本地测试：`go test ./...`；便单 App 实推测试：在 `BiandanMac` 目录运行 `BIANDAN_LIVE_PUSH=1 swift test --filter SchedulePushTests/testLivePush`（复制本机数据库后推送，只打印数量）。
+本地测试：`go test ./...`；公网端到端测试：`BIANDAN_E2E=1 go test -run TestE2E -v .`（用 `~/.biandan-api/read-esp32.key` 读公网接口，检查数据新鲜度、分组和条数、分类数量、常用查询、`if_version` 和鉴权，只打印数量；`BIANDAN_E2E_EXPECT_ITEMS=<条数>` 可以和本机数据库核对）；便单 App 实推测试：在 `BiandanMac` 目录运行 `BIANDAN_LIVE_PUSH=1 swift test --filter SchedulePushTests/testLivePush`（复制本机数据库后推送，只打印数量）。
