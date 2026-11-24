@@ -155,6 +155,8 @@ final class AppModel {
     private let engine: SyncEngine
     /// 写操作的业务服务（串行执行、写后读回）。
     let service: BiandanService
+    /// 把日程快照推到远程 biandan-api，给 ESP32 等设备读取。
+    let schedulePusher = SchedulePusher()
     @ObservationIgnored private var signInFlow: OAuthFlow?
     /// 回调页仍在本机显示登录进度的流程（登录结束后再保留一会儿）。
     @ObservationIgnored private var servingFlow: OAuthFlow?
@@ -545,6 +547,7 @@ final class AppModel {
             return
         }
         if mcpEnabled { startMCP() }
+        schedulePusher.attach(self)
         installReminderObserver()
         applyQuickAddHotKey()
         Task { await refreshReminderStatus() }
@@ -777,6 +780,7 @@ final class AppModel {
         }
         if let id = selectedFocusID, !snapshot.focus.contains(where: { $0.time == id }) { selectedFocusID = nil }
         scheduleReminders()
+        schedulePusher.noteChange()
     }
 
     // MARK: - 视图数据

@@ -613,6 +613,93 @@ private struct SyncPane: View {
                 NoteRow(icon: "macwindow", text: "窗口重新激活时也会同步一次（距上次超过 1 分钟）。")
                 NoteRow(icon: "bolt", text: "完成、拖动等修改立即显示，在后台写入云端；失败会自动恢复原状态。")
             }
+
+            SchedulePushSection()
+        }
+    }
+}
+
+/// 把日程推到远程 biandan-api，ESP32 等设备再从那里按分类读取。
+private struct SchedulePushSection: View {
+    @Environment(AppModel.self) private var model
+    @State private var keyDraft = ""
+    @State private var keyError: String?
+
+    private var trimmedKey: String { keyDraft.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        @Bindable var pusher = model.schedulePusher
+        InspectorSection("远程日程接口") {
+            ThemedRow("推送到远程") {
+                ThemedSwitch(isOn: $pusher.enabled)
+            }
+            ThemedRow("接口地址") {
+                TextField("", text: $pusher.endpoint, prompt: Text(SchedulePusher.defaultEndpoint))
+                    .themedField()
+                    .frame(width: 300)
+            }
+            ThemedRow("推送密钥") {
+                HStack(spacing: 6) {
+                    StatusPill(text: keyTitle(pusher.keyOrigin),
+                               color: pusher.keyOrigin == .none ? Theme.subtext : Theme.done)
+                    SecureField("", text: $keyDraft, prompt: Text(pusher.keyOrigin == .none ? "bdp_…" : "输入新的可替换"))
+                        .themedField()
+                        .frame(width: 170)
+                        .onSubmit(saveKey)
+                    Button("保存", action: saveKey)
+                        .buttonStyle(.themed)
+                        .disabled(trimmedKey.isEmpty)
+                    if pusher.keyOrigin == .keychain {
+                        Button("清除") { pusher.clearKey() }
+                            .buttonStyle(.themed)
+                    }
+                }
+            }
+            if let keyError {
+                NoteRow(icon: "exclamationmark.triangle", text: keyError)
+            }
+            ThemedRow("状态") {
+                HStack(spacing: 8) {
+                    StatusPill(text: pusher.statusTitle, color: statusColor(pusher.status))
+                    Button("立即推送") { pusher.pushNow() }
+                        .buttonStyle(.themed)
+                        .disabled(!pusher.enabled || pusher.keyOrigin == .none || pusher.status == .pushing)
+                }
+            }
+            if let detail = pusher.statusDetail {
+                NoteRow(icon: pusher.status == .ok ? "checkmark.circle" : "info.circle", text: detail)
+            }
+            NoteRow(icon: "info.circle",
+                    text: "打开后，本机数据有变化（同步、修改、导入更新）3 秒后把全部日程和分类推到上面的地址；内容没变时每 10 分钟推一次，设备可据此判断数据是否新鲜。ESP32 用读取密钥查询，接口说明见仓库 BiandanAPI/README.md。推送密钥优先用这里保存到钥匙串的，没有时读取 ~/.biandan-api/push-mac.key。")
+        }
+    }
+
+    private func keyTitle(_ origin: SchedulePushKeyStore.Origin) -> String {
+        switch origin {
+        case .keychain: return "已保存"
+        case .file: return "来自本机文件"
+        case .none: return "未填写"
+        }
+    }
+
+    private func statusColor(_ status: SchedulePusher.Status) -> Color {
+        switch status {
+        case .ok: return Theme.done
+        case .failed: return Theme.overdue
+        case .pushing, .waiting: return Color(hex: 0xD9A800)
+        case .off: return Theme.subtext
+        }
+    }
+
+    private func saveKey() {
+        let key = trimmedKey
+        guard !key.isEmpty else { return }
+        do {
+            try model.schedulePusher.saveKey(key)
+            keyDraft = ""
+            keyError = nil
+        } catch {
+            keyError = error.localizedDescription
         }
     }
 }

@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 新功能
+
+- **远程日程接口**：「设置 → 同步 → 远程日程接口」打开「推送到远程」后，便单把全部日程（便单本身的，以及 CalDAV、订阅、系统日历、文件导入的）和分类推到 https://www.aigslb.link/biandan/api ，ESP32 等设备可以用读取密钥按分类、日期、状态查询 JSON。本机数据变化 3 秒后推送，内容没变时每 10 分钟推一次，失败自动退避重试；只在登录并同步过后推送。推送密钥优先用设置里保存到钥匙串的，没有时读 `~/.biandan-api/push-mac.key`。服务端和对接文档在仓库的 `BiandanAPI/`。
+
 ### 其他
 
 - 新增功能介绍页 https://www.aigslb.link/biandan/mac/ ：按大类列出全部功能、可搜索，附各版本更新记录和最新版下载按钮（页面打开时读 appcast.xml，自动指向最新正式版）。`Tools/site_page.py` 从 CHANGELOG 生成页面，`Tools/sync_site.sh` 生成并上传；`Tools/release.sh` 发正式版时自动更新介绍页（测试版不更新，`--no-site` 可跳过）。
