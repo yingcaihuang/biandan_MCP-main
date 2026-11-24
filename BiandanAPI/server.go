@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -19,13 +21,16 @@ const (
 )
 
 type server struct {
-	keys   *keyring
-	store  *store
-	fails  *windowLimiter // 每个 IP 认证失败次数
-	reads  *windowLimiter // 每把读取密钥的请求数
-	pushes *windowLimiter // 每把推送密钥的请求数
-	now    func() time.Time
-	mux    *http.ServeMux
+	keys    *keyring
+	store   *store
+	fails   *windowLimiter // 每个 IP 认证失败次数
+	reads   *windowLimiter // 每把读取密钥的请求数
+	pushes  *windowLimiter // 每把推送密钥的请求数
+	reports *windowLimiter // 每把上报密钥的请求数
+	data    *dataStore     // 通用数据上报（和日程无关）
+	dataLoc *time.Location // 通用数据默认的时区（按天、月汇总时用）
+	now     func() time.Time
+	mux     *http.ServeMux
 }
 
 func newServer(keysPath, dataDir string) (*server, error) {
@@ -37,19 +42,39 @@ func newServer(keysPath, dataDir string) (*server, error) {
 	if err != nil {
 		return nil, err
 	}
+	retentionDays, err := strconv.Atoi(env("BIANDAN_API_DATA_RETENTION_DAYS", "400"))
+	if err != nil || retentionDays < 0 {
+		return nil, fmt.Errorf("BIANDAN_API_DATA_RETENTION_DAYS 应为不小于 0 的整数（0 表示不按时间清理）")
+	}
+	dataLoc, err := time.LoadLocation(env("BIANDAN_API_DATA_TZ", "Asia/Shanghai"))
+	if err != nil {
+		return nil, fmt.Errorf("BIANDAN_API_DATA_TZ：%w", err)
+	}
+	data, err := newDataStore(filepath.Join(dataDir, "datasets"), time.Duration(retentionDays)*24*time.Hour)
+	if err != nil {
+		return nil, err
+	}
 	s := &server{
-		keys:   keys,
-		store:  st,
-		fails:  newLimiter(20, 10*time.Minute),
-		reads:  newLimiter(120, time.Minute),
-		pushes: newLimiter(60, time.Minute),
-		now:    time.Now,
+		keys:    keys,
+		store:   st,
+		fails:   newLimiter(20, 10*time.Minute),
+		reads:   newLimiter(120, time.Minute),
+		pushes:  newLimiter(60, time.Minute),
+		reports: newLimiter(120, time.Minute),
+		data:    data,
+		dataLoc: dataLoc,
+		now:     time.Now,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/health", s.health)
 	mux.HandleFunc("/v1/push", s.authed("push", s.pushes, maxPushBody, s.push))
 	mux.HandleFunc("/v1/schedule", s.authed("read", s.reads, maxQueryBody, s.schedule))
 	mux.HandleFunc("/v1/lists", s.authed("read", s.reads, maxQueryBody, s.lists))
+	// 通用数据上报（DATA_API.md）：上报用 report 密钥，查询用 read 密钥
+	mux.HandleFunc("/v1/data/ingest", s.authed("report", s.reports, maxIngestBody, s.dataIngest))
+	mux.HandleFunc("/v1/data/records", s.authed("read", s.reads, maxQueryBody, s.dataRecords))
+	mux.HandleFunc("/v1/data/stats", s.authed("read", s.reads, maxQueryBody, s.dataStats))
+	mux.HandleFunc("/v1/data/datasets", s.authed("read", s.reads, maxQueryBody, s.dataDatasets))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "没有这个接口")
 	})
@@ -188,7 +213,7 @@ func (s *server) health(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "只接受 GET 或 POST")
 		return
 	}
-	result := map[string]any{"ok": true, "service": "biandan-api", "version": buildVersion, "has_data": false}
+	result := map[string]any{"ok": true, "service": "biandan-api", "version": buildVersion, "has_data": false, "datasets": s.data.count()}
 	if cur := s.store.get(); cur != nil {
 		result["has_data"] = true
 		result["data_age_seconds"] = int64(s.now().Sub(cur.ReceivedAt) / time.Second)

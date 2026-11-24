@@ -6,6 +6,7 @@
 #   ./deploy.sh --check                    只检查公网接口
 #   ./deploy.sh --add-key read <名称>       新建一把读取密钥（建议每台 ESP32 一把）
 #   ./deploy.sh --add-key push <名称>       新建一把推送密钥（给便单 App）
+#   ./deploy.sh --add-key report <名称>     新建一把上报密钥（给上报通用数据的程序，见 DATA_API.md）
 #   ./deploy.sh --remove-key <角色> <名称>   删除一把密钥，立即生效
 #   ./deploy.sh --list-keys                列出服务器上的密钥名称
 #
@@ -22,7 +23,7 @@ step() { echo "==> $*"; }
 remote() { ssh "${SSH_OPTS[@]}" "${HOST}" "$@"; }
 
 check_name() {
-    [[ "$1" == push || "$1" == read ]] || die "角色只能是 push 或 read"
+    [[ "$1" == push || "$1" == read || "$1" == report ]] || die "角色只能是 push、read 或 report"
     [[ "$2" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || die "名称只能用字母、数字、点、下划线、短横线，最多 64 个"
 }
 
@@ -63,6 +64,8 @@ check_public() {
     printf '%s' "${out}" | grep -q '"service":"biandan-api"' || die "公网返回的不是 biandan-api（ESA 缓存或转发没生效）"
     code=$(curl -s -o /dev/null -w '%{http_code}' -X POST --max-time 15 "${PUBLIC}/v1/schedule")
     [ "${code}" = 401 ] || die "不带密钥 POST /v1/schedule 应返回 401，实际 ${code}"
+    code=$(curl -s -o /dev/null -w '%{http_code}' -X POST --max-time 15 "${PUBLIC}/v1/data/ingest")
+    [ "${code}" = 401 ] || die "不带密钥 POST /v1/data/ingest 应返回 401，实际 ${code}"
     echo "公网接口正常：${PUBLIC}（不带密钥的请求返回 401）"
 }
 
@@ -85,9 +88,9 @@ deploy() {
 case "${1:-}" in
     "") deploy ;;
     --check) check_public ;;
-    --add-key) [ $# -eq 3 ] || die "用法：./deploy.sh --add-key push|read <名称>"; add_key "$2" "$3" ;;
-    --remove-key) [ $# -eq 3 ] || die "用法：./deploy.sh --remove-key push|read <名称>"; remove_key "$2" "$3" ;;
+    --add-key) [ $# -eq 3 ] || die "用法：./deploy.sh --add-key push|read|report <名称>"; add_key "$2" "$3" ;;
+    --remove-key) [ $# -eq 3 ] || die "用法：./deploy.sh --remove-key push|read|report <名称>"; remove_key "$2" "$3" ;;
     --list-keys) list_keys ;;
-    -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' ;;
+    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) die "不认识的参数：$1（--help 看用法）" ;;
 esac

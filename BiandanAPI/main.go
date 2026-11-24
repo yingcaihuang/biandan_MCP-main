@@ -3,14 +3,16 @@
 // 用法：
 //
 //	biandan-api [serve]                 启动服务（读环境变量配置）
-//	biandan-api genkey push|read <名称>  生成一把新密钥和要写进密钥文件的一行
+//	biandan-api genkey push|read|report <名称>  生成一把新密钥和要写进密钥文件的一行
 //	biandan-api version                 显示版本
 //
 // 环境变量：
 //
 //	BIANDAN_API_LISTEN  监听地址，默认 127.0.0.1:18730（只给本机 nginx 转发）
 //	BIANDAN_API_KEYS    密钥文件，默认 /etc/biandan-api/keys
-//	BIANDAN_API_DATA    数据目录，默认 /var/lib/biandan-api
+//	BIANDAN_API_DATA    数据目录，默认 /var/lib/biandan-api（通用数据在其下的 datasets/）
+//	BIANDAN_API_DATA_RETENTION_DAYS  通用数据保留天数，默认 400，0 表示不按时间清理
+//	BIANDAN_API_DATA_TZ  通用数据默认时区，默认 Asia/Shanghai
 package main
 
 import (
@@ -29,11 +31,11 @@ import (
 	_ "time/tzdata" // 服务器没装时区库也能换算 Asia/Shanghai
 )
 
-var buildVersion = "1.0.0"
+var buildVersion = "1.1.0"
 
 const usage = `用法：
   biandan-api [serve]                 启动服务
-  biandan-api genkey push|read <名称>  生成新密钥
+  biandan-api genkey push|read|report <名称>  生成新密钥
   biandan-api version                 显示版本`
 
 func env(name, fallback string) string {
@@ -85,7 +87,7 @@ func main() {
 			if err := srv.keys.reload(); err != nil {
 				log.Printf("重新读取密钥失败，继续用原来的：%v", err)
 			} else {
-				log.Printf("已重新读取密钥：推送 %d 把，读取 %d 把", srv.keys.count("push"), srv.keys.count("read"))
+				log.Printf("已重新读取密钥：推送 %d 把，读取 %d 把，上报 %d 把", srv.keys.count("push"), srv.keys.count("read"), srv.keys.count("report"))
 			}
 		}
 	}()
@@ -99,16 +101,16 @@ func main() {
 		_ = httpServer.Shutdown(ctx)
 	}()
 
-	log.Printf("biandan-api %s 监听 %s（推送密钥 %d 把，读取密钥 %d 把）", buildVersion, listen,
-		srv.keys.count("push"), srv.keys.count("read"))
+	log.Printf("biandan-api %s 监听 %s（推送密钥 %d 把，读取密钥 %d 把，上报密钥 %d 把，数据集 %d 个）", buildVersion, listen,
+		srv.keys.count("push"), srv.keys.count("read"), srv.keys.count("report"), srv.data.count())
 	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("监听失败：%v", err)
 	}
 }
 
 func genkey(args []string) int {
-	if len(args) != 2 || (args[0] != "push" && args[0] != "read") || !keyNamePattern.MatchString(args[1]) {
-		fmt.Fprintln(os.Stderr, "用法：biandan-api genkey push|read <名称>（名称用字母、数字、点、下划线、短横线，最多 64 个）")
+	if len(args) != 2 || !keyRoles[args[0]] || !keyNamePattern.MatchString(args[1]) {
+		fmt.Fprintln(os.Stderr, "用法：biandan-api genkey push|read|report <名称>（名称用字母、数字、点、下划线、短横线，最多 64 个）")
 		return 2
 	}
 	token, err := newToken(args[0])
@@ -123,11 +125,14 @@ func genkey(args []string) int {
 	return 0
 }
 
-// newToken：推送密钥 bdp_ 开头，读取密钥 bdr_ 开头，后面是 32 字节随机数的 base64url（43 个字符）。
+// newToken：推送密钥 bdp_ 开头，读取密钥 bdr_ 开头，上报密钥 bdu_ 开头，后面是 32 字节随机数的 base64url（43 个字符）。
 func newToken(role string) (string, error) {
 	prefix := "bdr_"
-	if role == "push" {
+	switch role {
+	case "push":
 		prefix = "bdp_"
+	case "report":
+		prefix = "bdu_"
 	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {

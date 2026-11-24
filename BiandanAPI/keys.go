@@ -20,6 +20,9 @@ import (
 
 var keyNamePattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
 
+// keyRoles：push 推日程快照（便单 App），read 读日程和通用数据，report 只能往通用数据集上报。
+var keyRoles = map[string]bool{"push": true, "read": true, "report": true}
+
 type keyEntry struct {
 	role string
 	name string
@@ -71,8 +74,8 @@ func parseKeys(data []byte) ([]keyEntry, error) {
 			return nil, fmt.Errorf("第 %d 行应为「角色 名称 sha256:哈希」", line)
 		}
 		role, name, digest := fields[0], fields[1], fields[2]
-		if role != "push" && role != "read" {
-			return nil, fmt.Errorf("第 %d 行的角色只能是 push 或 read", line)
+		if !keyRoles[role] {
+			return nil, fmt.Errorf("第 %d 行的角色只能是 push、read 或 report", line)
 		}
 		if !keyNamePattern.MatchString(name) {
 			return nil, fmt.Errorf("第 %d 行的名称只能用字母、数字、点、下划线、短横线", line)

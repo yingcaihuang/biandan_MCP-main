@@ -1,5 +1,7 @@
 # 便单日程 API（biandan-api）对接文档
 
+> 通用数据上报（token 统计等，和日程无关）的对接文档见 [DATA_API.md](DATA_API.md)。
+
 便单 Mac 版把本机的全部日程（华为账号里的便单日程，以及从 CalDAV、订阅地址、系统日历、.ics 文件导入的日程）推到服务器，ESP32 等设备用 POST 请求按分类读取 JSON。
 
 ```
