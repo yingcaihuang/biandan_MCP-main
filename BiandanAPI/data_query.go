@@ -219,6 +219,23 @@ func dataAddRange(result map[string]any, tr dataTimeRange, loc *time.Location) {
 	}
 }
 
+// dataAddReport：最后一次上报的时间、密钥名称、距今秒数。内容没变的上报也算。
+func dataAddReport(result map[string]any, v *dataView, loc *time.Location) {
+	if v.LastReport.IsZero() {
+		return
+	}
+	result["last_report_at"] = v.LastReport.In(loc).Format(time.RFC3339)
+	result["last_report_by"] = v.LastBy
+	result["last_report_age_seconds"] = max(int64(time.Since(v.LastReport)/time.Second), 0)
+}
+
+// dataNotModified：版本号只在数据变化时才变，所以「没变化」的结果里也带上最后上报时间。
+func dataNotModified(w http.ResponseWriter, v *dataView, loc *time.Location) {
+	result := map[string]any{"ok": true, "not_modified": true, "version": v.Version}
+	dataAddReport(result, v, loc)
+	writeJSON(w, http.StatusOK, result)
+}
+
 // ---- 明细 /v1/data/records ----
 
 type dataRecordsRequest struct {
@@ -258,7 +275,7 @@ func (s *server) dataRecords(w http.ResponseWriter, r *http.Request, keyName str
 		return
 	}
 	if req.IfVersion != "" && req.IfVersion == view.Version {
-		notModified(w, view.Version)
+		dataNotModified(w, view, loc)
 		return
 	}
 	matched := dataFilterRecords(view, &req.dataFilter, tr)
@@ -288,6 +305,7 @@ func (s *server) dataRecords(w http.ResponseWriter, r *http.Request, keyName str
 		"truncated": req.Offset+len(records) < len(matched), "records": records,
 	}
 	dataAddRange(result, tr, loc)
+	dataAddReport(result, view, loc)
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -393,7 +411,7 @@ func (s *server) dataStats(w http.ResponseWriter, r *http.Request, keyName strin
 		return
 	}
 	if req.IfVersion != "" && req.IfVersion == view.Version {
-		notModified(w, view.Version)
+		dataNotModified(w, view, loc)
 		return
 	}
 	matched := dataFilterRecords(view, &req.dataFilter, tr)
@@ -490,6 +508,7 @@ func (s *server) dataStats(w http.ResponseWriter, r *http.Request, keyName strin
 		result["group_by"] = req.GroupBy
 	}
 	dataAddRange(result, tr, loc)
+	dataAddReport(result, view, loc)
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -558,11 +577,7 @@ func dataDescribe(v *dataView, loc *time.Location) map[string]any {
 		out["first_ts"] = first.In(loc).Format(time.RFC3339)
 		out["last_ts"] = last.In(loc).Format(time.RFC3339)
 	}
-	if !v.LastReport.IsZero() {
-		out["last_report_at"] = v.LastReport.In(loc).Format(time.RFC3339)
-		out["last_report_by"] = v.LastBy
-		out["last_report_age_seconds"] = int64(time.Since(v.LastReport) / time.Second)
-	}
+	dataAddReport(out, v, loc)
 	return out
 }
 

@@ -72,7 +72,7 @@ curl -sS -X POST https://www.aigslb.link/biandan/api/v1/data/ingest \
  "received_at":"2026-11-24T17:41:13+08:00"}
 ```
 
-- `inserted`、`updated`、`unchanged`：这次报上来的记录里，新增、覆盖、内容没变的各有几条。内容没变时不写盘，`changed` 为 `false`，版本号也不变。
+- `inserted`、`updated`、`unchanged`：这次报上来的记录里，新增、覆盖、内容没变的各有几条。内容没变时 `changed` 为 `false`，版本号也不变，但这次上报的时间照样会记下来（见下面的「最后更新时间」）。
 - `deleted`：原来的记录这次删掉了几条，包括 `delete_ids`、`replace` 删掉的，以及超出条数上限被挤掉的。
 - `expired`：`ts` 早于保留期（默认 400 天）的记录，这些没有保存。
 - `version`：数据集内容的版本号，查询时可以拿来做 `if_version`。
@@ -88,7 +88,7 @@ curl -sS -X POST https://www.aigslb.link/biandan/api/v1/data/ingest \
 | `fields` | 只返回这些字段，支持点号。不传时返回全部字段 |
 | `order` | 默认 `desc`（最新的在前），也可以用 `asc` |
 | `limit` / `offset` | 分页，`limit` 默认 100、最大 1000 |
-| `if_version` | 和当前版本号相同时，只回 `{"ok":true,"not_modified":true,"version":"…"}` |
+| `if_version` | 和当前版本号相同时，只回 `{"ok":true,"not_modified":true,"version":"…","last_report_at":"…","last_report_by":"…","last_report_age_seconds":…}`。版本号只在数据变化时才变，最后上报时间照样会更新 |
 | `timezone` | 返回的 `ts` 和日期边界按这个时区算 |
 
 ```bash
@@ -151,6 +151,18 @@ curl -sS -X POST https://www.aigslb.link/biandan/api/v1/data/stats \
    "last_report_at":"2026-11-24T17:41:13+08:00","last_report_by":"token-stats","last_report_age_seconds":12,
    "fields":{"cost":"number","input":"number","model":"string","meta":"object","meta.app":"string"}}]}
 ```
+
+### 最后更新时间
+
+`records`、`stats`、`datasets` 的返回里都有这三个字段，带 `if_version` 时返回的 `not_modified` 结果里也有：
+
+| 字段 | 含义 |
+| --- | --- |
+| `last_report_at` | 服务器最后一次收到这个数据集上报的时间。每次上报成功都算，内容和上次一样也算，服务重启后也不会丢 |
+| `last_report_by` | 最后一次上报用的密钥名称 |
+| `last_report_age_seconds` | 距离最后一次上报过了多少秒，可以用来判断上报程序是不是停了 |
+
+另外 `datasets` 里的 `last_ts` 是数据本身最新那条记录的 `ts`（比如「统计到哪一天」），和上报时间不是一回事。上报接口自己的返回里也有 `received_at`。
 
 `GET /v1/health` 不需要密钥，里面的 `datasets` 是现在有几个数据集。
 

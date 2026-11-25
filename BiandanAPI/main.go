@@ -31,7 +31,7 @@ import (
 	_ "time/tzdata" // 服务器没装时区库也能换算 Asia/Shanghai
 )
 
-var buildVersion = "1.1.0"
+var buildVersion = "1.1.1"
 
 const usage = `用法：
   biandan-api [serve]                 启动服务

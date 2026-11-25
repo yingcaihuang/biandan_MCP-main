@@ -71,6 +71,9 @@ type dataOp struct {
 	Replace bool          `json:"replace,omitempty"`
 	Delete  []string      `json:"delete,omitempty"`
 	Records []*dataRecord `json:"records,omitempty"`
+	// 这次上报的时间和密钥名称。内容没变的上报也记一行，压缩时保留，重启后最后上报时间不会退回。
+	ReportAt *time.Time `json:"report_at,omitempty"`
+	By       string     `json:"by,omitempty"`
 }
 
 type dataSet struct {
@@ -101,8 +104,11 @@ func (d *dataSet) apply(op *dataOp) error {
 			d.lastReport, d.lastBy = r.ReceivedAt, r.By
 		}
 	}
+	if op.ReportAt != nil && op.ReportAt.After(d.lastReport) {
+		d.lastReport, d.lastBy = op.ReportAt.UTC(), op.By
+	}
 	d.version = op.Version
-	d.logRecords += len(op.Records) + len(op.Delete)
+	d.logRecords += len(op.Records) + len(op.Delete) + 1
 	return nil
 }
 
@@ -295,7 +301,8 @@ func (s *dataStore) ingest(name string, incoming []*dataRecord, replace bool, de
 	}
 	s.evict(final, now)
 
-	op := &dataOp{At: now.UTC()}
+	reportAt := now.UTC()
+	op := &dataOp{At: reportAt, ReportAt: &reportAt, By: by}
 	for id := range set.records {
 		if _, ok := final[id]; !ok {
 			op.Delete = append(op.Delete, id)
@@ -310,7 +317,23 @@ func (s *dataStore) ingest(name string, incoming []*dataRecord, replace bool, de
 	if len(op.Delete) == 0 && len(op.Records) == 0 {
 		res.Version = set.version
 		if existing != nil {
-			existing.lastReport, existing.lastBy = now, by
+			// 内容没变：只记一行上报时间，失败也不影响数据，只记日志
+			reportAt := now.UTC()
+			line, err := json.Marshal(&dataOp{Version: set.version, At: reportAt, ReportAt: &reportAt, By: by})
+			if err == nil {
+				err = appendLine(s.file(name), line)
+			}
+			if err != nil {
+				log.Printf("记录数据集 %s 的上报时间失败：%v", name, err)
+			} else {
+				existing.logRecords++
+			}
+			existing.lastReport, existing.lastBy = reportAt, by
+			if existing.logRecords > 2*len(existing.records)+1000 {
+				if err := s.compact(existing, now); err != nil {
+					log.Printf("压缩数据集 %s 的日志失败（不影响数据）：%v", name, err)
+				}
+			}
 		}
 		return res, nil
 	}
@@ -341,8 +364,8 @@ func (s *dataStore) ingest(name string, incoming []*dataRecord, replace bool, de
 		return res, err
 	}
 	set.records, set.version = final, version
-	set.lastReport, set.lastBy = now, by
-	set.logRecords += len(op.Records) + len(op.Delete)
+	set.lastReport, set.lastBy = reportAt, by
+	set.logRecords += len(op.Records) + len(op.Delete) + 1
 	s.sets[name] = set
 	res.Changed, res.Version = true, version
 	if set.logRecords > 2*len(final)+1000 {
@@ -391,14 +414,19 @@ func appendLine(path string, line []byte) error {
 // compact 把整个数据集写成一行，原子替换日志。
 func (s *dataStore) compact(set *dataSet, now time.Time) error {
 	records := sortedRecords(set.records)
-	line, err := json.Marshal(&dataOp{Version: set.version, At: now.UTC(), Replace: true, Records: records})
+	op := &dataOp{Version: set.version, At: now.UTC(), Replace: true, Records: records}
+	if !set.lastReport.IsZero() {
+		reportAt := set.lastReport.UTC()
+		op.ReportAt, op.By = &reportAt, set.lastBy
+	}
+	line, err := json.Marshal(op)
 	if err != nil {
 		return err
 	}
 	if err := writeAtomic(s.file(set.name), append(line, '\n')); err != nil {
 		return err
 	}
-	set.logRecords = len(records)
+	set.logRecords = len(records) + 1
 	return nil
 }
 
