@@ -147,11 +147,7 @@ final class AIUsageLog {
     }
 
     nonisolated static func defaultURL() -> URL? {
-        guard let base = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                      appropriateFor: nil, create: true) else { return nil }
-        let directory = base.appendingPathComponent("BiandanMac", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory.appendingPathComponent("ai-usage.json")
+        return AppPaths.supportDirectory()?.appendingPathComponent("ai-usage.json")
     }
 
     /// 从任意线程记一条。

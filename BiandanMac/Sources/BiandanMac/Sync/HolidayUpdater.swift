@@ -36,9 +36,7 @@ actor HolidayUpdater {
     }
 
     static func defaultDirectory() -> URL? {
-        guard let base = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                      appropriateFor: nil, create: true) else { return nil }
-        return base.appendingPathComponent("BiandanMac/holidays", isDirectory: true)
+        return AppPaths.supportDirectory()?.appendingPathComponent("holidays", isDirectory: true)
     }
 
     /// 读取本地缓存并安装，返回覆盖末年。启动时同步调用，不访问网络。

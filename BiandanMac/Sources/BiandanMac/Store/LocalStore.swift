@@ -136,7 +136,18 @@ private func dbOptional<T: DatabaseValueConvertible>(_ value: T?) -> DatabaseVal
 
 /// SQLite 本地缓存。每条记录同时保存拆开的业务列和原始 attributes，回写时以原始 JSON 为底，避免丢字段。
 final class LocalStore: @unchecked Sendable {
-    let dbQueue: DatabaseQueue
+    /// 当前的数据库连接。数据库文件被别的程序删掉后会换成重新打开的（见 reopenIfDeleted），所以每次用都从这里取。
+    var dbQueue: DatabaseQueue {
+        lock.lock()
+        defer { lock.unlock() }
+        return queue
+    }
+    /// 磁盘库的路径；内存库为 nil。
+    let url: URL?
+    private let lock = NSLock()
+    private var queue: DatabaseQueue
+    /// 打开时数据库文件的 inode：文件被删后又被别人新建同名文件时，inode 会变。
+    private var fileNumber: UInt64?
 
     private static let isoFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -144,25 +155,50 @@ final class LocalStore: @unchecked Sendable {
         return formatter
     }()
 
+    /// ~/Library/Application Support/BiandanMac/biandan.sqlite（开发版在 BiandanMac.dev 下，见 AppPaths）。
     static func defaultURL() throws -> URL {
-        let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                               appropriateFor: nil, create: true)
-        let directory = base.appendingPathComponent("BiandanMac", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        guard let directory = AppPaths.supportDirectory() else { throw CocoaError(.fileNoSuchFile) }
         return directory.appendingPathComponent("biandan.sqlite")
     }
 
     init(url: URL) throws {
-        var config = Configuration()
-        config.label = "BiandanStore"
-        dbQueue = try DatabaseQueue(path: url.path, configuration: config)
-        try Self.migrator.migrate(dbQueue)
+        self.url = url
+        queue = try Self.open(url)
+        fileNumber = Self.fileNumber(url)
     }
 
     /// 内存数据库，供单元测试使用。
     init() throws {
-        dbQueue = try DatabaseQueue()
-        try Self.migrator.migrate(dbQueue)
+        url = nil
+        queue = try DatabaseQueue()
+        try Self.migrator.migrate(queue)
+    }
+
+    private static func open(_ url: URL) throws -> DatabaseQueue {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var config = Configuration()
+        config.label = "BiandanStore"
+        let queue = try DatabaseQueue(path: url.path, configuration: config)
+        try migrator.migrate(queue)
+        return queue
+    }
+
+    private static func fileNumber(_ url: URL) -> UInt64? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else { return nil }
+        return (attributes[.systemFileNumber] as? NSNumber)?.uint64Value
+    }
+
+    /// 数据库文件被删掉（清理工具、手动删除），或删掉后又被新建了同名文件时，重新打开一个库并返回 true。
+    /// 原来的连接还指着已删除的文件，继续用只会一直报 disk I/O error。内存库、文件没变时返回 false。
+    @discardableResult
+    func reopenIfDeleted() throws -> Bool {
+        guard let url else { return false }
+        lock.lock()
+        defer { lock.unlock() }
+        if let current = Self.fileNumber(url), current == fileNumber { return false }
+        queue = try Self.open(url)
+        fileNumber = Self.fileNumber(url)
+        return true
     }
 
     private static var migrator: DatabaseMigrator {

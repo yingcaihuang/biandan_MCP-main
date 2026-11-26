@@ -266,10 +266,7 @@ enum LocalBackup {
     static let keep = 7
 
     static var directoryURL: URL? {
-        guard let base = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                      appropriateFor: nil, create: true) else { return nil }
-        return base.appendingPathComponent("BiandanMac", isDirectory: true)
-            .appendingPathComponent("Backups", isDirectory: true)
+        return AppPaths.supportDirectory()?.appendingPathComponent("Backups", isDirectory: true)
     }
 
     static func fileName(_ day: LocalDate) -> String { prefix + day.iso + ".json" }

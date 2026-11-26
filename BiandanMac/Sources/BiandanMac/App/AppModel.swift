@@ -583,6 +583,11 @@ final class AppModel {
         let now = LocalDate.today()
         if now != today { today = now }
         widgetPublisher.noteChange()
+        if authState == .signedIn, recoverStoreIfDeleted() {
+            reloadSnapshot()
+            Task { await syncNow(.manual) }
+            return
+        }
         guard authState == .signedIn, !syncStatus.isSyncing else { return }
         if let last = lastSyncedAt, Date().timeIntervalSince(last) < 60 { return }
         Task { await syncNow(.automatic) }
@@ -704,14 +709,18 @@ final class AppModel {
         // 排查用离线模式没有令牌：不同步，否则会因 notSignedIn 退回登录页。
         if DebugFlags.offline { return false }
         guard authState == .signedIn else { return false }
-        switch syncThrottle.decide(reason) {
-        case .allow:
-            break
-        case .skip:
-            return false
-        case .wait(let seconds):
-            syncStatus = .failed("云端繁忙，请 \(Int(seconds.rounded(.up))) 秒后再同步。")
-            return false
+        // 本机数据库文件被删了：先重新建库，不管节流，马上从云端完整拉一次。
+        let recovered = recoverStoreIfDeleted()
+        if !recovered {
+            switch syncThrottle.decide(reason) {
+            case .allow:
+                break
+            case .skip:
+                return false
+            case .wait(let seconds):
+                syncStatus = .failed("云端繁忙，请 \(Int(seconds.rounded(.up))) 秒后再同步。")
+                return false
+            }
         }
         // 同步过程中可能续期过，结束后刷新显示。
         defer { Task { await self.refreshRenewal() } }
@@ -774,6 +783,10 @@ final class AppModel {
     }
 
     func reloadSnapshot() {
+        // 本机数据库文件被删了：重新建库后从云端重新拉取（同步完会再调到这里，那时不会再触发）。
+        if recoverStoreIfDeleted(), authState == .signedIn {
+            Task { await self.syncNow(.manual) }
+        }
         do {
             var loaded = try store.loadSnapshot()
             for edit in optimisticEdits { edit.apply(&loaded) }

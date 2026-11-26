@@ -95,11 +95,7 @@ final class DecisionLog {
     }
 
     nonisolated static func defaultURL() -> URL? {
-        guard let base = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                      appropriateFor: nil, create: true) else { return nil }
-        let directory = base.appendingPathComponent("BiandanMac", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory.appendingPathComponent("decision-usage.json")
+        return AppPaths.supportDirectory()?.appendingPathComponent("decision-usage.json")
     }
 
     static func record(_ record: DecisionRecord) {

@@ -259,6 +259,8 @@ docs/screenshots/             README 截图
 
 ## 数据位置
 
+> 开发版（便单 Dev）用 `~/Library/Application Support/BiandanMac.dev`，和正式版分开，清理开发版不会动正式版的数据。本机数据库文件被删掉时，便单会自动重新建库，并从云端重新下载。
+
 | 数据 | 位置 |
 |---|---|
 | 本地数据库 | `~/Library/Application Support/BiandanMac/biandan.sqlite` |
