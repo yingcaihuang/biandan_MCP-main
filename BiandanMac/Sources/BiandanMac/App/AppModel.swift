@@ -157,6 +157,10 @@ final class AppModel {
     let service: BiandanService
     /// 把日程快照推到远程 biandan-api，给 ESP32 等设备读取。
     let schedulePusher = SchedulePusher()
+    /// 把今天起几天的待办写给桌面小组件（App Group 里的 widget.json）。
+    let widgetPublisher = WidgetPublisher()
+    /// 快捷指令（App Intents）拿当前的 AppModel 用。
+    static weak var current: AppModel?
     @ObservationIgnored private var signInFlow: OAuthFlow?
     /// 回调页仍在本机显示登录进度的流程（登录结束后再保留一会儿）。
     @ObservationIgnored private var servingFlow: OAuthFlow?
@@ -166,7 +170,9 @@ final class AppModel {
     @ObservationIgnored private var bootstrapped = false
 
     // 账户与同步
-    var authState: AuthState = .checking
+    var authState: AuthState = .checking {
+        didSet { if oldValue != authState { widgetPublisher.noteChange() } }
+    }
     var profile: AccountProfile = .placeholder
     var pendingAuthorizationURL: URL?
     var syncStatus: SyncStatus = .idle
@@ -527,6 +533,7 @@ final class AppModel {
         }
         engine = SyncEngine(client: SyncAPIClient(tokens: tokens), store: store)
         service = BiandanService(cloud: SyncAPIClient(tokens: tokens), store: store)
+        AppModel.current = self
     }
 
     // MARK: - 启动
@@ -548,6 +555,7 @@ final class AppModel {
         }
         if mcpEnabled { startMCP() }
         schedulePusher.attach(self)
+        widgetPublisher.attach(self)
         installReminderObserver()
         applyQuickAddHotKey()
         Task { await refreshReminderStatus() }
@@ -574,6 +582,7 @@ final class AppModel {
     func appBecameActive() {
         let now = LocalDate.today()
         if now != today { today = now }
+        widgetPublisher.noteChange()
         guard authState == .signedIn, !syncStatus.isSyncing else { return }
         if let last = lastSyncedAt, Date().timeIntervalSince(last) < 60 { return }
         Task { await syncNow(.automatic) }
@@ -781,6 +790,7 @@ final class AppModel {
         if let id = selectedFocusID, !snapshot.focus.contains(where: { $0.time == id }) { selectedFocusID = nil }
         scheduleReminders()
         schedulePusher.noteChange()
+        widgetPublisher.noteChange()
     }
 
     // MARK: - 视图数据

@@ -1,0 +1,41 @@
+# 便单桌面小组件扩展。由 Tools/build_app.sh 在打包时用 xcodegen 生成工程、xcodebuild 编译，
+# 生成的 BiandanWidget.xcodeproj 不提交。版本号、标识符、App Group、链接 scheme 都由 build_app.sh 在命令行传入。
+# 签名和权限（沙盒 + App Group）也由 build_app.sh 写入，这里不签名，免得 xcodegen 覆盖权限文件。
+name: BiandanWidget
+options:
+  deploymentTarget: { macOS: "14.0" }
+settings:
+  base:
+    BIANDAN_APP_GROUP: G48CJ2J7C8.ai.racore.BiandanMac
+    BIANDAN_URL_SCHEME: biandan
+targets:
+  BiandanWidget:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Sources
+      - path: ../Sources/BiandanMac/Widget/WidgetShared.swift
+    info:
+      path: .generated/Info.plist
+      properties:
+        CFBundleDisplayName: 便单
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        BiandanAppGroup: $(BIANDAN_APP_GROUP)
+        BiandanURLScheme: $(BIANDAN_URL_SCHEME)
+        NSHumanReadableCopyright: © Wuxi Chaorong Technology Co., Ltd.
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.racore.BiandanMac.widget
+        PRODUCT_NAME: BiandanWidget
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGN_IDENTITY: ""
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "0.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        ARCHS: arm64
+        ONLY_ACTIVE_ARCH: NO

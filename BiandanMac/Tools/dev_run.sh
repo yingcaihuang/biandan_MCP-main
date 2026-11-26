@@ -59,6 +59,16 @@ TIMESTAMP=0 \
 PACKAGE=0 \
     "$ROOT/Tools/build_app.sh"
 
+# 同一个标识符在系统里登记了好几份（以前放过 ~/Applications、/tmp 等位置）时，小组件服务可能不收这个扩展：
+# 只留这次组装的这一份，其余的注销登记（不删文件）。
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+while IFS= read -r stale; do
+    [ -n "$stale" ] && [ "$stale" != "$APP" ] || continue
+    pluginkit -r "$stale/Contents/PlugIns/BiandanWidget.appex" 2>/dev/null || true
+    "$LSREGISTER" -u "$stale" 2>/dev/null && echo "已注销重复登记：${stale}"
+done < <("$LSREGISTER" -dump 2>/dev/null | sed -n 's/^path: *\(.*\/BiandanDev\.app\) (0x.*/\1/p' | sort -u)
+"$LSREGISTER" -f "$APP"
+
 [ "$OPEN" = "1" ] || exit 0
 
 ARGS=()

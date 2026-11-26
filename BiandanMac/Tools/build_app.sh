@@ -11,8 +11,11 @@
 #   以下供 Tools/dev_run.sh 使用（组装开发版），正式打包不用设置：
 #   BUNDLE_ID / DISPLAY_NAME / DIST / APP_FILE / ENTITLEMENTS  标识符、显示名、输出目录、.app 文件名、权限文件
 #   HARDENED=0             不启用 Hardened Runtime（方便调试器附加）
+#   WIDGET=0               不编译桌面小组件扩展（需要 xcodegen：brew install xcodegen）
+#   APP_GROUP / URL_SCHEME  小组件共享数据的 App Group 和链接 scheme（默认按标识符：正式版 biandan，开发版 biandan-dev）
 #   PACKAGE=0              不打 zip
-# 产物：dist/Biandan.app，以及带版本号的 dist/Biandan-<版本>.zip 和 .zip.sha256。
+# 产物：dist/Biandan.app（含 Contents/PlugIns/BiandanWidget.appex 小组件、Contents/Resources/Metadata.appintents 快捷指令），
+#       以及带版本号的 dist/Biandan-<版本>.zip 和 .zip.sha256。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -29,6 +32,14 @@ ENTITLEMENTS="${ENTITLEMENTS:-$ROOT/Tools/BiandanMac.entitlements}"
 # 自动更新（Sparkle）：appcast 地址和 EdDSA 公钥。私钥在钥匙串里（账户 ai.racore.BiandanMac），见 Tools/make_update.sh。
 FEED_URL="${FEED_URL:-https://www.aigslb.link/biandan/mac/update/appcast.xml}"
 SPARKLE_PUBLIC_KEY="${SPARKLE_PUBLIC_KEY:-70HMm/3664xGGXs5TucPsxcsYO8kOGF5ngpoHcRvU9k=}"
+# 小组件和主程序共享数据的 App Group（Developer ID 分发用 Team ID 前缀，不需要描述文件），以及小组件点开便单的链接 scheme。
+TEAM_ID="G48CJ2J7C8"
+APP_GROUP="${APP_GROUP:-$TEAM_ID.$BUNDLE_ID}"
+if [ -z "${URL_SCHEME:-}" ]; then
+    URL_SCHEME="biandan"
+    [[ "$BUNDLE_ID" == *.dev ]] && URL_SCHEME="biandan-dev"
+fi
+WIDGET_ID="$BUNDLE_ID.widget"
 
 cd "$ROOT"
 
@@ -61,8 +72,12 @@ if ! security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
 fi
 
 echo "==> 编译（${CONFIG}）"
-swift build -c "$CONFIG"
-BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
+# 同时输出常量元数据（.swiftconstvalues），后面生成快捷指令的 Metadata.appintents 要用。
+PROTOCOLS="$ROOT/Tools/appintents-protocols.json"
+CV_FLAGS=(-Xswiftc -emit-const-values -Xswiftc -Xfrontend -Xswiftc -const-gather-protocols-file
+          -Xswiftc -Xfrontend -Xswiftc "$PROTOCOLS")
+swift build -c "$CONFIG" "${CV_FLAGS[@]}"
+BIN_DIR="$(swift build -c "$CONFIG" "${CV_FLAGS[@]}" --show-bin-path)"
 BINARY="$BIN_DIR/BiandanMac"
 if [ ! -x "$BINARY" ]; then
     echo "找不到编译产物：$BINARY" >&2
@@ -99,6 +114,67 @@ fi
 mkdir -p "$APP/Contents/Frameworks"
 ditto "$BIN_DIR/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
 
+echo "==> 生成快捷指令元数据（Metadata.appintents）"
+# swift build 不会生成这份元数据，Xcode 是用 appintentsmetadataprocessor 生成的，这里照做。源文件必须用绝对路径。
+CFG_DIR="$(echo "$CONFIG" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
+INTENTS_TMP="$(mktemp -d)"
+find "$ROOT/Sources/BiandanMac" -name '*.swift' | sort > "$INTENTS_TMP/sources.txt"
+# 只取主程序目标（BiandanMac-p.build）的：debug 每个源文件一个，release 整模块编译只有一个 *-primary。
+# 测试目标（testable-t.build）的不要；删掉的源文件留下的旧文件也不要，否则元数据工具找不到源文件会报错。
+while IFS= read -r cv; do
+    name="$(basename "$cv" .swiftconstvalues)"
+    if [[ "$name" == *-primary ]] || grep -q "/$name.swift\$" "$INTENTS_TMP/sources.txt"; then
+        echo "$cv"
+    fi
+done < <(find "$ROOT/.build" -path "*/BiandanMac.build/$CFG_DIR/BiandanMac-p.build/*" -name '*.swiftconstvalues') \
+    > "$INTENTS_TMP/constvals.txt"
+if [ ! -s "$INTENTS_TMP/constvals.txt" ]; then
+    echo "找不到编译器输出的常量元数据（.swiftconstvalues），无法生成快捷指令元数据" >&2
+    exit 1
+fi
+XCODE_BUILD="$(xcodebuild -version | sed -n 's/^Build version //p')"
+SDK_ROOT="$(xcrun --sdk macosx --show-sdk-path)"
+TOOLCHAIN="$(dirname "$(dirname "$(dirname "$(xcrun --find swiftc)")")")"
+ARCH="$(uname -m)"
+xcrun appintentsmetadataprocessor --output "$APP/Contents/Resources" --toolchain-dir "$TOOLCHAIN" \
+    --module-name BiandanMac --sdk-root "$SDK_ROOT" --xcode-version "$XCODE_BUILD" --platform-family macOS \
+    --deployment-target 14.0 --target-triple "$ARCH-apple-macos14.0" \
+    --source-file-list "$INTENTS_TMP/sources.txt" --swift-const-vals-list "$INTENTS_TMP/constvals.txt" \
+    --quiet-warnings 2>&1 | grep -vE 'Starting App Intents|Extracting|Writing Metadata|Metadata root' || true
+rm -rf "${INTENTS_TMP:?}"
+ACTIONS="$APP/Contents/Resources/Metadata.appintents/extract.actionsdata"
+if [ ! -f "$ACTIONS" ]; then
+    echo "生成快捷指令元数据失败：没有 $ACTIONS" >&2
+    exit 1
+fi
+echo "    快捷指令：$(python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print(len(d.get('actions',{})),'个，快捷短语',len(d.get('autoShortcuts',[])),'条')" "$ACTIONS")"
+
+WIDGET_APPEX=""
+if [ "${WIDGET:-1}" != "0" ]; then
+    echo "==> 编译桌面小组件（${WIDGET_ID}）"
+    if ! command -v xcodegen >/dev/null 2>&1; then
+        echo "编译小组件需要 xcodegen：brew install xcodegen（或用 WIDGET=0 跳过小组件）" >&2
+        exit 1
+    fi
+    WIDGET_DD="$ROOT/.build/widget-$CONFIG"
+    (cd "$ROOT/Widget" && xcodegen generate --quiet)
+    WIDGET_LOG="$(mktemp)"
+    if ! xcodebuild -project "$ROOT/Widget/BiandanWidget.xcodeproj" -scheme BiandanWidget \
+        -configuration "$CFG_DIR" -derivedDataPath "$WIDGET_DD" -destination 'generic/platform=macOS' \
+        PRODUCT_BUNDLE_IDENTIFIER="$WIDGET_ID" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+        BIANDAN_APP_GROUP="$APP_GROUP" BIANDAN_URL_SCHEME="$URL_SCHEME" ARCHS="$ARCH" \
+        ENABLE_DEBUG_DYLIB=NO ENABLE_PREVIEWS=NO \
+        build >"$WIDGET_LOG" 2>&1; then
+        grep -E 'error:' "$WIDGET_LOG" | head -20 >&2
+        echo "小组件编译失败，完整日志：$WIDGET_LOG" >&2
+        exit 1
+    fi
+    rm -f "$WIDGET_LOG"
+    mkdir -p "$APP/Contents/PlugIns"
+    ditto "$WIDGET_DD/Build/Products/$CFG_DIR/BiandanWidget.appex" "$APP/Contents/PlugIns/BiandanWidget.appex"
+    WIDGET_APPEX="$APP/Contents/PlugIns/BiandanWidget.appex"
+fi
+
 # 开发版（标识符以 .dev 结尾）不写更新地址，App 里的自动更新也就不启用，免得被正式版覆盖。
 UPDATE_KEYS=""
 if [[ "$BUNDLE_ID" != *.dev ]] && [ -n "$FEED_URL" ]; then
@@ -130,6 +206,15 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSHumanReadableCopyright</key><string>© Wuxi Chaorong Technology Co., Ltd.</string>
     <key>NSCalendarsFullAccessUsageDescription</key><string>便单需要读取「互联网账户」里邮箱日历（Exchange、Google、QQ、163 等）的日程，导入为便单任务。只读取，不会修改你的日历。</string>
     <key>NSCalendarsUsageDescription</key><string>便单需要读取「互联网账户」里邮箱日历的日程，导入为便单任务。只读取，不会修改你的日历。</string>
+    <key>BiandanAppGroup</key><string>$APP_GROUP</string>
+    <key>BiandanURLScheme</key><string>$URL_SCHEME</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key><string>$BUNDLE_ID</string>
+            <key>CFBundleURLSchemes</key><array><string>$URL_SCHEME</string></array>
+        </dict>
+    </array>
 ${UPDATE_KEYS}
 </dict>
 </plist>
@@ -192,10 +277,29 @@ for item in "$SPARKLE/Versions/B/XPCServices/Installer.xpc" \
     [[ "$item" == *Downloader.xpc ]] && EXTRA="--preserve-metadata=entitlements"
     codesign --force $RUNTIME_FLAG $TS_FLAG $EXTRA --sign "$IDENTITY" "$item"
 done
+# 主程序和小组件的权限都加上同一个 App Group（主程序原有的权限文件不改，复制一份再加）。
+SIGN_TMP="$(mktemp -d)"
+APP_ENTITLEMENTS="$SIGN_TMP/app.entitlements"
+cp "$ENTITLEMENTS" "$APP_ENTITLEMENTS"
+/usr/libexec/PlistBuddy -c "Delete :com.apple.security.application-groups" "$APP_ENTITLEMENTS" >/dev/null 2>&1 || true
+/usr/libexec/PlistBuddy -c "Add :com.apple.security.application-groups array" \
+    -c "Add :com.apple.security.application-groups:0 string $APP_GROUP" "$APP_ENTITLEMENTS"
+if [ -n "$WIDGET_APPEX" ]; then
+    # 小组件扩展必须开沙盒；只读 App Group 里主程序写的 widget.json。
+    WIDGET_ENTITLEMENTS="$SIGN_TMP/widget.entitlements"
+    /usr/libexec/PlistBuddy -c "Add :com.apple.security.app-sandbox bool true" \
+        -c "Add :com.apple.security.application-groups array" \
+        -c "Add :com.apple.security.application-groups:0 string $APP_GROUP" "$WIDGET_ENTITLEMENTS" >/dev/null
+    # 只有关掉 Hardened Runtime 的调试包（dev_run.sh）才允许调试器附加；要公证的包不能带 get-task-allow。
+    [ "${HARDENED:-1}" = "0" ] && /usr/libexec/PlistBuddy -c "Add :com.apple.security.get-task-allow bool true" "$WIDGET_ENTITLEMENTS"
+    codesign --force $RUNTIME_FLAG $TS_FLAG --entitlements "$WIDGET_ENTITLEMENTS" \
+        --identifier "$WIDGET_ID" --sign "$IDENTITY" "$WIDGET_APPEX"
+fi
 codesign --force $RUNTIME_FLAG $TS_FLAG \
-    --entitlements "$ENTITLEMENTS" \
+    --entitlements "$APP_ENTITLEMENTS" \
     --identifier "$BUNDLE_ID" \
     --sign "$IDENTITY" "$APP"
+rm -rf "${SIGN_TMP:?}"
 if [ "${NOTARIZE:-0}" = "1" ]; then
     "$ROOT/Tools/notarize.sh" "$APP"
 fi
@@ -205,6 +309,12 @@ codesign --verify --deep --strict --verbose=2 "$APP"
 codesign -dvv "$APP" 2>&1 | grep -E '^(Identifier|Authority|TeamIdentifier|Timestamp|Runtime Version|CodeDirectory)' || true
 echo "--- 指定要求（Designated Requirement）"
 codesign -d -r- "$APP" 2>&1 | sed -n 's/^designated => /  /p'
+echo "--- App Group：${APP_GROUP}，链接：${URL_SCHEME}://"
+if [ -n "$WIDGET_APPEX" ]; then
+    codesign -d --entitlements :- "$WIDGET_APPEX" 2>/dev/null | grep -q "$APP_GROUP" \
+        || { echo "小组件签名里没有 App Group $APP_GROUP" >&2; exit 1; }
+    echo "--- 小组件：${WIDGET_ID}（沙盒 + App Group）"
+fi
 echo "--- Gatekeeper（未公证时显示 Unnotarized 属正常）"
 spctl --assess --type execute -vv "$APP" 2>&1 || true
 

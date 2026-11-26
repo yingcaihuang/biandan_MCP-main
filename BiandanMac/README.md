@@ -82,6 +82,13 @@
 >
 > 同一台 Mac 上请只运行一个便单：Xcode 调试版和打包版共用同一个本地数据库和钥匙串凭据，同时运行可能互相覆盖修改。
 
+## 快捷指令和桌面小组件
+
+- **快捷指令**：打开「快捷指令」App 搜「便单」，有添加日程、今天还有什么、完成日程、识别剪贴板里的日程、在便单里打开日程 5 个指令，也可以直接对 Siri 说「用便单添加日程」。指令在主程序里执行，和界面上的操作走同一套逻辑。
+- **桌面小组件**：右键桌面 → 编辑小组件，搜「便单」，添加「便单 · 今天」（小、中、大三种）。点某一条打开便单并定位到它。
+- **链接**：`biandan://open`、`biandan://occurrence/<执行实例 ID>`（开发版是 `biandan-dev://`）。
+- 小组件在沙盒里，读不到数据库。便单把今天起 3 天的待办写到 `~/Library/Group Containers/G48CJ2J7C8.ai.racore.BiandanMac/widget.json`，小组件只读这一份。便单很久没开时，小组件会提示打开便单更新数据。
+
 ## 快捷键
 
 | 快捷键 | 功能 |
@@ -136,6 +143,13 @@ Tools/dev_run.sh BIANDAN_DEBUG_SELECT=腾讯分享会   # 传环境变量给 App
 - 第一次初始化时如果提示 codesign 用不了私钥，请在系统自带的「终端.app」里重新运行，弹窗里输入登录密码，然后点「始终允许」。
 - 要断点调试：先用 `Tools/dev_run.sh` 启动，再在 Xcode 里选 Debug → Attach to Process →「便单 Dev」。开发版没有开 Hardened Runtime，并且带有 `get-task-allow`，调试器可以附加。
 
+### 快捷指令和小组件的打包
+
+- 快捷指令的元数据（`Metadata.appintents`）Xcode 会自动生成，`swift build` 不会。`Tools/build_app.sh` 编译时加上常量元数据参数（协议列表在 `Tools/appintents-protocols.json`），编完调用 `appintentsmetadataprocessor` 生成。
+- 小组件是单独的扩展（`Widget/`，源码在 `Widget/Sources`，和主程序共用 `Sources/BiandanMac/Widget/WidgetShared.swift`）。打包时用 xcodegen 按 `Widget/project.yml` 生成工程（不提交），xcodebuild 编译后放进 `Contents/PlugIns`。需要先 `brew install xcodegen`；不想编小组件时用 `WIDGET=0`。
+- 扩展的权限（沙盒 + App Group）在签名时写入，不放在 xcodegen 里（xcodegen 会把权限文件覆盖成空的）。
+- 小组件库里看不到「便单」时，先看是不是同一个标识符登记了好几份：`lsregister -dump | grep BiandanDev.app`。`dev_run.sh` 启动前会自动注销其他位置的登记；还不行就 `killall chronod` 重启小组件服务。
+
 ### 用 Xcode 运行
 
 1. 用 Xcode 打开 `BiandanMac/Package.swift`，首次打开会自动拉取 GRDB。
@@ -167,6 +181,8 @@ Tools/build_app.sh
 | `TIMESTAMP=0` | 离线时跳过 Apple 时间戳服务器 |
 | `NOTARIZE=1` | 签名后提交 Apple 公证并钉入票据（需先保存 notarytool 凭据，见「自动更新」） |
 | `FEED_URL` / `SPARKLE_PUBLIC_KEY` | 自动更新的 appcast 地址和 EdDSA 公钥，默认写好；开发版不写入 |
+| `WIDGET=0` | 不编译桌面小组件扩展（编译需要 xcodegen） |
+| `APP_GROUP` / `URL_SCHEME` | 小组件共享数据的 App Group 和链接 scheme，默认按标识符：正式版 `biandan`，开发版 `biandan-dev` |
 | `BUNDLE_ID` / `DISPLAY_NAME` / `DIST` / `APP_FILE` / `ENTITLEMENTS` | 标识符、显示名、输出目录、`.app` 文件名、权限文件。供 `Tools/dev_run.sh` 组装开发版用，正式打包不用设 |
 | `HARDENED=0` | 不启用 Hardened Runtime（开发版用，方便调试器附加） |
 | `PACKAGE=0` | 只生成 `.app`，不打 zip |

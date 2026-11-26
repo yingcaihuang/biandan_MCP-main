@@ -16,6 +16,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
 
+    /// 小组件、快捷指令打开的链接：biandan://open、biandan://occurrence/<实例 ID>（开发版是 biandan-dev://）。
+    /// 和点通知走同一条路：先记下要打开的位置，登录、加载完再定位。
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            guard let link = WidgetShared.parse(url) else { continue }
+            MainActor.assumeIsolated {
+                if case .occurrence(let id) = link { ReminderInbox.reveal(.occurrence(id)) }
+                NotificationCenter.default.post(name: .biandanOpenOccurrence, object: nil)
+            }
+        }
+    }
+
     /// 显示菜单栏图标时，关闭主窗口不退出应用。
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         !MenuBarDefaults.isShown
