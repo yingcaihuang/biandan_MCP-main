@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 其他
+
+- 发版时自动建 GitHub Release：`Tools/release.sh` 推送 tag 后调用新增的 `Tools/github_release.sh`，标题「便单 Mac X.Y.Z」，说明是升级提示 + CHANGELOG 这一版的内容 + 安装包 SHA-256，附上安装包；正式版设为 Latest，测试版标为预发布。已存在时跳过不覆盖，gh 没登录或失败只提示、不中断发布；`--dry-run` 只打印说明。补建了漏掉的 1.3.4、1.4.0 两个 Release。
+
 ## [1.4.0] - 2026-11-26
 
 ### 新功能

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 一条命令发布 Mac 版：公证凭据 → 检查私钥、证书、服务器 → 打 tag → 打包、签名、公证、生成更新文件 → 上传 → 更新介绍页 → 推送。
+# 一条命令发布 Mac 版：公证凭据 → 检查私钥、证书、服务器 → 打 tag → 打包、签名、公证、生成更新文件 → 上传 → 更新介绍页 → 推送 → 建 GitHub Release。
 #
 # 用法（在 BiandanMac 目录）：
 #   Tools/release.sh 1.3.0                    发布 1.3.0
@@ -9,6 +9,7 @@
 #   --no-push      上传后不推送分支和 tag（默认全部成功后推送到 origin）
 #   --skip-build   不重新打包，用 dist/ 里已有的包（传给 make_update.sh）
 #   --no-site      不更新介绍页 https://www.aigslb.link/biandan/mac/（测试版本来就不更新）
+#   GitHub Release 由 Tools/github_release.sh 建（需要 gh 已登录）；没建成只提示，不中断发布。
 #
 # .env（已被 git 忽略，权限 600）里的公证凭据按格式识别，行的顺序和前面的说明文字都不要紧：
 #   appleid:<Apple ID 邮箱>
@@ -184,6 +185,18 @@ if [ "$PUSH" = 1 ]; then
     git push origin "$TAG"
 else
     step "7. 没有推送（--no-push）。需要时运行：git push origin $(git branch --show-current) && git push origin ${TAG}"
+fi
+
+# ---- 8. GitHub Release ----
+# 更新包已经上线，Release 没建成只提示，不中断发布。测试版标为预发布、不设为 Latest。
+RELEASE_ARGS=("$VERSION")
+[ -n "$CHANNEL" ] && RELEASE_ARGS+=(--channel "$CHANNEL")
+if [ "$PUSH" = 1 ]; then
+    step "8. GitHub Release"
+    "$HERE/Tools/github_release.sh" "${RELEASE_ARGS[@]}" \
+        || echo "⚠︎ GitHub Release 没建成（更新包已经上线），稍后运行：Tools/github_release.sh ${RELEASE_ARGS[*]}"
+else
+    step "8. 没有建 GitHub Release（tag 还没推送）。推送后运行：Tools/github_release.sh ${RELEASE_ARGS[*]}"
 fi
 
 echo
