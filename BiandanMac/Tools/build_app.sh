@@ -206,6 +206,22 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSHumanReadableCopyright</key><string>© Wuxi Chaorong Technology Co., Ltd.</string>
     <key>NSCalendarsFullAccessUsageDescription</key><string>便单需要读取「互联网账户」里邮箱日历（Exchange、Google、QQ、163 等）的日程，导入为便单任务。只读取，不会修改你的日历。</string>
     <key>NSCalendarsUsageDescription</key><string>便单需要读取「互联网账户」里邮箱日历的日程，导入为便单任务。只读取，不会修改你的日历。</string>
+    <key>NSServices</key>
+    <array>
+        <dict>
+            <key>NSMenuItem</key><dict><key>default</key><string>用${DISPLAY_NAME}识别日程</string></dict>
+            <key>NSMessage</key><string>captureSchedule</string>
+            <key>NSPortName</key><string>${DISPLAY_NAME}</string>
+            <key>NSSendTypes</key>
+            <array>
+                <string>public.utf8-plain-text</string>
+                <string>public.plain-text</string>
+                <string>public.png</string>
+                <string>public.tiff</string>
+            </array>
+            <key>NSRequiredContext</key><dict/>
+        </dict>
+    </array>
     <key>BiandanAppGroup</key><string>$APP_GROUP</string>
     <key>BiandanURLScheme</key><string>$URL_SCHEME</string>
     <key>CFBundleURLTypes</key>

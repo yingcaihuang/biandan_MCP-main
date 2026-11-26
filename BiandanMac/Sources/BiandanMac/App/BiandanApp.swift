@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import CoreSpotlight
 import SwiftUI
 import UserNotifications
 
@@ -10,6 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // swift run 时没有 .app 包里的 AppIcon.icns，这里把官方图标设为 Dock 图标；打包后两者一致。
         if let icon = BrandIcon.image { NSApp.applicationIconImage = icon }
         NSApp.activate(ignoringOtherApps: true)
+        // 系统「服务」菜单：选中文字或图片 → 服务 → 用便单识别日程（Info.plist 的 NSServices 由 build_app.sh 写入）。
+        NSApp.servicesProvider = ScheduleServiceProvider.shared
+        NSUpdateDynamicServices()
         if ReminderScheduler.isAvailable {
             UNUserNotificationCenter.current().delegate = self
             UNUserNotificationCenter.current().setNotificationCategories([ReminderAction.category()])
@@ -26,6 +30,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 NotificationCenter.default.post(name: .biandanOpenOccurrence, object: nil)
             }
         }
+    }
+
+    /// 点 Spotlight 里的日程：打开便单定位到这条。
+    func application(_ application: NSApplication, continue userActivity: NSUserActivity,
+                     restorationHandler: @escaping ([any NSUserActivityRestoring]) -> Void) -> Bool {
+        MainActor.assumeIsolated { SpotlightIndex.open(userActivity) }
     }
 
     /// 显示菜单栏图标时，关闭主窗口不退出应用。
@@ -231,6 +241,10 @@ struct RootView: View {
             case .signedIn:
                 MainView()
             }
+        }
+        // SwiftUI 窗口接到的 Spotlight 点击（AppDelegate 那边没收到时）。
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            SpotlightIndex.open(activity)
         }
         .onChange(of: model.authState) { old, new in
             guard old == .checking else { return }

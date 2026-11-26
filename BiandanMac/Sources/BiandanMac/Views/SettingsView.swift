@@ -1114,6 +1114,9 @@ private struct ReminderSettingsSection: View {
                 ThemedSwitch(isOn: $model.hideDockIcon)
             }
             .disabled(!model.showMenuBarExtra)
+            SettingRow("在 Spotlight 里搜索日程", caption: "⌘空格搜标题或分类，点结果打开便单定位；只写本机索引，退出登录时清空") {
+                ThemedSwitch(isOn: $model.spotlightEnabled)
+            }
             SettingRow("全局快速添加", caption: "在任何 App 里按快捷键弹出输入框记任务") {
                 ThemedSegmented(selection: $model.quickAddHotKey,
                                 options: QuickAddHotKey.allCases.map { ThemeOption(value: $0, title: $0.title) })
@@ -1126,6 +1129,8 @@ private struct ReminderSettingsSection: View {
                                 text: "一次性任务按提醒日期和时刻通知；重复任务排定近 14 天、最多 60 条。通知上可以直接点「完成」「放弃本次」或稍后提醒。地点提醒仍由手机处理。"),
                 SettingFootnote(icon: "keyboard",
                                 text: "快速添加的写法与快速添加栏相同，没写日期时默认今天，不需要辅助功能权限。"),
+                SettingFootnote(icon: "text.cursor",
+                                text: "在任何 App 里选中文字或图片，右键 → 服务 →「用便单识别日程」，弹出和浮窗球一样的确认卡片。菜单里没有时，到「系统设置 → 键盘 → 键盘快捷键 → 服务」里勾选。"),
             ])
         }
         .task { await model.refreshReminderStatus() }

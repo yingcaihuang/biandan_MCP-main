@@ -159,6 +159,8 @@ final class AppModel {
     let schedulePusher = SchedulePusher()
     /// 把今天起几天的待办写给桌面小组件（App Group 里的 widget.json）。
     let widgetPublisher = WidgetPublisher()
+    /// 把没完成的日程写进本机 Spotlight 索引。
+    let spotlightIndexer = SpotlightIndexer()
     /// 快捷指令（App Intents）拿当前的 AppModel 用。
     static weak var current: AppModel?
     @ObservationIgnored private var signInFlow: OAuthFlow?
@@ -171,7 +173,7 @@ final class AppModel {
 
     // 账户与同步
     var authState: AuthState = .checking {
-        didSet { if oldValue != authState { widgetPublisher.noteChange() } }
+        didSet { if oldValue != authState { widgetPublisher.noteChange(); spotlightIndexer.noteChange() } }
     }
     var profile: AccountProfile = .placeholder
     var pendingAuthorizationURL: URL?
@@ -478,6 +480,13 @@ final class AppModel {
             FloatingBallController.shared.apply(model: self)
         }
     }
+    /// 在 Spotlight 里搜索日程（只写本机索引）。
+    var spotlightEnabled: Bool = UserDefaults.standard.object(forKey: "biandan.spotlight.enabled") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(spotlightEnabled, forKey: "biandan.spotlight.enabled")
+            spotlightIndexer.noteChange()
+        }
+    }
     /// 全局快速添加的快捷键（默认 ⌃⌥N）。
     var quickAddHotKey: QuickAddHotKey = QuickAddHotKey(
         rawValue: UserDefaults.standard.string(forKey: DefaultsKey.quickAddHotKey) ?? ""
@@ -556,6 +565,7 @@ final class AppModel {
         if mcpEnabled { startMCP() }
         schedulePusher.attach(self)
         widgetPublisher.attach(self)
+        spotlightIndexer.attach(self)
         installReminderObserver()
         applyQuickAddHotKey()
         Task { await refreshReminderStatus() }
@@ -582,7 +592,7 @@ final class AppModel {
     func appBecameActive() {
         let now = LocalDate.today()
         if now != today { today = now }
-        widgetPublisher.noteChange()
+        widgetPublisher.noteChange(); spotlightIndexer.noteChange()
         if authState == .signedIn, recoverStoreIfDeleted() {
             reloadSnapshot()
             Task { await syncNow(.manual) }
@@ -803,7 +813,7 @@ final class AppModel {
         if let id = selectedFocusID, !snapshot.focus.contains(where: { $0.time == id }) { selectedFocusID = nil }
         scheduleReminders()
         schedulePusher.noteChange()
-        widgetPublisher.noteChange()
+        widgetPublisher.noteChange(); spotlightIndexer.noteChange()
     }
 
     // MARK: - 视图数据

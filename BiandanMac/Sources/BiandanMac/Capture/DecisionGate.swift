@@ -187,7 +187,7 @@ enum DecisionKeyStore {
 
 /// 这段文字从哪里来；OCR 来的文字噪声更多，告诉决策模型。
 enum CaptureInputSource: String, Codable, Sendable {
-    case region, fullScreen, clipboard, droppedText, droppedImage
+    case region, fullScreen, clipboard, droppedText, droppedImage, service
 
     var title: String {
         switch self {
@@ -196,6 +196,7 @@ enum CaptureInputSource: String, Codable, Sendable {
         case .clipboard: return "剪贴板"
         case .droppedText: return "拖入文字"
         case .droppedImage: return "拖入图片 OCR"
+        case .service: return "服务菜单"
         }
     }
 }
