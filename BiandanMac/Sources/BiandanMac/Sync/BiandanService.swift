@@ -119,6 +119,23 @@ actor BiandanService {
     var createIndex: CreateIndex?
     /// 并发批量写入时已处理的项数（进度回报用）。
     var progressDone = 0
+    /// 批量新建期间已核对过的分类（ID → 数值），每条不再各查一次；为 nil 时照常核对。
+    var listCheckCache: [String: Int]?
+    /// 批量新建中途要停下的原因（登录失效、取消），之后的项不再写；是否因为登录失效。
+    var bulkStop: String?
+    var bulkSignIn = false
+    /// 上一次生成的任务 ID：并发新建时保证新 ID 严格递增，不会在同一微秒撞上。
+    private var lastTaskID: Int64 = 0
+
+    func nextTaskID() -> String {
+        lastTaskID = Self.nextID(after: lastTaskID, now: clock())
+        return String(lastTaskID)
+    }
+
+    static func nextID(after last: Int64, now: Date) -> Int64 {
+        let candidate = Int64(BusinessID.generate(now: now)) ?? (last + 1)
+        return max(candidate, last + 1)
+    }
     private var createIndexUsers = 0
     private var waiters: [CheckedContinuation<Void, Never>] = []
     /// 当前操作累积的变化。
@@ -376,10 +393,12 @@ actor BiandanService {
     // MARK: - 待办单
 
     func validateList(_ listID: String) async throws -> Int {
+        if let cached = listCheckCache?[listID] { return cached }
         if listID != TodoList.defaultID {
             _ = try await require(.favorites, listID)
         }
         guard let value = Int(listID) else { throw ServiceError("无效的分类 ID。") }
+        if listCheckCache != nil { listCheckCache?[listID] = value }
         return value
     }
 

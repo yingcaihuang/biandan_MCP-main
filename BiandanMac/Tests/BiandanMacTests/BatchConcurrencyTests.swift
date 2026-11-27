@@ -48,6 +48,19 @@ final class BatchConcurrencyTests: XCTestCase {
         XCTAssertEqual(BatchConcurrency.groups([String]()), [])
     }
 
+    func testNextTaskIDIsStrictlyIncreasing() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = BiandanService.nextID(after: 0, now: now)
+        XCTAssertEqual(first, Int64(BusinessID.generate(now: now)))
+        // 同一微秒连续生成也不会重复。
+        let second = BiandanService.nextID(after: first, now: now)
+        XCTAssertEqual(second, first + 1)
+        // 时钟回拨时仍然递增。
+        let third = BiandanService.nextID(after: second, now: now.addingTimeInterval(-5))
+        XCTAssertEqual(third, second + 1)
+        XCTAssertTrue(BusinessID.isValid(String(third)))
+    }
+
     func testRetryPolicy() {
         XCTAssertTrue(RetryPolicy.shouldRetry(status: 429, method: "POST"))
         XCTAssertTrue(RetryPolicy.shouldRetry(status: 503, method: "GET"))

@@ -397,15 +397,33 @@ extension AppModel {
         if total > 0 { importProgress[sourceID] = ImportProgress(done: 0, total: total) }
         defer { importProgress[sourceID] = nil }
         func step() { importProgress[sourceID]?.done += 1 }
-        for event in plan.added {
+        // 新增的整批交给服务层一次处理：最多 3 条同时写云端，分类只核对一次。
+        if !plan.added.isEmpty {
             guard !Task.isCancelled else { return counts }
-            defer { step() }
-            if let taskID = await createImportedTask(event.input(listID: listID, sourceName: sourceName)) {
-                saveLink(sourceID, event, taskID: taskID)
-                counts.added += 1
-            } else {
-                counts.failed += 1
+            let base = importProgress[sourceID]?.done ?? 0
+            let inputs = plan.added.map { preparedImport($0.input(listID: listID, sourceName: sourceName)) }
+            let reporter = importProgressReporter(sourceID, base: base)
+            let outcome = await perform("导入日程", silent: true) { service in
+                try await service.createTasks(inputs, progress: reporter)
             }
+            if let outcome {
+                for (event, result) in zip(plan.added, outcome.results) {
+                    if let taskID = result.taskID {
+                        saveLink(sourceID, event, taskID: taskID)
+                        counts.added += 1
+                    } else {
+                        counts.failed += 1
+                    }
+                }
+                if outcome.needsSignIn {
+                    // 已建好的对应关系都存下了；登录失效就停下，回到登录页。
+                    expireSession()
+                    return counts
+                }
+            } else {
+                counts.failed += plan.added.count
+            }
+            setImportProgress(sourceID, done: base + plan.added.count)
         }
         for event in plan.restored {
             guard !Task.isCancelled else { return counts }
@@ -465,6 +483,28 @@ extension AppModel {
         try? store.saveImportLink(ImportLink(sourceID: sourceID, key: event.key, taskID: taskID,
                                              fingerprint: event.fingerprint, startDay: event.startDate,
                                              abandoned: false))
+    }
+
+    /// 导入的新建按当前设置补上周起始日和调休规则。
+    private func preparedImport(_ input: CreateTaskInput) -> CreateTaskInput {
+        var prepared = input
+        prepared.weekStart = weekStart
+        prepared.chinaMakeup = chinaMakeup
+        return prepared
+    }
+
+    /// 服务层在后台回报批量新建的进度，切回主线程更新「正在写入便单 n/总数」。
+    private func importProgressReporter(_ sourceID: String, base: Int) -> @Sendable (Int, Int) async -> Void {
+        { [weak self] done, _ in
+            await self?.setImportProgress(sourceID, done: base + done)
+        }
+    }
+
+    /// 先拷出来改好再一次写回（同一语句里既写又读会触发独占访问检查闪退）；进度只往前走。
+    func setImportProgress(_ sourceID: String, done: Int) {
+        guard var progress = importProgress[sourceID] else { return }
+        progress.done = max(progress.done, done)
+        importProgress[sourceID] = progress
     }
 
     /// 静默新建（不打扰选中状态），返回新任务的 ID。

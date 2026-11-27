@@ -23,6 +23,18 @@ struct CreateIndex: Sendable {
     var occurrences: [String: [RawRecord]] = [:]
 }
 
+/// 批量新建一条的结果：taskID 有值表示成功，否则 error 是原因。
+struct BatchCreateResult: Sendable {
+    var taskID: String? = nil
+    var error: String? = nil
+}
+
+/// 批量新建的整体结果：逐条结果按输入顺序；needsSignIn 表示中途登录失效。
+struct BatchCreateOutcome: Sendable {
+    var results: [BatchCreateResult]
+    var needsSignIn: Bool
+}
+
 /// 批量删除一项的结果：error 为 nil 表示成功，plan 是实际删除的范围。
 struct BatchDeleteResult: Sendable {
     var error: String? = nil
@@ -173,7 +185,60 @@ extension BiandanService {
     }
 
     func createTask(_ input: CreateTaskInput) async throws -> (CreateTaskResult, ChangeSet) {
+        try await run { try await createTaskBody(input) }
+    }
+
+    /// 批量新建（导入用）：整批一次调用完成，最多 BatchConcurrency.limit 条同时写云端，查重索引和分类核对只做一次。
+    /// 单条失败记下原因继续；登录失效或被取消时剩下的不再写、标记为没处理，已经建好的照常返回，
+    /// 调用方据此保存对应关系，不会因为整批失败而在下次同步时重复新建。
+    func createTasks(_ inputs: [CreateTaskInput],
+                     progress: (@Sendable (Int, Int) async -> Void)? = nil) async throws -> (BatchCreateOutcome, ChangeSet) {
         try await run {
+            try? await beginBulkCreate()
+            listCheckCache = [:]
+            bulkStop = nil
+            bulkSignIn = false
+            progressDone = 0
+            defer {
+                endBulkCreate()
+                listCheckCache = nil
+            }
+            for listID in Set(inputs.map(\.listID)) { _ = try? await validateList(listID) }
+            let total = inputs.count
+            let results = try await BatchConcurrency.map(inputs) { _, input in
+                await self.createOne(input, total: total, progress: progress)
+            }
+            return BatchCreateOutcome(results: results, needsSignIn: bulkSignIn)
+        }
+    }
+
+    /// 批量新建的一条：不抛错，结果里写明成功的任务 ID 或失败原因。
+    private func createOne(_ input: CreateTaskInput, total: Int,
+                           progress: (@Sendable (Int, Int) async -> Void)?) async -> BatchCreateResult {
+        var result = BatchCreateResult()
+        if let reason = bulkStop ?? (Task.isCancelled ? "已取消，没有写入" : nil) {
+            result.error = reason
+        } else {
+            do {
+                result.taskID = try await createTaskBody(input).taskID
+            } catch {
+                if ServiceError.needsSignIn(error) {
+                    bulkSignIn = true
+                    bulkStop = "登录已失效，没有写入"
+                } else if error is CancellationError || Task.isCancelled {
+                    bulkStop = bulkStop ?? "已取消，没有写入"
+                }
+                result.error = error.localizedDescription
+            }
+        }
+        progressDone += 1
+        await progress?(progressDone, total)
+        return result
+    }
+
+    /// 不加锁的新建主体，供 createTask 和 createTasks 调用（调用方已在 run 内）。
+    func createTaskBody(_ input: CreateTaskInput) async throws -> CreateTaskResult {
+        do {
             let title = input.title.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !title.isEmpty else { throw ServiceError("请填写任务标题。") }
             let subtasks = input.subtasks.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -200,7 +265,7 @@ extension BiandanService {
             let start = input.startDate ?? .undatedStart
             let end = undated ? LocalDate.maxSupported : (input.endDate ?? start)
             let window = try Self.dateWindow(start: start, end: end, startTime: input.startTime, endTime: input.endTime)
-            let taskID = input.operationID ?? BusinessID.generate(now: clock())
+            let taskID = input.operationID ?? nextTaskID()
             guard BusinessID.isValid(taskID) else { throw ServiceError("任务 ID 无效。") }
             let listValue = try await validateList(input.listID)
 
@@ -258,8 +323,12 @@ extension BiandanService {
                 }
                 rememberCreated()
             } catch {
-                throw ServiceError("\(stage)写入失败：\(error.localizedDescription)", mayHaveWritten: true,
-                                   recovery: "可同步后用同一任务 ID（\(taskID)）重试。")
+                var failure = ServiceError("\(stage)写入失败：\(error.localizedDescription)", mayHaveWritten: true,
+                                           recovery: "可同步后用同一任务 ID（\(taskID)）重试。")
+                // 保留原始错误的「需要重新登录」「临时失败」标记，批量新建据此停下。
+                failure.signInRequired = ServiceError.needsSignIn(error)
+                failure.transient = OutboxPolicy.isTransient(error)
+                throw failure
             }
             return CreateTaskResult(taskID: taskID, occurrenceID: occurrences.first?.string("id2") ?? taskID,
                                     occurrencesCreated: occurrences.count)
