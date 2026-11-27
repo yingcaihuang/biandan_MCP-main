@@ -72,19 +72,37 @@ struct SyncAPIClient: Sendable {
             headers["Authorization"] = "Bearer \(token)"
             let result: JSONObject
             do {
-                result = try await HTTPTransport.requestJSON(method: method, url: url, headers: headers, body: body)
+                result = try await sendWithBackoff(method: method, url: url, headers: headers, body: body, label: label)
             } catch let error as CloudError where error.status == 401 {
                 // 只重试这一次被拒的请求；业务操作的其他写入可能已经生效。
                 SyncDiagnostics.log("\(label) trace=\(trace) → 401，换新令牌后重试")
                 let fresh = try await tokens.accessToken(rejected: token)
                 headers["Authorization"] = "Bearer \(fresh)"
-                result = try await HTTPTransport.requestJSON(method: method, url: url, headers: headers, body: body)
+                result = try await sendWithBackoff(method: method, url: url, headers: headers, body: body, label: label)
             }
             SyncDiagnostics.log("\(label) trace=\(trace) → OK  " + SyncDiagnostics.summarize(result))
             return result
         } catch {
             SyncDiagnostics.log("\(label) trace=\(trace) → 失败：\(error.localizedDescription)")
             throw error
+        }
+    }
+
+    /// 被限流（429）或读请求遇到 503 时，按 Retry-After 或指数退避重试，最多发 RetryPolicy.maxAttempts 次。
+    private func sendWithBackoff(method: String, url: URL, headers: [String: String], body: Data?,
+                                 label: String) async throws -> JSONObject {
+        var attempt = 1
+        while true {
+            do {
+                return try await HTTPTransport.requestJSON(method: method, url: url,
+                                                           headers: headers, body: body)
+            } catch let error as CloudError where RetryPolicy.shouldRetry(status: error.status, method: method)
+                        && attempt < RetryPolicy.maxAttempts {
+                let wait = RetryPolicy.delay(attempt: attempt, retryAfter: error.retryAfter)
+                SyncDiagnostics.log("\(label) → HTTP \(error.status ?? 0)，\(String(format: "%.1f", wait)) 秒后重试")
+                try await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+                attempt += 1
+            }
         }
     }
 

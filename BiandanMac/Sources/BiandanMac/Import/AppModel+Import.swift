@@ -376,8 +376,20 @@ extension AppModel {
         return await createList(name: name, colorIndex: ScheduleCategorizer.colorIndex(for: name), select: false)
     }
 
+    /// 要新建两条及以上时，先让服务层把任务表、实例表各拉一次做查重索引，不再每建一条各拉一遍。
     private func applyImportPlan(_ plan: ImportPlan, links: [ImportLink], sourceID: String, listID: String,
                                  sourceName: String) async -> ImportCounts {
+        let bulk = plan.added.count + plan.restored.count + plan.updated.count >= 2
+        // 拉表失败时退回逐条查重，导入照常进行。
+        if bulk { try? await service.beginBulkCreate() }
+        let counts = await applyImportPlanBody(plan, links: links, sourceID: sourceID, listID: listID,
+                                               sourceName: sourceName)
+        if bulk { await service.endBulkCreate() }
+        return counts
+    }
+
+    private func applyImportPlanBody(_ plan: ImportPlan, links: [ImportLink], sourceID: String, listID: String,
+                                     sourceName: String) async -> ImportCounts {
         let linkByKey = Dictionary(links.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
         var counts = ImportCounts()
         // 进度：每处理完一条加一，「已导入的日历」里显示「正在写入便单 n/总数」。

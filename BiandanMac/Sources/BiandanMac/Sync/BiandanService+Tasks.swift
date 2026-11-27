@@ -17,6 +17,20 @@ enum DeleteScope: String, CaseIterable, Sendable {
 }
 
 /// 删除前的预览结果，对应 Python delete_task 的 preview 返回。
+/// 批量新建期间的查重索引：业务 ID → 云端记录（同一 ID 有多条时用于报重复）。
+struct CreateIndex: Sendable {
+    var tasks: [String: [RawRecord]] = [:]
+    var occurrences: [String: [RawRecord]] = [:]
+}
+
+/// 批量删除的一项：重复任务要给范围，一次性任务 scope 为 nil。
+struct BatchDeleteTarget: Sendable {
+    var taskID: String
+    var scope: DeleteScope?
+    var occurrenceID: String?
+    var fromDate: LocalDate?
+}
+
 struct DeletePlan: Sendable {
     var taskID: String
     var title: String?
@@ -119,6 +133,39 @@ extension BiandanService {
 
     // MARK: 新建
 
+    /// 新建前查重：批量新建期间查索引，否则照常按 ID 查任务、完整拉取执行实例表。
+    func existingForCreate(_ taskID: String,
+                           occurrenceIDs: Set<String>) async throws -> (RawRecord?, [String: RawRecord]) {
+        guard let index = createIndex else {
+            let stored = try await find(.task, taskID, required: false)
+            return (stored, try await occurrenceIndex(occurrenceIDs))
+        }
+        let tasks = index.tasks[taskID] ?? []
+        if tasks.count > 1 { throw ServiceError("有多条 task 记录使用了同一个 ID \(taskID)。") }
+        var matches: [String: RawRecord] = [:]
+        for id in occurrenceIDs {
+            let rows = index.occurrences[id] ?? []
+            if rows.count > 1 { throw ServiceError("有多个执行实例使用了同一个 ID \(id)。") }
+            if let row = rows.first { matches[id] = row }
+        }
+        return (tasks.first, matches)
+    }
+
+    /// 把这次读回的新记录记进查重索引，同一批里后面的新建也能查到。
+    func rememberCreated() {
+        guard createIndex != nil else { return }
+        for record in pending.upserted {
+            switch record.kind {
+            case .task:
+                if let id = record.attributes?.identifier("id1") { createIndex?.tasks[id] = [record] }
+            case .showTask:
+                if let id = record.attributes?.identifier("id2") { createIndex?.occurrences[id] = [record] }
+            default:
+                break
+            }
+        }
+    }
+
     func createTask(_ input: CreateTaskInput) async throws -> (CreateTaskResult, ChangeSet) {
         try await run {
             let title = input.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -189,8 +236,8 @@ extension BiandanService {
 
             var stage = "任务"
             do {
-                let stored = try await find(.task, taskID, required: false)
-                let indexed = try await occurrenceIndex(Set(occurrences.compactMap { $0.string("id2") }))
+                let (stored, indexed) = try await existingForCreate(
+                    taskID, occurrenceIDs: Set(occurrences.compactMap { $0.string("id2") }))
                 if !indexed.isEmpty && stored == nil {
                     throw ServiceError("生成的执行实例 ID 已被占用。")
                 }
@@ -203,6 +250,7 @@ extension BiandanService {
                     let id2 = entry.string("id2") ?? ""
                     try await ensureRecord(.showTask, id2, expected: entry, existing: indexed[id2])
                 }
+                rememberCreated()
             } catch {
                 throw ServiceError("\(stage)写入失败：\(error.localizedDescription)", mayHaveWritten: true,
                                    recovery: "可同步后用同一任务 ID（\(taskID)）重试。")
@@ -278,6 +326,61 @@ extension BiandanService {
             return try await deleteTaskBody(taskID, scope: scope, occurrenceID: occurrenceID, fromDate: fromDate,
                                             expectedList: nil)
         }
+    }
+
+    /// 批量删除：整批只拉一次执行实例表，逐项删除，逐项返回结果（nil 表示成功，否则是失败原因），
+    /// 一项失败不影响其他项；登录失效时整批中断。最后统一核对一次孤儿实例。
+    func deleteTasks(_ targets: [BatchDeleteTarget],
+                     progress: (@Sendable (Int, Int) async -> Void)? = nil) async throws -> ([String?], ChangeSet) {
+        try await run {
+            try await loadOccurrenceCache()
+            defer { occurrenceCache = nil }
+            progressDone = 0
+            let total = targets.count
+            // 同一任务的几项按顺序做（免得版本冲突），不同任务最多 BatchConcurrency.limit 个同时写云端。
+            let groups = BatchConcurrency.groups(targets.map(\.taskID))
+            let outcomes = try await BatchConcurrency.map(groups) { _, indices in
+                try await self.deleteGroup(indices, of: targets, total: total, progress: progress)
+            }
+            var results = [String?](repeating: nil, count: total)
+            var removed = Set<String>()
+            for outcome in outcomes.joined() {
+                results[outcome.index] = outcome.error
+                if let id = outcome.removedTask { removed.insert(id) }
+            }
+            // 核对失败不影响已经返回的逐项结果；残留的实例下次同步后可以再删。
+            try? await sweepOrphanOccurrences(of: removed)
+            return results
+        }
+    }
+
+    struct DeleteOutcome: Sendable {
+        var index: Int
+        var error: String? = nil
+        var removedTask: String? = nil
+    }
+
+    /// 批量删除里同一任务的几项，按顺序删。单项失败记下原因继续；登录失效、取消时整批中断。
+    private func deleteGroup(_ indices: [Int], of targets: [BatchDeleteTarget], total: Int,
+                             progress: (@Sendable (Int, Int) async -> Void)?) async throws -> [DeleteOutcome] {
+        var out: [DeleteOutcome] = []
+        for index in indices {
+            let target = targets[index]
+            var outcome = DeleteOutcome(index: index)
+            do {
+                let plan = try await deleteTaskBody(target.taskID, scope: target.scope,
+                                                    occurrenceID: target.occurrenceID, fromDate: target.fromDate,
+                                                    expectedList: nil)
+                if plan.deletesTaskDefinition { outcome.removedTask = target.taskID }
+            } catch {
+                if ServiceError.needsSignIn(error) || error is CancellationError || Task.isCancelled { throw error }
+                outcome.error = error.localizedDescription
+            }
+            out.append(outcome)
+            progressDone += 1
+            await progress?(progressDone, total)
+        }
+        return out
     }
 
     /// 不加锁的删除主体，供 deleteTask 和 deleteList 调用（调用方已在 run 内）。

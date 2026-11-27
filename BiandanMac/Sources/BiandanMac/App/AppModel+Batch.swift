@@ -170,20 +170,33 @@ extension AppModel {
     func batchDelete(_ items: [OccurrenceItem]? = nil) async -> Bool {
         let targets = items ?? batchItems
         guard !targets.isEmpty, beginBatch("删除", total: targets.count) else { return false }
+        // 整批交给服务层一次处理：执行实例表只拉一次，逐项返回结果。
+        let requests = targets.map { item -> BatchDeleteTarget in
+            let repeating = item.task.isRepeating
+            return BatchDeleteTarget(taskID: item.task.id1, scope: repeating ? .occurrence : nil,
+                                     occurrenceID: repeating ? item.id : nil, fromDate: nil)
+        }
+        let reporter = batchProgressReporter()
+        let results = await perform("删除任务") { service in
+            try await service.deleteTasks(requests, progress: reporter)
+        }
+        var processed = batchProgress?.done ?? 0
         var failed = 0
         var firstError: String?
-        for item in targets {
-            guard authState == .signedIn else { break }
-            let ok = await deleteTask(item, scope: .occurrence)
-            if !ok {
-                failed += 1
-                if firstError == nil { firstError = operationError }
-            }
-            batchProgress?.done += 1
-            batchProgress?.failed = failed
+        if let results {
+            let errors = results.compactMap { $0 }
+            failed = errors.count
+            firstError = errors.first
+        } else {
+            // 整批中断（登录失效、读不到实例表等）：已处理之后的都算没成功。
+            failed = max(targets.count - processed, 0)
+            firstError = operationError
+            processed = targets.count
         }
-        let processed = batchProgress?.done ?? 0
         batchProgress = nil
+        if let selected = selectedOccurrenceID, snapshot.item(occurrenceID: selected) == nil {
+            selectedOccurrenceID = nil
+        }
         multiSelection = multiSelection.filter { snapshot.item(occurrenceID: $0) != nil }
         finishBatch("删除", total: targets.count, processed: processed, failed: failed, error: firstError)
         return failed == 0 && processed == targets.count
@@ -210,10 +223,18 @@ extension AppModel {
         registerUndoNow(name, undo: plan.undo, redo: plan.redo)
     }
 
+    /// 服务层在后台回报进度，切回主线程更新底部进度条。
+    func batchProgressReporter() -> @Sendable (Int, Int) async -> Void {
+        { [weak self] done, count in
+            await self?.reportBatchProgress(done, total: count)
+        }
+    }
+
     /// 服务层回报的进度（删除分类等一次调用里逐条写云端的操作）。
     func reportBatchProgress(_ done: Int, total: Int) {
         guard batchProgress != nil else { return }
-        batchProgress?.done = done
+        // 并发写入时回调可能乱序到达：进度只往前走。
+        batchProgress?.done = max(batchProgress?.done ?? 0, done)
         if total > 0 { batchProgress?.total = total }
     }
 

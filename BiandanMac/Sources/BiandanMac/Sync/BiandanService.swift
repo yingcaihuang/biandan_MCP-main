@@ -9,6 +9,8 @@ struct ServiceError: Error, LocalizedError, Sendable {
     var recovery: String?
     /// 原始错误是否是临时性的（断网、超时、429、5xx），可以放进待同步队列重试。
     var transient = false
+    /// 原始错误是登录失效：包装后也要能认出来，批量操作据此中断，界面据此回到登录页。
+    var signInRequired = false
 
     init(_ message: String, mayHaveWritten: Bool = false, recovery: String? = nil) {
         self.message = message
@@ -20,6 +22,14 @@ struct ServiceError: Error, LocalizedError, Sendable {
     init(wrapping error: Error, mayHaveWritten: Bool = false, recovery: String? = nil) {
         self.init(error.localizedDescription, mayHaveWritten: mayHaveWritten, recovery: recovery)
         transient = OutboxPolicy.isTransient(error)
+        signInRequired = Self.needsSignIn(error)
+    }
+
+    static func needsSignIn(_ error: Error) -> Bool {
+        if let auth = error as? AuthError { return auth == .reauthorizationRequired || auth == .notSignedIn }
+        if let service = error as? ServiceError { return service.signInRequired }
+        if let failure = error as? OperationFailure { return failure.needsSignIn }
+        return false
     }
 
     var errorDescription: String? {
@@ -58,11 +68,7 @@ struct OperationFailure: Error, LocalizedError, Sendable {
         message = error.localizedDescription
         self.changes = changes
         transient = OutboxPolicy.isTransient(error)
-        if let auth = error as? AuthError {
-            needsSignIn = auth == .reauthorizationRequired || auth == .notSignedIn
-        } else {
-            needsSignIn = false
-        }
+        needsSignIn = ServiceError.needsSignIn(error)
     }
 
     var errorDescription: String? { message }
@@ -107,6 +113,13 @@ actor BiandanService {
     let clock: @Sendable () -> Date
 
     private var busy = false
+    /// 整批删除期间预先拉好的执行实例（按任务 ID 分组）；为 nil 时 taskOccurrences 照常完整拉取。
+    var occurrenceCache: [String: [RawRecord]]?
+    /// 导入等批量新建期间缓存的已有任务、执行实例（查重用）；为 nil 时照常完整拉取。可嵌套，按使用者计数。
+    var createIndex: CreateIndex?
+    /// 并发批量写入时已处理的项数（进度回报用）。
+    var progressDone = 0
+    private var createIndexUsers = 0
     private var waiters: [CheckedContinuation<Void, Never>] = []
     /// 当前操作累积的变化。
     var pending = ChangeSet()
@@ -300,12 +313,64 @@ actor BiandanService {
                 }
             }
         }
+        if record.kind == .showTask, let owner = record.attributes?.identifier("id1") {
+            occurrenceCache?[owner]?.removeAll { $0.cloudID == record.cloudID }
+        }
+        if createIndex != nil {
+            if record.kind == .task, let id = record.attributes?.identifier("id1") {
+                createIndex?.tasks[id]?.removeAll { $0.cloudID == record.cloudID }
+            }
+            if record.kind == .showTask, let id = record.attributes?.identifier("id2") {
+                createIndex?.occurrences[id]?.removeAll { $0.cloudID == record.cloudID }
+            }
+        }
         pending.removed.append(RemovedRecord(kind: record.kind, cloudID: record.cloudID))
     }
 
-    /// 某任务的全部执行实例（完整拉取 showTask 后筛选，保证汇总准确）。
+    /// 某任务的全部执行实例（完整拉取 showTask 后筛选，保证汇总准确）。整批删除期间直接用预先拉好的分组。
     func taskOccurrences(_ taskID: String) async throws -> [RawRecord] {
-        try await cloud.listAll(.showTask).filter { $0.attributes?.identifier("id1") == taskID }
+        if let cache = occurrenceCache { return cache[taskID] ?? [] }
+        return try await cloud.listAll(.showTask).filter { $0.attributes?.identifier("id1") == taskID }
+    }
+
+    /// 批量新建（导入）开始：任务表和执行实例表各拉一次做成索引，之后每建一条不再各拉一遍。
+    func beginBulkCreate() async throws {
+        createIndexUsers += 1
+        guard createIndex == nil else { return }
+        var index = CreateIndex()
+        for row in try await cloud.listAll(.task) {
+            if let id = row.attributes?.identifier("id1") { index.tasks[id, default: []].append(row) }
+        }
+        for row in try await cloud.listAll(.showTask) {
+            if let id = row.attributes?.identifier("id2") { index.occurrences[id, default: []].append(row) }
+        }
+        createIndex = index
+    }
+
+    /// 批量新建结束：最后一个使用者结束时丢掉索引。
+    func endBulkCreate() {
+        createIndexUsers = max(createIndexUsers - 1, 0)
+        if createIndexUsers == 0 { createIndex = nil }
+    }
+
+    /// 整批删除开始时只拉一次执行实例表并按任务分组，期间不再每个任务完整拉两遍表。
+    func loadOccurrenceCache() async throws {
+        var groups: [String: [RawRecord]] = [:]
+        for row in try await cloud.listAll(.showTask) {
+            guard let owner = row.attributes?.identifier("id1") else { continue }
+            groups[owner, default: []].append(row)
+        }
+        occurrenceCache = groups
+    }
+
+    /// 整批删除结束后统一核对一次：已删掉定义的任务名下如果还有实例（比如其他设备刚写入），一起删掉，不留孤儿实例。
+    func sweepOrphanOccurrences(of taskIDs: Set<String>) async throws {
+        occurrenceCache = nil
+        guard !taskIDs.isEmpty else { return }
+        for row in try await cloud.listAll(.showTask) {
+            guard let owner = row.attributes?.identifier("id1"), taskIDs.contains(owner) else { continue }
+            try await deleteRecord(row)
+        }
     }
 
     // MARK: - 待办单
@@ -383,17 +448,17 @@ actor BiandanService {
                 throw ServiceError("分类已不存在，但仍有任务引用它。请先移动这些任务。")
             }
             do {
-                for (index, row) in matches.enumerated() {
-                    if deleteTasks {
-                        if let taskID = row.attributes?.identifier("id1") {
-                            try await deleteTaskBody(taskID, scope: .series, occurrenceID: nil, fromDate: nil,
-                                                     expectedList: listID)
-                        }
-                    } else {
-                        try await patch(row, ["id3": .of(1)])
-                    }
-                    await progress?(index + 1, matches.count)
+                // 连同任务删除：只拉一次执行实例表，按任务分组，不再每删一个任务就完整拉两遍。
+                if deleteTasks { try await loadOccurrenceCache() }
+                defer { occurrenceCache = nil }
+                progressDone = 0
+                let total = matches.count
+                // 每个任务各自独立，最多 BatchConcurrency.limit 个同时写云端；任何一个出错就停下。
+                let removed = try await BatchConcurrency.map(matches) { _, row in
+                    try await self.clearListRow(row, listID: listID, deleteTasks: deleteTasks, total: total,
+                                                progress: progress)
                 }
+                if deleteTasks { try await sweepOrphanOccurrences(of: Set(removed.compactMap { $0 })) }
                 if let folder {
                     let remaining = try await cloud.listAll(.task).contains { $0.attributes?.identifier("id3") == listID }
                     if remaining { throw ServiceError("仍有任务引用这个分类。") }
@@ -403,6 +468,24 @@ actor BiandanService {
                 throw ServiceError(wrapping: error, mayHaveWritten: true, recovery: "请同步后重试同一操作。")
             }
         }.1
+    }
+
+    /// 删除分类的一项：连同任务删除，或移回未分类。返回被删掉定义的任务 ID。
+    private func clearListRow(_ row: RawRecord, listID: String, deleteTasks: Bool, total: Int,
+                              progress: (@Sendable (Int, Int) async -> Void)?) async throws -> String? {
+        var removed: String?
+        if deleteTasks {
+            if let taskID = row.attributes?.identifier("id1") {
+                let plan = try await deleteTaskBody(taskID, scope: .series, occurrenceID: nil, fromDate: nil,
+                                                    expectedList: listID)
+                if plan.deletesTaskDefinition { removed = taskID }
+            }
+        } else {
+            try await patch(row, ["id3": .of(1)])
+        }
+        progressDone += 1
+        await progress?(progressDone, total)
+        return removed
     }
 
     // MARK: - 任务编辑
