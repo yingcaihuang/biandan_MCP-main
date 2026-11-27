@@ -126,7 +126,7 @@ private struct PomodoroRunning: View {
         // 和工具栏、卡片一致：圆环表示剩余比例，按 4 段配色。
         let progress = CGFloat(session.remainingFraction(at: now))
         let tint = PomodoroPalette.color(session, at: now)
-        let canFinish = session.elapsed(at: now) >= 60
+        let canFinish = session.canFinishEarly(at: now)
         return VStack(spacing: 12) {
             ZStack {
                 Circle().stroke(Theme.line, lineWidth: 8)

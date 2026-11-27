@@ -23,6 +23,13 @@ final class PomodoroPhaseTests: XCTestCase {
         XCTAssertEqual(session.remainingFraction(at: start.addingTimeInterval(30 * 60)), 0, accuracy: 0.0001)
     }
 
+    func testCanFinishEarlyAfterOneMinute() {
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        let session = PomodoroSession(startedAt: start, plannedMinutes: 15, title: "专注", link: nil)
+        XCTAssertFalse(session.canFinishEarly(at: start.addingTimeInterval(59)))
+        XCTAssertTrue(session.canFinishEarly(at: start.addingTimeInterval(60)))
+    }
+
     func testPausedTimeDoesNotCount() {
         let start = Date(timeIntervalSince1970: 1_000_000)
         var session = PomodoroSession(startedAt: start, plannedMinutes: 20, title: "专注", link: nil)

@@ -208,19 +208,30 @@ struct CardQuickActions: View {
                     .foregroundStyle(Theme.subtext)
                     .lineLimit(1)
             }
-            HStack(spacing: 6) {
-                if mine {
+            if mine {
+                // 和工具栏番茄钟面板一样：暂停 / 继续、提前结束、放弃。
+                HStack(spacing: 6) {
                     ThemedMenuChip(title: toggleTitle, tint: Theme.accent) {
                         if paused { model.resumePomodoro() } else { model.pausePomodoro() }
                     }
+                    ThemedMenuChip(title: "提前结束", tint: Theme.done) {
+                        open = nil
+                        Task { await model.finishPomodoro(completed: false) }
+                    }
+                    .disabled(!session.canFinishEarly(at: now))
+                    .help("按已专注的分钟数补记，记为 1 个中断番茄；专注满 1 分钟后可用")
+                    ThemedMenuChip(title: "放弃", tint: Theme.overdue) {
+                        open = nil
+                        model.cancelPomodoro()
+                    }
+                    .help("放弃本次计时，不记录")
                 }
-                ThemedMenuChip(title: "打开番茄钟", tint: Theme.subtext) { showPomodoroPanel() }
             }
-            if !mine {
-                Text("一次只能计一个番茄钟，结束或放弃后再开始")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.subtext)
-            }
+            ThemedMenuChip(title: "打开番茄钟", tint: Theme.subtext) { showPomodoroPanel() }
+            Text(verbatim: mine ? "计划 \(session.plannedMinutes) 分钟 · 到时自动补记"
+                                : "一次只能计一个番茄钟，结束或放弃后再开始")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.subtext)
         }
     }
 

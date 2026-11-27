@@ -33,6 +33,9 @@ struct PomodoroSession: Equatable, Sendable {
     func isFinished(at now: Date) -> Bool { remaining(at: now) <= 0 }
     func progress(at now: Date) -> Double { elapsed(at: now) / plannedSeconds }
 
+    /// 至少专注满 1 分钟才能提前结束（不足 1 分钟不补记）。
+    func canFinishEarly(at now: Date) -> Bool { elapsed(at: now) >= 60 }
+
     /// 剩余时间占计划时长的比例（0…1）。
     func remainingFraction(at now: Date) -> Double { min(max(remaining(at: now) / plannedSeconds, 0), 1) }
 
