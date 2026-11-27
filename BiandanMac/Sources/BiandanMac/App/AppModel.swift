@@ -270,6 +270,8 @@ final class AppModel {
     @ObservationIgnored var pendingTitleFocus = false
     /// 批量删除确认弹窗。
     var batchDeleteRequested = false
+    /// 正在后台执行的批量操作（完成、删除、改期等）的进度；同一时间只跑一批。
+    var batchProgress: BatchProgress?
     /// 批量操作期间暂存各步的撤销，结束后合并登记成一步。
     @ObservationIgnored var undoCollector: [UndoStep]?
     var showInspector = true

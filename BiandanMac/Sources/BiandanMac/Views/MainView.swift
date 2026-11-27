@@ -133,9 +133,11 @@ struct ContentArea: View {
                     BatchActionBar()
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+                BatchProgressBanner()
                 OperationBanner()
             }
             .animation(.easeInOut(duration: 0.2), value: showBar)
+            .animation(.easeInOut(duration: 0.2), value: model.batchProgress == nil)
         }
         .onChange(of: model.effectiveMode) { _, mode in
             if mode == .quadrant { Onboarding.shared.mark(.quadrant) }

@@ -178,35 +178,36 @@ struct BatchActionBar: View {
         let allSelected = model.allVisibleSelected
         let selectTitle = allSelected ? "全不选" : "全选"
         let selectIcon = allSelected ? "minus.square" : "checkmark.square"
+        let busy = model.batchProgress != nil
         return HStack(spacing: 8) {
             BatchButtonGroup {
                 BatchButton(title: "完成", icon: "checkmark", tint: Theme.done, compact: compact) {
                     run { await model.batchComplete() }
                 }
-                .disabled(pending == 0)
+                .disabled(pending == 0 || busy)
                 BatchGroupDivider()
                 BatchButton(title: "标记未完成", icon: "arrow.uturn.backward", tint: Theme.accent, compact: compact,
                             help: "已完成的撤销完成、已放弃的恢复，都改回待完成（⌘Z 可整批撤回）") {
                     run { await model.batchReopen() }
                 }
-                .disabled(reopenable == 0)
+                .disabled(reopenable == 0 || busy)
                 BatchGroupDivider()
                 BatchButton(title: "放弃", icon: "slash.circle", tint: Theme.subtext, compact: compact) {
                     run { await model.batchAbandon() }
                 }
-                .disabled(pending == 0)
+                .disabled(pending == 0 || busy)
             }
             BatchButtonGroup {
                 BatchButton(title: "改期", icon: "calendar", tint: Quadrant.importantUrgent.tint, compact: compact) {
                     showReschedule.toggle()
                 }
-                .disabled(pending == 0)
+                .disabled(pending == 0 || busy)
                 .popover(isPresented: $showReschedule, arrowEdge: .top) { reschedulePanel }
                 BatchGroupDivider()
                 BatchButton(title: "移动", icon: "folder", tint: Quadrant.notImportantUrgent.tint, compact: compact) {
                     showMove.toggle()
                 }
-                .disabled(count == 0)
+                .disabled(count == 0 || busy)
                 .popover(isPresented: $showMove, arrowEdge: .top) { movePanel }
             }
             BatchButton(title: selectTitle, icon: selectIcon, tint: Theme.accent, compact: compact, standalone: true,
@@ -216,7 +217,7 @@ struct BatchActionBar: View {
             BatchButton(title: "删除", icon: "trash", tint: Theme.overdue, compact: compact, filled: true) {
                 model.batchDeleteRequested = true
             }
-            .disabled(count == 0)
+            .disabled(count == 0 || busy)
             BatchButton(title: "退出选择", icon: "xmark", tint: Theme.subtext, compact: true, standalone: true,
                         help: "退出选择（Esc）") {
                 model.exitSelectionMode()
@@ -280,7 +281,6 @@ struct BatchActionBar: View {
 struct BatchDeleteSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var working = false
 
     var body: some View {
         let items = model.batchItems
@@ -299,9 +299,16 @@ struct BatchDeleteSheet: View {
             Text("删除会同步到云端和其他设备，不能用 ⌘Z 撤销。")
                 .font(.system(size: 11.5))
                 .foregroundStyle(Theme.overdue)
+            Text("点「删除」后窗口马上关掉，在后台逐项删除，底部显示进度；数量多时做完会发通知。")
+                .font(.system(size: 11.5))
+                .foregroundStyle(Theme.subtext)
             ThemedErrorText(message: model.operationError)
         } footer: {
-            if working { ProgressView().controlSize(.small) }
+            if let running = model.batchProgress {
+                Text(verbatim: "上一批「\(running.label)」还在进行（\(running.done)/\(running.total)）")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.subtext)
+            }
             Spacer()
             Button("取消") { dismiss() }
                 .buttonStyle(.themed)
@@ -309,7 +316,7 @@ struct BatchDeleteSheet: View {
             Button("删除 \(items.count) 项", role: .destructive) { confirm() }
                 .buttonStyle(.themedDestructive)
                 .keyboardShortcut(.defaultAction)
-                .disabled(working || items.isEmpty)
+                .disabled(items.isEmpty || model.batchProgress != nil)
         }
         .frame(width: 440, height: 300)
         .onAppear { model.operationError = nil }
@@ -322,12 +329,39 @@ struct BatchDeleteSheet: View {
             + "其余 \(total - repeating) 项连同任务定义一起删除。"
     }
 
+    /// 先关掉确认框，删除在后台进行。
     private func confirm() {
-        working = true
-        Task {
-            let ok = await model.batchDelete()
-            working = false
-            if ok { dismiss() }
+        let targets = model.batchItems
+        dismiss()
+        Task { await model.batchDelete(targets) }
+    }
+}
+
+/// 批量操作在后台进行时，浮在内容区底部的进度条。
+struct BatchProgressBanner: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        if let progress = model.batchProgress {
+            let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text(verbatim: "正在\(progress.label) \(progress.done)/\(progress.total)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
+                    .progressViewStyle(.linear)
+                    .frame(width: 160)
+                if progress.failed > 0 {
+                    Text(verbatim: "\(progress.failed) 项没成功")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Theme.overdue)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .floatingSurface(shape, border: Theme.accent.opacity(0.4), glassBorder: true)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 }

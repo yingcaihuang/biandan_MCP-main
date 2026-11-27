@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import UserNotifications
 
 /// 多选与批量操作。整批操作合并成一步撤销（⌘Z 一次撤回）；删除不可撤销。
 extension AppModel {
@@ -163,33 +164,108 @@ extension AppModel {
         await batch("更换分类", targets) { await self.moveTask($0.task.id1, to: listID) }
     }
 
-    /// 逐个删除：重复任务只删这一次，一次性任务连同定义删除。全部成功返回 true。
-    func batchDelete() async -> Bool {
-        var allOK = true
-        for item in batchItems {
-            guard authState == .signedIn else { return false }
+    /// 逐个删除：重复任务只删这一次，一次性任务连同定义删除。确认框点了就关，删除在后台进行，
+    /// 底部显示「正在删除 n/总数」，做完（数量多或有失败时）发系统通知。全部成功返回 true。
+    @discardableResult
+    func batchDelete(_ items: [OccurrenceItem]? = nil) async -> Bool {
+        let targets = items ?? batchItems
+        guard !targets.isEmpty, beginBatch("删除", total: targets.count) else { return false }
+        var failed = 0
+        var firstError: String?
+        for item in targets {
+            guard authState == .signedIn else { break }
             let ok = await deleteTask(item, scope: .occurrence)
-            if !ok { allOK = false }
+            if !ok {
+                failed += 1
+                if firstError == nil { firstError = operationError }
+            }
+            batchProgress?.done += 1
+            batchProgress?.failed = failed
         }
+        let processed = batchProgress?.done ?? 0
+        batchProgress = nil
         multiSelection = multiSelection.filter { snapshot.item(occurrenceID: $0) != nil }
-        return allOK
+        finishBatch("删除", total: targets.count, processed: processed, failed: failed, error: firstError)
+        return failed == 0 && processed == targets.count
     }
 
     /// 依次执行，期间暂存各步撤销，最后合并登记成一步。
     private func batch(_ label: String, _ items: [OccurrenceItem],
                        _ action: (OccurrenceItem) async -> Void) async {
-        guard !items.isEmpty else { return }
+        guard !items.isEmpty, beginBatch(label, total: items.count) else { return }
         undoCollector = []
         for item in items {
             guard authState == .signedIn else { break }
             await action(item)
+            batchProgress?.done += 1
         }
+        let processed = batchProgress?.done ?? 0
+        batchProgress = nil
         let steps = undoCollector ?? []
         undoCollector = nil
+        finishBatch(label, total: items.count, processed: processed, failed: 0, error: nil)
         guard !steps.isEmpty else { return }
         let plan = UndoPlan.combine(steps)
         let name = steps.count == 1 ? label : "批量\(label)（\(steps.count) 项）"
         registerUndoNow(name, undo: plan.undo, redo: plan.redo)
+    }
+
+    /// 同一时间只跑一批，免得两批操作改同一批任务。
+    private func beginBatch(_ label: String, total: Int) -> Bool {
+        if let running = batchProgress {
+            operationError = "上一批「\(running.label)」还没做完（\(running.done)/\(running.total)），请稍后再试"
+            return false
+        }
+        batchProgress = BatchProgress(label: label, total: total)
+        return true
+    }
+
+    private func finishBatch(_ label: String, total: Int, processed: Int, failed: Int, error: String?) {
+        guard let message = BatchNotifier.message(label: label, total: total, processed: processed,
+                                                  failed: failed, error: error) else { return }
+        BatchNotifier.notify(title: message.title, body: message.body)
+    }
+}
+
+/// 后台批量操作的进度。
+struct BatchProgress: Equatable, Sendable {
+    let label: String
+    var done = 0
+    let total: Int
+    var failed = 0
+}
+
+/// 批量操作做完后的系统通知。
+enum BatchNotifier {
+    /// 少于这么多项、又都成功时不通知，免得小操作也弹窗。
+    static let threshold = 10
+
+    static func message(label: String, total: Int, processed: Int, failed: Int,
+                        error: String?) -> (title: String, body: String)? {
+        let interrupted = processed < total
+        guard total >= threshold || failed > 0 || interrupted else { return nil }
+        var parts = ["成功 \(max(processed - failed, 0)) 项"]
+        if failed > 0 {
+            var text = "\(failed) 项没成功"
+            if let error, !error.isEmpty { text += "（\(error)）" }
+            parts.append(text)
+        }
+        if interrupted { parts.append("\(total - processed) 项因为登录失效没有处理") }
+        let title = failed == 0 && !interrupted ? "批量操作已完成" : "批量操作有部分没成功"
+        return (title, "\(label) \(total) 项：" + parts.joined(separator: "，"))
+    }
+
+    @MainActor
+    static func notify(title: String, body: String) {
+        // SwiftPM 直接运行时没有 Bundle，不能调用通知中心。
+        guard ReminderScheduler.isAvailable else { return }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: "biandan.batch.\(UUID().uuidString)", content: content,
+                                            trigger: nil)
+        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
     }
 }
 
