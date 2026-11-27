@@ -29,6 +29,9 @@ echo "==> 生成介绍页"
 python3 Tools/site_page.py
 F=dist/site/index.html
 ICON=dist/site/icon-256.png
+DEMO=dist/site/install.gif
+HAS_DEMO=0
+[ -s "$DEMO" ] && HAS_DEMO=1
 [ -s "$F" ] && [ -s "$ICON" ] || die "没有生成 dist/site/"
 
 # 页面里不能有服务器 IP 和密钥
@@ -56,18 +59,24 @@ echo "==> 上传到 ${HOST}:${REMOTE_DIR}"
 TS="$(date +%Y%m%d-%H%M%S)"
 scp -q "${SSHO[@]}" "$F" "${HOST}:/tmp/biandan-site-index.${TS}.html"
 scp -q "${SSHO[@]}" "$ICON" "${HOST}:/tmp/biandan-site-icon.${TS}.png"
-REMOTE_SHA="$(ssh "${SSHO[@]}" "$HOST" bash -s "$TS" "$REMOTE_DIR" "$SITE_HOST" <<'REMOTE'
+if [ "$HAS_DEMO" = 1 ]; then scp -q "${SSHO[@]}" "$DEMO" "${HOST}:/tmp/biandan-site-demo.${TS}.gif"; fi
+REMOTE_SHA="$(ssh "${SSHO[@]}" "$HOST" bash -s "$TS" "$REMOTE_DIR" "$SITE_HOST" "$HAS_DEMO" <<'REMOTE'
 set -e
 TS=$1
 D=$2
 H=$3
+DEMO=$4
 mkdir -p /root/nginx-backup "$D"
-for f in index.html icon-256.png; do
+for f in index.html icon-256.png install.gif; do
     if [ -f "$D/$f" ]; then cp -p "$D/$f" "/root/nginx-backup/biandan-mac-$f.$TS"; fi
 done
 install -m 644 -o root -g root "/tmp/biandan-site-index.$TS.html" "$D/index.html"
 install -m 644 -o root -g root "/tmp/biandan-site-icon.$TS.png" "$D/icon-256.png"
 rm -f "/tmp/biandan-site-index.$TS.html" "/tmp/biandan-site-icon.$TS.png"
+if [ "$DEMO" = 1 ]; then
+    install -m 644 -o root -g root "/tmp/biandan-site-demo.$TS.gif" "$D/install.gif"
+    rm -f "/tmp/biandan-site-demo.$TS.gif"
+fi
 # 从服务器本机访问源站，核对 nginx 返回的就是刚传的文件
 curl -sk --resolve "$H:443:127.0.0.1" "https://$H/biandan/mac/" | sha256sum | cut -d' ' -f1
 REMOTE

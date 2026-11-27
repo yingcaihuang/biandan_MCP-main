@@ -8,6 +8,7 @@
 - 下载按钮先写死成 CHANGELOG 里最新的版本；页面打开后读同一站点的 appcast.xml，有更新的正式版就换成它（测试版不算）。
 """
 import datetime
+import shutil
 import pathlib as _pathlib
 import sys as _sys
 
@@ -154,6 +155,19 @@ def render(lines, skip=None):
     return cr.render(lines, skip=skip)
 
 
+def copy_demo():
+    """安装演示动画：Assets/install-demo.gif → dist/site/install.gif，返回 (宽, 高)；没有就返回 None。"""
+    src = HERE / "Assets" / "install-demo.gif"
+    if not src.is_file():
+        return None
+    data = src.read_bytes()[:10]
+    if not data.startswith(b"GIF"):
+        return None
+    OUT.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, OUT / "install.gif")
+    return int.from_bytes(data[6:8], "little"), int.from_bytes(data[8:10], "little")
+
+
 def archs():
     folder = HERE / "dist" / "Biandan.app" / "Contents" / "MacOS"
     try:
@@ -271,6 +285,9 @@ mark{background:var(--sel);color:inherit;border-radius:3px;padding:0 1px}
 .step .n{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;display:grid;place-items:center;margin-bottom:10px}
 .step h4{margin:0 0 4px;font-size:15.5px}.step p{margin:0;font-size:13.5px;color:#5E574B}
 .notice{margin-top:16px;background:var(--sel);border:1px solid #F3DE94;border-radius:14px;padding:12px 16px;font-size:13.5px;color:#6B5412}
+.install-demo{margin:20px auto 0;max-width:640px;text-align:center}
+.install-demo img{display:block;width:100%;height:auto;border-radius:14px;border:1px solid var(--line);box-shadow:0 12px 30px rgba(120,80,20,.14);background:var(--card)}
+.install-demo figcaption{margin-top:8px;font-size:12.5px;color:var(--sub)}
 .timeline{position:relative;padding-left:26px}
 .timeline::before{content:"";position:absolute;left:8px;top:8px;bottom:8px;width:2px;background:linear-gradient(var(--accent),var(--orange),var(--line))}
 details.ver{position:relative;background:var(--card);border:1px solid var(--line);border-radius:16px;margin-bottom:12px}
@@ -403,6 +420,12 @@ def main():
     meta.append("<span>已通过 Apple 公证</span>")
     meta_html = "".join(meta)
     arch_text = ("，" + esc(arch)) if arch else ""
+    demo = copy_demo()
+    demo_html = ""
+    if demo:
+        demo_html = (f'<figure class="install-demo"><img src="install.gif" width="{demo[0]}" height="{demo[1]}" loading="lazy" '
+                     'alt="安装演示：下载 zip、解压、拖进应用程序、打开便单">'
+                     '<figcaption>安装演示：下载 zip → 解压 → 拖进「应用程序」→ 打开便单</figcaption></figure>')
     script = JS.replace("__APPCAST__", APPCAST_PATH)
     V = esc(v)
     Z = esc(zip_url)
@@ -423,7 +446,7 @@ def main():
 <body data-version="{V}">
 <header class="top"><div class="wrap">
   <a class="brand" href="#"><img src="icon-256.png" alt="">便单 <span style="font-weight:600;color:var(--sub)">for Mac</span></a>
-  <nav class="links"><a href="#features">功能</a><a href="#install">安装</a><a href="#changelog">更新记录</a></nav>
+  <nav class="links"><a href="#install">安装</a><a href="#changelog">更新记录</a><a href="#features">功能</a></nav>
   <a class="btn btn-primary btn-sm js-dl" href="{Z}">下载 <span class="js-ver">{V}</span></a>
 </div></header>
 
@@ -455,17 +478,6 @@ def main():
     <div class="stat"><b>{esc(released)}</b><span>最近更新</span></div>
   </div>
 
-  <section id="features">
-    <h2>功能一览</h2>
-    <p class="sec-lead">按更新记录整理的全部功能，写的是现在的样子。可以搜一下，比如「提醒」「飞书」「⌘Z」。</p>
-    <div class="toolbar">
-      <label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8273" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="搜索功能" autocomplete="off"><span class="count" id="qcount"></span></label>
-      <div class="chips">{chips}</div>
-    </div>
-    <div class="grid">{"".join(cats)}</div>
-    <div class="empty" id="empty">没有找到相关功能，换个词试试。</div>
-  </section>
-
   <section id="install">
     <h2>下载与安装</h2>
     <p class="sec-lead">{esc(system)}{arch_text}。</p>
@@ -474,6 +486,7 @@ def main():
       <div class="step"><div class="n">2</div><h4>拖进「应用程序」</h4><p>双击解压，把「便单」拖进「应用程序」文件夹。已经过 Apple 公证，可以直接打开。</p></div>
       <div class="step"><div class="n">3</div><h4>登录</h4><p>打开便单，用便单账号登录，和鸿蒙便单里的日程同步。</p></div>
     </div>
+    {demo_html}
     <div class="notice">已经装了 1.3.0 或更新的版本？不用重新下载：便单会自动检查并安装新版本，也可以点主窗口右上角的更新按钮。还在用 1.2.0 及更早版本的，需要手动下载安装一次。</div>
     <div style="height:22px"></div>
     <div class="dl-band">
@@ -488,6 +501,17 @@ def main():
     <h2>更新记录</h2>
     <p class="sec-lead">每个版本具体改了什么。</p>
     <div class="timeline">{"".join(vers)}</div>
+  </section>
+
+  <section id="features">
+    <h2>功能一览</h2>
+    <p class="sec-lead">按更新记录整理的全部功能，写的是现在的样子。可以搜一下，比如「提醒」「飞书」「⌘Z」。</p>
+    <div class="toolbar">
+      <label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8273" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="搜索功能" autocomplete="off"><span class="count" id="qcount"></span></label>
+      <div class="chips">{chips}</div>
+    </div>
+    <div class="grid">{"".join(cats)}</div>
+    <div class="empty" id="empty">没有找到相关功能，换个词试试。</div>
   </section>
 </div>
 
