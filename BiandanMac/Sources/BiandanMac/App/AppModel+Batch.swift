@@ -232,10 +232,13 @@ extension AppModel {
 
     /// 服务层回报的进度（删除分类等一次调用里逐条写云端的操作）。
     func reportBatchProgress(_ done: Int, total: Int) {
-        guard batchProgress != nil else { return }
+        // 先拷出来改好再一次写回：不能在同一条语句里对 batchProgress 既写又读，
+        // 否则触发 Swift 独占访问检查直接 abort（1.4.12 批量删除闪退）。
+        guard var progress = batchProgress else { return }
         // 并发写入时回调可能乱序到达：进度只往前走。
-        batchProgress?.done = max(batchProgress?.done ?? 0, done)
-        if total > 0 { batchProgress?.total = total }
+        progress.done = max(progress.done, done)
+        if total > 0 { progress.total = total }
+        batchProgress = progress
     }
 
     /// 同一时间只跑一批，免得两批操作改同一批任务。
