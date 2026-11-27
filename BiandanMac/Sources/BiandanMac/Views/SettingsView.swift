@@ -1454,10 +1454,14 @@ private struct DecisionSettingsSection: View {
             if let keyError {
                 NoteRow(icon: "exclamationmark.triangle", text: keyError)
             }
-            SettingRow("业务空间 ID", caption: "百炼控制台里的业务空间 ID（如 llm-xxxx），也可以直接粘贴完整的接口地址") {
-                TextField("", text: $settings.decisionWorkspace, prompt: Text("llm-…"))
-                    .themedField()
-                    .frame(width: 250)
+            SettingRow("业务空间 ID", caption: workspaceCaption) {
+                HStack(spacing: 8) {
+                    workspacePill
+                    TextField("", text: $settings.decisionWorkspace, prompt: Text("llm-…"))
+                        .themedField()
+                        .frame(width: 250)
+                        .onSubmit { settings.decisionWorkspace = workspaceTrimmed }
+                }
             }
             SettingRow("地域", caption: "要和业务空间所在的地域一致") {
                 ThemedSegmented(selection: $settings.decisionRegion,
@@ -1490,6 +1494,30 @@ private struct DecisionSettingsSection: View {
         .task { model.refreshDecisionKeyStatus() }
     }
 
+    private var workspaceTrimmed: String {
+        model.decisionWorkspace.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var workspaceEndpoint: URL? {
+        DecisionSettings.endpoint(workspace: model.decisionWorkspace, region: model.decisionRegion)
+    }
+
+    /// 输入即保存；填对时显示拼出的接口地址，方便核对地域。
+    private var workspaceCaption: String {
+        if let url = workspaceEndpoint { return "输入后自动保存。接口地址：" + url.absoluteString }
+        return "百炼控制台里的业务空间 ID（如 llm-xxxx），也可以直接粘贴完整的接口地址；输入后自动保存"
+    }
+
+    @ViewBuilder private var workspacePill: some View {
+        if workspaceTrimmed.isEmpty {
+            StatusPill(text: "未填写", color: Theme.subtext)
+        } else if workspaceEndpoint == nil {
+            StatusPill(text: "无效", color: Color(hex: 0xD9A800))
+        } else {
+            StatusPill(text: "已保存", color: Theme.done)
+        }
+    }
+
     private var enabledCaption: String {
         switch model.aiExtractionMode {
         case .off: return "「AI 识别日程」是关闭的，开了这里也不会用到"
@@ -1501,6 +1529,7 @@ private struct DecisionSettingsSection: View {
     private func missingText(endpointOK: Bool) -> String? {
         guard model.decisionEnabled else { return nil }
         if !model.decisionKeyConfigured { return "还没有保存 DashScope API Key，识别时不会用到决策模型" }
+        if workspaceTrimmed.isEmpty { return "还没有填业务空间 ID，识别时不会用到决策模型" }
         if !endpointOK { return "业务空间 ID 或接口地址无效，识别时不会用到决策模型" }
         if model.aiExtractionMode == .off { return "「AI 识别日程」目前是关闭的，决策模型只在要调用 AI 之前才用" }
         return nil
