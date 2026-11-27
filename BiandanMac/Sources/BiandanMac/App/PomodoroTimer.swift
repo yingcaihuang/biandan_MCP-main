@@ -33,6 +33,17 @@ struct PomodoroSession: Equatable, Sendable {
     func isFinished(at now: Date) -> Bool { remaining(at: now) <= 0 }
     func progress(at now: Date) -> Double { elapsed(at: now) / plannedSeconds }
 
+    /// 剩余时间占计划时长的比例（0…1）。
+    func remainingFraction(at now: Date) -> Double { min(max(remaining(at: now) / plannedSeconds, 0), 1) }
+
+    /// 按剩余比例分 4 段，每段 25%：0 = 剩 75% 以上，1 = 50–75%，2 = 25–50%，3 = 不到 25%。
+    static func phase(remainingFraction fraction: Double) -> Int {
+        if fraction > 0.75 { return 0 }
+        if fraction > 0.5 { return 1 }
+        if fraction > 0.25 { return 2 }
+        return 3
+    }
+
     mutating func pause(at now: Date) {
         guard pausedAt == nil else { return }
         pausedAt = now

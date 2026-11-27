@@ -51,6 +51,13 @@ struct OccurrenceCard: View {
         return hovering || selected || quickOpen != nil
     }
 
+    /// 这张卡片正在计番茄钟：快捷图标前面一直显示倒计时。日历小卡片不显示。
+    private var focusSession: PomodoroSession? {
+        guard !compact, item.status == .pending, let session = model.pomodoro,
+              session.link?.occurrenceID == item.id else { return nil }
+        return session
+    }
+
     var body: some View {
         let multi = model.multiSelection.contains(item.id)
         let selected = multi || model.selectedOccurrenceID == item.id
@@ -112,11 +119,21 @@ struct OccurrenceCard: View {
             .stroke(selected ? Theme.accent : Color.clear, lineWidth: 2))
         .shadow(color: .black.opacity(0.05), radius: 1, y: 1)
         .overlay(alignment: .bottomTrailing) {
-            if quick {
-                CardQuickActions(item: item, open: $quickOpen)
-                    .padding(.trailing, 6)
-                    .padding(.bottom, 4)
-                    .transition(.opacity)
+            let session = focusSession
+            if quick || session != nil {
+                HStack(spacing: 6) {
+                    if let session {
+                        CardPomodoroBadge(session: session) {
+                            if model.multiSelection.isEmpty { quickOpen = .pomodoro }
+                        }
+                    }
+                    if quick {
+                        CardQuickActions(item: item, open: $quickOpen)
+                    }
+                }
+                .padding(.trailing, 6)
+                .padding(.bottom, 4)
+                .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: 0.12), value: quick)

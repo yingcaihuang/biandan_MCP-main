@@ -20,12 +20,7 @@ struct PomodoroToolbarButton: View {
     @ViewBuilder private var label: some View {
         if let session = model.pomodoro {
             TimelineView(.periodic(from: .now, by: 1)) { context in
-                HStack(spacing: 4) {
-                    Image(systemName: session.isPaused ? "pause.circle" : "timer")
-                    Text(PomodoroSession.clock(session.remaining(at: context.date)))
-                        .monospacedDigit()
-                }
-                .foregroundStyle(Theme.accent)
+                PomodoroToolbarLabel(session: session, now: context.date)
             }
         } else {
             Image(systemName: "timer")
@@ -128,14 +123,16 @@ private struct PomodoroRunning: View {
     }
 
     private func content(now: Date) -> some View {
-        let progress = CGFloat(session.progress(at: now))
+        // 和工具栏、卡片一致：圆环表示剩余比例，按 4 段配色。
+        let progress = CGFloat(session.remainingFraction(at: now))
+        let tint = PomodoroPalette.color(session, at: now)
         let canFinish = session.elapsed(at: now) >= 60
         return VStack(spacing: 12) {
             ZStack {
                 Circle().stroke(Theme.line, lineWidth: 8)
                 Circle()
                     .trim(from: 0, to: progress)
-                    .stroke(Theme.accent, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .stroke(tint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 VStack(spacing: 2) {
                     Text(PomodoroSession.clock(session.remaining(at: now)))

@@ -198,12 +198,11 @@ struct CardQuickActions: View {
         let toggleTitle: String = paused ? "继续" : "暂停"
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .foregroundStyle(Theme.accent)
+                PomodoroDial(session: session, now: now, size: 16, lineWidth: 2.5)
                 Text(PomodoroSession.clock(session.remaining(at: now)))
                     .font(.system(size: 15, weight: .bold))
                     .monospacedDigit()
-                    .foregroundStyle(Theme.text)
+                    .foregroundStyle(PomodoroPalette.color(session, at: now))
                 Text(verbatim: status)
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.subtext)
