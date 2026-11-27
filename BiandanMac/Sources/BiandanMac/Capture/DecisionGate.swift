@@ -107,6 +107,15 @@ struct DecisionSettings: Sendable {
 
     var isReady: Bool { enabled && endpoint != nil && !(apiKey ?? "").isEmpty }
 
+    /// 打开了决策却用不了的原因（识别时显示「AI 决策 · 跳过」）；没打开或配好了时为 nil。
+    var unavailableReason: String? {
+        guard enabled else { return nil }
+        if workspace.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "没填业务空间 ID" }
+        if endpoint == nil { return "业务空间 ID 或接口地址无效" }
+        if (apiKey ?? "").isEmpty { return "没填 DashScope API Key" }
+        return nil
+    }
+
     var endpoint: URL? { Self.endpoint(workspace: workspace, region: region) }
 
     /// 填业务空间 ID 时按地域拼地址；也接受直接粘贴的完整地址（到域名、/compatible-mode 或 /systemone 都行）。

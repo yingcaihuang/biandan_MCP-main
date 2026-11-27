@@ -87,6 +87,10 @@ enum ScheduleExtractor {
                                     onSkip: (@MainActor @Sendable (CaptureStage, String) -> Void)?) async -> ScheduleExtraction {
         var note: String?
         var skipAI = false
+        if ai.isReady && ai.mode == .always, let reason = decision.unavailableReason {
+            await onSkip?(.decision, reason)
+            note = "AI 决策没有生效（\(reason)），直接交给 AI。到「设置 → AI 决策」补上后就会先判断"
+        }
         if ai.isReady && ai.mode == .always && decision.isReady {
             await onStage?(.decision, nil)
             let found = RuleScheduleExtractor.extract(lines, today: today, weekStart: weekStart, lists: lists)
@@ -103,7 +107,7 @@ enum ScheduleExtractor {
             do {
                 let result = try await AIScheduleExtractor.extract(lines, today: today, lists: lists,
                                                                    settings: ai, trigger: .always)
-                return ScheduleExtraction(candidates: result.candidates, source: .ai, note: result.note(prefix: nil),
+                return ScheduleExtraction(candidates: result.candidates, source: .ai, note: result.note(prefix: note),
                                           usage: result.usage)
             } catch {
                 note = "AI 识别没成功（\(error.localizedDescription)），已改用本机识别"
@@ -137,6 +141,11 @@ enum ScheduleExtractor {
         await onStage?(.rules, nil)
         let candidates = RuleScheduleExtractor.extract(lines, today: today, weekStart: weekStart, lists: lists)
         if candidates.isEmpty && ai.isReady && ai.mode == .fallback {
+            var skipNote: String?
+            if let reason = decision.unavailableReason {
+                await onSkip?(.decision, reason)
+                skipNote = "AI 决策没有生效（\(reason)），直接交给 AI。到「设置 → AI 决策」补上后就会先判断"
+            }
             if decision.isReady {
                 await onStage?(.decision, nil)
                 let record = await DecisionGate.run(lines, today: today, source: input,
@@ -152,7 +161,8 @@ enum ScheduleExtractor {
                 let result = try await AIScheduleExtractor.extract(lines, today: today, lists: lists,
                                                                    settings: ai, trigger: .fallback)
                 return ScheduleExtraction(candidates: result.candidates, source: .ai,
-                                          note: result.note(prefix: "规则识别没找到日程，已用 AI（\(ai.model)）识别"),
+                                          note: [result.note(prefix: "规则识别没找到日程，已用 AI（\(ai.model)）识别"), skipNote]
+                                              .compactMap { $0 }.joined(separator: "；"),
                                           usage: result.usage)
             } catch {
                 return ScheduleExtraction(candidates: [], source: .rules,
