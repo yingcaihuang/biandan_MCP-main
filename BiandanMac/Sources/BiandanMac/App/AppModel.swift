@@ -587,6 +587,8 @@ final class AppModel {
             scheduleReminders()
             startAutoSync()
             await refreshRenewal()
+            // 资料丢了（显示成「华为账号」）时向华为帐号补查昵称和头像。
+            Task { await self.refreshProfileIfNeeded() }
             syncThrottle.lastSuccess = snapshot.lastPulledAt
             await syncNow(.startup)
         } else {
@@ -628,6 +630,8 @@ final class AppModel {
                 finishSignInAttempt()
                 authState = .signedIn
                 startAutoSync()
+                // id_token 里没有昵称时，向华为帐号补查一次。
+                Task { await self.refreshProfileIfNeeded() }
                 // 回调页轮询这里的进度，实时显示首次同步。
                 loginProgress = flow.progress
                 let synced = await syncNow()

@@ -108,19 +108,77 @@ struct AccountProfile: Codable, Equatable, Sendable {
         return AccountProfile(displayName: name, avatarURL: claims.string("picture"))
     }
 
+    /// 华为帐号「获取用户信息」接口（GOpen.User.getInfo）的返回：displayName、headPictureURL。
+    static func from(userInfo reply: JSONObject) -> AccountProfile? {
+        guard let name = reply.string("displayName")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty else { return nil }
+        let picture = reply.string("headPictureURL").flatMap { $0.isEmpty ? nil : $0 }
+        return AccountProfile(displayName: name, avatarURL: picture)
+    }
+
     static func loadSaved() -> AccountProfile? {
-        guard let data = UserDefaults.standard.data(forKey: defaultsKey) else { return nil }
-        return try? JSONDecoder().decode(AccountProfile.self, from: data)
+        if let data = UserDefaults.standard.data(forKey: defaultsKey),
+           let saved = try? JSONDecoder().decode(AccountProfile.self, from: data) {
+            return saved
+        }
+        // 偏好文件被删过：从钥匙串里的备份恢复，并补回偏好。
+        guard let backup = ProfileBackup.load() else { return nil }
+        if let data = try? JSONEncoder().encode(backup) {
+            UserDefaults.standard.set(data, forKey: defaultsKey)
+        }
+        return backup
     }
 
     func save() {
         if let data = try? JSONEncoder().encode(self) {
             UserDefaults.standard.set(data, forKey: AccountProfile.defaultsKey)
+            ProfileBackup.save(data)
         }
     }
 
     static func clearSaved() {
         UserDefaults.standard.removeObject(forKey: defaultsKey)
+        ProfileBackup.clear()
+    }
+}
+
+/// 昵称和头像地址在钥匙串里的备份（不是凭据）：偏好文件被清掉时还能找回来。
+enum ProfileBackup {
+    private static let service = "ai.racore.BiandanMac"
+    private static let account = "account-profile"
+
+    private static var query: [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: service,
+         kSecAttrAccount as String: account]
+    }
+
+    static func load() -> AccountProfile? {
+        if DebugFlags.offline { return nil }
+        var lookup = query
+        lookup[kSecReturnData as String] = true
+        lookup[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(lookup as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data, data.count <= 16_384 else { return nil }
+        return try? JSONDecoder().decode(AccountProfile.self, from: data)
+    }
+
+    static func save(_ data: Data) {
+        if DebugFlags.offline { return }
+        let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if status == errSecItemNotFound {
+            var add = query
+            add[kSecValueData as String] = data
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            add[kSecAttrLabel as String] = "便单 华为账号昵称和头像"
+            _ = SecItemAdd(add as CFDictionary, nil)
+        }
+    }
+
+    static func clear() {
+        if DebugFlags.offline { return }
+        _ = SecItemDelete(query as CFDictionary)
     }
 }
 
