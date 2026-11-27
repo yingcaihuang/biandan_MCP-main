@@ -23,6 +23,12 @@ struct CreateIndex: Sendable {
     var occurrences: [String: [RawRecord]] = [:]
 }
 
+/// 批量删除一项的结果：error 为 nil 表示成功，plan 是实际删除的范围。
+struct BatchDeleteResult: Sendable {
+    var error: String? = nil
+    var plan: DeletePlan? = nil
+}
+
 /// 批量删除的一项：重复任务要给范围，一次性任务 scope 为 nil。
 struct BatchDeleteTarget: Sendable {
     var taskID: String
@@ -331,7 +337,7 @@ extension BiandanService {
     /// 批量删除：整批只拉一次执行实例表，逐项删除，逐项返回结果（nil 表示成功，否则是失败原因），
     /// 一项失败不影响其他项；登录失效时整批中断。最后统一核对一次孤儿实例。
     func deleteTasks(_ targets: [BatchDeleteTarget],
-                     progress: (@Sendable (Int, Int) async -> Void)? = nil) async throws -> ([String?], ChangeSet) {
+                     progress: (@Sendable (Int, Int) async -> Void)? = nil) async throws -> ([BatchDeleteResult], ChangeSet) {
         try await run {
             try await loadOccurrenceCache()
             defer { occurrenceCache = nil }
@@ -342,10 +348,10 @@ extension BiandanService {
             let outcomes = try await BatchConcurrency.map(groups) { _, indices in
                 try await self.deleteGroup(indices, of: targets, total: total, progress: progress)
             }
-            var results = [String?](repeating: nil, count: total)
+            var results = [BatchDeleteResult](repeating: BatchDeleteResult(), count: total)
             var removed = Set<String>()
             for outcome in outcomes.joined() {
-                results[outcome.index] = outcome.error
+                results[outcome.index] = BatchDeleteResult(error: outcome.error, plan: outcome.plan)
                 if let id = outcome.removedTask { removed.insert(id) }
             }
             // 核对失败不影响已经返回的逐项结果；残留的实例下次同步后可以再删。
@@ -358,6 +364,7 @@ extension BiandanService {
         var index: Int
         var error: String? = nil
         var removedTask: String? = nil
+        var plan: DeletePlan? = nil
     }
 
     /// 批量删除里同一任务的几项，按顺序删。单项失败记下原因继续；登录失效、取消时整批中断。
@@ -372,6 +379,7 @@ extension BiandanService {
                                                     occurrenceID: target.occurrenceID, fromDate: target.fromDate,
                                                     expectedList: nil)
                 if plan.deletesTaskDefinition { outcome.removedTask = target.taskID }
+                outcome.plan = plan
             } catch {
                 if ServiceError.needsSignIn(error) || error is CancellationError || Task.isCancelled { throw error }
                 outcome.error = error.localizedDescription

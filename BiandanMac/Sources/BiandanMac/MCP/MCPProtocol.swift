@@ -393,6 +393,7 @@ final class MCPDispatcher: Sendable {
             var result: JSONObject = ["error": .string(failure.message)]
             if failure.mayHaveWritten { result["may_have_written"] = .bool(true) }
             if let recovery = failure.recovery { result["recovery"] = .string(recovery) }
+            if failure.signInRequired { result["action"] = .string(signInAction) }
             return result
         }
         if let failure = error as? OperationFailure {

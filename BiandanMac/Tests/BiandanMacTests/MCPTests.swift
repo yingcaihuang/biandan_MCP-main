@@ -34,11 +34,11 @@ final class MCPTests: XCTestCase {
 
     func testSchemaMatchesPythonVersion() {
         let schema = MCPSchema.shared
-        XCTAssertEqual(schema.tools.count, 34)
-        XCTAssertEqual(schema.serverVersion, "0.4.2")
+        XCTAssertEqual(schema.tools.count, 35)
+        XCTAssertEqual(schema.serverVersion, "0.4.6")
         XCTAssertNotNil(schema.inputSchema("biandan_create_task"))
         XCTAssertEqual(schema.propertyOrder["biandan_complete_occurrence"], ["occurrence_id", "completed_at"])
-        XCTAssertEqual(schema.help.count, 34)
+        XCTAssertEqual(schema.help.count, 35)
     }
 
     // MARK: 参数格式
@@ -160,7 +160,7 @@ final class MCPTests: XCTestCase {
         let list = await rpc.respond(try message(#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#),
                                      version: "2025-06-18")
         if case .array(let tools)? = object(list?["result"])?["tools"] {
-            XCTAssertEqual(tools.count, 34)
+            XCTAssertEqual(tools.count, 35)
         } else {
             XCTFail("tools/list 没有返回工具数组")
         }

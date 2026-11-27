@@ -50,6 +50,7 @@ extension BiandanService {
             // 只取原始文字；「可能已写入」用字段表达，不拼进中文说明。
             var extra = details
             if failure.mayHaveWritten { extra["may_have_written"] = .bool(true) }
+            if failure.signInRequired { extra["action"] = .string(MCPDispatcher.signInAction) }
             return MCPToolError(failure.message, details: extra)
         }
         var extra = details
@@ -279,15 +280,20 @@ extension BiandanService {
                 "recovery": .string("Re-read the task and retry the same deletion scope."),
             ])
         }
-        var result: JSONObject = [
+        var result = Self.mcpPlanJSON(plan)
+        result[preview ? "preview" : "deleted"] = .bool(true)
+        return result
+    }
+
+    /// 删除范围的 MCP 返回格式（delete_task 和 batch_delete_tasks 共用）。
+    static func mcpPlanJSON(_ plan: DeletePlan) -> JSONObject {
+        [
             "task_id": .string(plan.taskID),
             "title": plan.title.map { JSONValue.string($0) } ?? .null,
             "scope": .string(plan.scope.rawValue),
             "occurrence_ids": .array(plan.occurrenceIDs.map { JSONValue.string($0) }),
             "deletes_task_definition": .bool(plan.deletesTaskDefinition),
         ]
-        result[preview ? "preview" : "deleted"] = .bool(true)
-        return result
     }
 
     func mcpUpdateRecurrence(_ args: MCPArgs, _ log: MCPChangeLog) async throws -> JSONObject {

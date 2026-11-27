@@ -184,7 +184,7 @@ extension AppModel {
         var failed = 0
         var firstError: String?
         if let results {
-            let errors = results.compactMap { $0 }
+            let errors = results.compactMap(\.error)
             failed = errors.count
             firstError = errors.first
         } else {

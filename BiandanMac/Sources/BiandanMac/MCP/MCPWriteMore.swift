@@ -49,6 +49,8 @@ extension BiandanService {
         case "biandan_batch_complete_occurrences":
             let items = (args.strings("occurrence_ids") ?? []).map { ["occurrence_id": JSONValue.string($0)] }
             return await mcpBatch(items) { try await self.mcpCompleteOccurrence($0, log) }
+        case "biandan_batch_delete_tasks":
+            return try await mcpBatchDelete(args, log)
         default:
             throw MCPToolError("Unknown Biandan tool.")
         }
@@ -265,6 +267,82 @@ extension BiandanService {
     }
 
     // MARK: 批量
+
+    /// 对应 Python 0.4.6 batch_delete_tasks：默认只预览（不写入）。确认删除时参数不对的项单独报错，
+    /// 其余整批交给服务层批量删除（实例表只拉一次、有限并发），结果按输入顺序逐项返回。
+    func mcpBatchDelete(_ args: MCPArgs, _ log: MCPChangeLog) async throws -> JSONObject {
+        let items = args.objects("tasks") ?? []
+        guard !items.isEmpty else { throw MCPToolError("Provide at least one delete target in tasks.") }
+        let preview = args.bool("preview") ?? true
+        if preview {
+            let previews = items.map { item -> JSONObject in
+                var copy = item
+                copy["preview"] = .bool(true)
+                return copy
+            }
+            var result = await mcpBatch(previews) { try await self.mcpDeleteTask($0, log) }
+            result["preview"] = .bool(true)
+            return result
+        }
+        var slots = [JSONValue?](repeating: nil, count: items.count)
+        var targets: [BatchDeleteTarget] = []
+        var positions: [Int] = []
+        for (index, item) in items.enumerated() {
+            do {
+                targets.append(try Self.mcpDeleteTarget(MCPArgs(item)))
+                positions.append(index)
+            } catch {
+                var failure = MCPDispatcher.failure(error)
+                failure["ok"] = .bool(false)
+                slots[index] = .object(failure)
+            }
+        }
+        if !targets.isEmpty {
+            let outcomes: [BatchDeleteResult]
+            do {
+                outcomes = try await mcpStep(log) { try await deleteTasks(targets) }
+            } catch {
+                throw Self.mcpAnnotate(error, ["recovery": .string("Re-read the tasks and retry the same targets.")])
+            }
+            for (offset, outcome) in outcomes.enumerated() {
+                let target = targets[offset]
+                if let message = outcome.error {
+                    slots[positions[offset]] = .object([
+                        "ok": .bool(false), "error": .string(message), "task_id": .string(target.taskID),
+                        "recovery": .string("Re-read the task and retry the same deletion scope."),
+                    ])
+                } else if let plan = outcome.plan {
+                    var result = Self.mcpPlanJSON(plan)
+                    result["deleted"] = .bool(true)
+                    slots[positions[offset]] = .object(["ok": .bool(true), "result": .object(result)])
+                }
+            }
+        }
+        let results = slots.map { $0 ?? .object(["ok": .bool(false), "error": .string("No result for this target.")]) }
+        let succeeded = results.filter { value in
+            if case .object(let object) = value, case .bool(true)? = object["ok"] { return true }
+            return false
+        }.count
+        return ["items": .array(results), "succeeded": .of(succeeded), "preview": .bool(false)]
+    }
+
+    /// 批量删除的一项：检查参数（和 delete_task 相同的规则），转换成服务层的删除目标。
+    static func mcpDeleteTarget(_ args: MCPArgs) throws -> BatchDeleteTarget {
+        let taskID = try args.requiredID("task_id")
+        let raw = args.string("scope")
+        let scope = raw.flatMap(DeleteScope.init(rawValue:))
+        if raw != nil && scope == nil {
+            throw MCPToolError("scope must be occurrence, future_pending or series.",
+                               details: ["task_id": .string(taskID)])
+        }
+        let occurrenceID = try args.id("occurrence_id")
+        let fromDate = try args.date("from_date")
+        if (occurrenceID != nil) != (scope == .occurrence) || (fromDate != nil && scope != .futurePending) {
+            throw MCPToolError("occurrence requires occurrence_id; from_date only applies to future_pending.",
+                               details: ["task_id": .string(taskID)])
+        }
+        return BatchDeleteTarget(taskID: taskID, scope: scope, occurrenceID: occurrenceID, fromDate: fromDate)
+    }
 
     /// 对应 Python batch：逐项执行，失败项带上错误和附加字段，不影响其他项。
     func mcpBatch(_ items: [JSONObject], _ call: (MCPArgs) async throws -> JSONObject) async -> JSONObject {

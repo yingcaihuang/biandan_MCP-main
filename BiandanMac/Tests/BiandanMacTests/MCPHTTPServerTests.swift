@@ -194,7 +194,7 @@ final class MCPHTTPServerTests: XCTestCase {
         guard case .object(let listResult)? = list.json?["result"], case .array(let tools)? = listResult["tools"] else {
             return XCTFail("tools/list 没有工具数组")
         }
-        XCTAssertEqual(tools.count, 34)
+        XCTAssertEqual(tools.count, 35)
 
         let call = try await rpc(#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"biandan_get_task","arguments":{"task_id":"7"}}}"#)
         XCTAssertEqual(call.status, 200)
