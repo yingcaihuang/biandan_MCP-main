@@ -8,6 +8,12 @@
 - 下载按钮先写死成 CHANGELOG 里最新的版本；页面打开后读同一站点的 appcast.xml，有更新的正式版就换成它（测试版不算）。
 """
 import datetime
+import pathlib as _pathlib
+import sys as _sys
+
+# 更新记录的解析和渲染与更新窗口说明共用 Tools/changelog_render.py。
+_sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent))
+import changelog_render as cr  # noqa: E402
 import hashlib
 import html
 import pathlib
@@ -129,19 +135,7 @@ def inline(text):
 
 
 def versions(text):
-    out, cur = [], None
-    for line in text.splitlines():
-        m = re.match(r"^## \[([^\]]+)\](?:\s*-\s*(\d{4}-\d{2}-\d{2}))?", line)
-        if m:
-            cur = {"version": m.group(1), "date": m.group(2) or "", "lines": []}
-            out.append(cur)
-            continue
-        if line.startswith("## "):
-            cur = None
-            continue
-        if cur is not None:
-            cur["lines"].append(line)
-    return [v for v in out if v["version"] != "Unreleased" and any(l.strip() for l in v["lines"])]
+    return cr.versions(text)
 
 
 def summary(lines):
@@ -157,45 +151,7 @@ def summary(lines):
 
 
 def render(lines, skip=None):
-    out, stack = [], []
-
-    def close_to(level):
-        while stack and stack[-1] > level:
-            stack.pop()
-            out.append("</li></ul>")
-
-    for raw in lines:
-        s = raw.strip()
-        if not s or s == skip:
-            continue
-        if s.startswith("![") or re.fullmatch(r"（以上.*）", s):
-            continue
-        indent = len(raw) - len(raw.lstrip(" "))
-        h = re.match(r"^(#{3,4})\s+(.*)$", raw)
-        if h:
-            close_to(-1)
-            tag = "h4" if len(h.group(1)) == 3 else "h5"
-            out.append(f"<{tag}>{inline(h.group(2))}</{tag}>")
-            continue
-        b = re.match(r"^(\s*)[-*]\s+(.*)$", raw)
-        if b:
-            n = len(b.group(1))
-            close_to(n)
-            if stack and stack[-1] == n:
-                out.append("</li><li>")
-            else:
-                stack.append(n)
-                out.append("<ul><li>")
-            out.append(inline(b.group(2)))
-            continue
-        if stack and indent > 0:
-            close_to(indent - 1)
-            out.append(f"<p>{inline(s)}</p>")
-            continue
-        close_to(-1)
-        out.append(f"<p>{inline(s)}</p>")
-    close_to(-1)
-    return "".join(out)
+    return cr.render(lines, skip=skip)
 
 
 def archs():
@@ -333,6 +289,18 @@ details.ver[open] summary::after{content:"收起"}
 .vbody h5{font-size:13.8px;margin:12px 0 4px}
 .vbody ul{margin:4px 0;padding-left:20px}.vbody li{margin:3px 0}.vbody li::marker{color:var(--accent)}
 .vbody p{margin:6px 0}
+.vtime{margin-left:6px;font-weight:800;color:#5E574B;font-variant-numeric:tabular-nums}
+.vkinds{display:inline-flex;gap:6px;flex-wrap:wrap}
+.kpill{font-size:11.5px;font-weight:700;border-radius:999px;padding:1px 9px}
+.k-new{color:#2E7D32;background:#E6F4E4}.k-improve{color:#1565A8;background:#E3F0FA}.k-fix{color:#B3261E;background:#FCE6E4}
+.vbody h4.kind{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:800;padding:3px 12px;border-radius:999px;margin:18px 0 4px}
+.vbody h4.kind-new{color:#2E7D32;background:#E6F4E4}.vbody h4.kind-improve{color:#1565A8;background:#E3F0FA}.vbody h4.kind-fix{color:#B3261E;background:#FCE6E4}
+.vbody ul.ci{list-style:none;padding-left:0;margin:6px 0}
+.vbody ul.ci>li{margin:10px 0;padding:10px 14px;background:#FAF6EC;border-left:3px solid var(--line);border-radius:0 10px 10px 0}
+.vbody h4.kind-new+ul.ci>li{border-left-color:#5DB65A}.vbody h4.kind-improve+ul.ci>li{border-left-color:#4BA9E0}.vbody h4.kind-fix+ul.ci>li{border-left-color:#E5483A}
+.ci-title{font-weight:800;font-size:14.3px;color:#2B2720}
+.ci-desc{margin-top:3px;color:#5E574B}
+.vbody ul.ci-points{margin:5px 0 0;padding-left:18px}.vbody ul.ci-points li{margin:3px 0;color:#5E574B}.vbody ul.ci-points li::marker{color:#C9BFA8}
 footer{border-top:1px solid var(--line);padding:28px 0 40px;color:var(--sub);font-size:12.5px}
 footer .wrap{display:flex;flex-wrap:wrap;gap:10px 24px;justify-content:space-between}
 .dl-band{background:linear-gradient(135deg,#FFF4CC,#FFE3C8);border:1px solid #F3DE94;border-radius:22px;padding:30px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
@@ -412,11 +380,18 @@ def main():
         lis = "".join(f"<li><b>{esc(t)}</b><span>{esc(d)}</span></li>" for t, d in items)
         cats.append(f'<article class="cat" id="f-{cid}" style="--c:{color}"><div class="cat-head"><div class="badge">{icon}</div>'
                     f'<div><h3>{esc(title)}</h3><p>{esc(sub)}</p></div></div><ul>{lis}</ul></article>')
+    times = cr.tag_times(HERE)
     vers = []
     for i, item in enumerate(vs):
         s = summary(item["lines"])
         latest_tag = '<span class="vlatest">最新</span>' if i == 0 else ""
-        date = f'<span class="vdate">{esc(item["date"])}</span>' if item["date"] else ""
+        day, clock = cr.when(item, times)
+        date = ""
+        if day:
+            date = f'<span class="vdate">{esc(day)}' + (f'<span class="vtime">{esc(clock)}</span>' if clock else "") + "</span>"
+        kinds = cr.kind_badges(item["lines"])
+        if kinds:
+            date += f'<span class="vkinds">{kinds}</span>'
         sum_html = f'<span class="vsum">{inline(s)}</span>' if s else ""
         opened = " open" if i == 0 else ""
         vers.append(f'<details class="ver"{opened}><summary><span class="vtag">v{esc(item["version"])}</span>'
