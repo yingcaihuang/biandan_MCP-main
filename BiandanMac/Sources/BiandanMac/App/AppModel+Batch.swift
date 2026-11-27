@@ -210,8 +210,15 @@ extension AppModel {
         registerUndoNow(name, undo: plan.undo, redo: plan.redo)
     }
 
+    /// 服务层回报的进度（删除分类等一次调用里逐条写云端的操作）。
+    func reportBatchProgress(_ done: Int, total: Int) {
+        guard batchProgress != nil else { return }
+        batchProgress?.done = done
+        if total > 0 { batchProgress?.total = total }
+    }
+
     /// 同一时间只跑一批，免得两批操作改同一批任务。
-    private func beginBatch(_ label: String, total: Int) -> Bool {
+    func beginBatch(_ label: String, total: Int) -> Bool {
         if let running = batchProgress {
             operationError = "上一批「\(running.label)」还没做完（\(running.done)/\(running.total)），请稍后再试"
             return false
@@ -231,8 +238,29 @@ extension AppModel {
 struct BatchProgress: Equatable, Sendable {
     let label: String
     var done = 0
-    let total: Int
+    var total: Int
     var failed = 0
+}
+
+/// 删除分类在后台进行时的进度文字和做完后的通知。
+enum ListDeleteNotice {
+    /// 进度条显示为「正在」+ 这段文字。
+    static func label(name: String, deleteTasks: Bool) -> String {
+        deleteTasks ? "删除「\(name)」的任务" : "把「\(name)」的任务移回未分类"
+    }
+
+    /// 成功且任务少于阈值时不通知；失败一定通知。
+    static func message(name: String, deleteTasks: Bool, total: Int, done: Int, ok: Bool,
+                        error: String?) -> (title: String, body: String)? {
+        if !ok {
+            let reason = (error ?? "").isEmpty ? "" : "：\(error ?? "")"
+            return ("删除分类没完成", "「\(name)」已处理 \(done)/\(total) 个任务\(reason)。可以同步后再删一次。")
+        }
+        guard total >= BatchNotifier.threshold else { return nil }
+        let body = deleteTasks ? "「\(name)」和其中 \(total) 个任务已删除"
+                               : "「\(name)」已删除，\(total) 个任务已移回「未分类」"
+        return ("分类已删除", body)
+    }
 }
 
 /// 批量操作做完后的系统通知。

@@ -372,7 +372,9 @@ actor BiandanService {
     }
 
     /// 删除待办单：默认把任务移回「默认」，`deleteTasks` 时连同任务和实例一起删除。
-    func deleteList(_ listID: String, deleteTasks: Bool) async throws -> ChangeSet {
+    /// progress：每处理完一个任务回报一次（已处理数, 总数），界面据此显示进度。
+    func deleteList(_ listID: String, deleteTasks: Bool,
+                    progress: (@Sendable (Int, Int) async -> Void)? = nil) async throws -> ChangeSet {
         try await run {
             guard listID != TodoList.defaultID else { throw ServiceError("「未分类」不能删除。") }
             let folder = try await find(.favorites, listID, required: false)
@@ -381,13 +383,16 @@ actor BiandanService {
                 throw ServiceError("分类已不存在，但仍有任务引用它。请先移动这些任务。")
             }
             do {
-                for row in matches {
+                for (index, row) in matches.enumerated() {
                     if deleteTasks {
-                        guard let taskID = row.attributes?.identifier("id1") else { continue }
-                        try await deleteTaskBody(taskID, scope: .series, occurrenceID: nil, fromDate: nil, expectedList: listID)
+                        if let taskID = row.attributes?.identifier("id1") {
+                            try await deleteTaskBody(taskID, scope: .series, occurrenceID: nil, fromDate: nil,
+                                                     expectedList: listID)
+                        }
                     } else {
                         try await patch(row, ["id3": .of(1)])
                     }
+                    await progress?(index + 1, matches.count)
                 }
                 if let folder {
                     let remaining = try await cloud.listAll(.task).contains { $0.attributes?.identifier("id3") == listID }

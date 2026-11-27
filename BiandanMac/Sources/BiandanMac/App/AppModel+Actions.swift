@@ -508,10 +508,38 @@ extension AppModel {
                             .updateList(listID: listID, name: name, colorIndex: colorIndex, sortIndex: sortIndex))
     }
 
+    /// 服务层在后台回报进度，切回主线程更新底部进度条。
+    private func listDeleteReporter() -> @Sendable (Int, Int) async -> Void {
+        { [weak self] done, count in
+            await self?.reportBatchProgress(done, total: count)
+        }
+    }
+
+    /// 分类里有任务时要逐个写云端，可能要好一阵：确认框先关，底部显示进度，做完（数量多或失败时）发通知。
     @discardableResult
     func deleteList(_ listID: String, deleteTasks: Bool) async -> Bool {
-        let ok = await performChange("删除分类") { try await $0.deleteList(listID, deleteTasks: deleteTasks) }
+        let name = snapshot.list(listID)?.displayName ?? "分类"
+        let total = snapshot.tasks.values.filter { $0.id3 == listID }.count
+        let tracked = total > 0
+        if tracked {
+            guard beginBatch(ListDeleteNotice.label(name: name, deleteTasks: deleteTasks), total: total) else {
+                return false
+            }
+        }
+        var reporter: (@Sendable (Int, Int) async -> Void)?
+        if tracked { reporter = listDeleteReporter() }
+        let report = reporter
+        let ok = await performChange("删除分类") { service in
+            try await service.deleteList(listID, deleteTasks: deleteTasks, progress: report)
+        }
+        let done = batchProgress?.done ?? 0
+        let finalTotal = batchProgress?.total ?? total
+        if tracked { batchProgress = nil }
         if ok, sidebarSelection == .list(listID) { sidebarSelection = .all }
+        if tracked, let message = ListDeleteNotice.message(name: name, deleteTasks: deleteTasks, total: finalTotal,
+                                                           done: done, ok: ok, error: ok ? nil : operationError) {
+            BatchNotifier.notify(title: message.title, body: message.body)
+        }
         return ok
     }
 

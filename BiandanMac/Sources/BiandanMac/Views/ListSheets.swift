@@ -113,10 +113,10 @@ struct ListDeleteSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let list: TodoList
-    @State private var working = false
 
     var body: some View {
         let count = model.snapshot.tasks.values.filter { $0.id3 == list.id3 }.count
+        let busy = model.batchProgress != nil
         ThemedSheet("删除分类", subtitle: list.displayName,
                     tag: ThemeTag(text: "无法撤销", color: Theme.overdue)) {
             InspectorSection("影响范围") {
@@ -137,9 +137,19 @@ struct ListDeleteSheet: View {
             Text("删除会同步到云端和其他设备。")
                 .font(.system(size: 11.5))
                 .foregroundStyle(Theme.overdue)
+            if count > 0 {
+                Text("点了之后窗口马上关掉，任务在后台逐个处理，底部显示进度；任务多时做完会发通知。")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.subtext)
+            }
             ThemedErrorText(message: model.operationError)
         } footer: {
-            if working { ProgressView().controlSize(.small) }
+            if let running = model.batchProgress {
+                Text(verbatim: "「\(running.label)」还在进行（\(running.done)/\(running.total)）")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.subtext)
+                    .lineLimit(1)
+            }
             Spacer()
             Button("取消") { dismiss() }
                 .buttonStyle(.themed)
@@ -147,24 +157,21 @@ struct ListDeleteSheet: View {
             if count > 0 {
                 Button("连同任务删除", role: .destructive) { run(deleteTasks: true) }
                     .buttonStyle(.themedDestructive)
-                    .disabled(working)
+                    .disabled(busy)
             }
             Button(count > 0 ? "删除，任务移回未分类" : "删除") { run(deleteTasks: false) }
                 .buttonStyle(count > 0 ? .themedPrimary : .themedDestructive)
                 .keyboardShortcut(.defaultAction)
-                .disabled(working)
+                .disabled(busy)
         }
-        .frame(width: 480, height: 320)
+        .frame(width: 480, height: 340)
         .onAppear { model.operationError = nil }
     }
 
+    /// 先关掉确认框，删除在后台进行。
     private func run(deleteTasks: Bool) {
-        working = true
         let id = list.id3
-        Task {
-            let ok = await model.deleteList(id, deleteTasks: deleteTasks)
-            working = false
-            if ok { dismiss() }
-        }
+        dismiss()
+        Task { await model.deleteList(id, deleteTasks: deleteTasks) }
     }
 }
