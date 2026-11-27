@@ -426,6 +426,10 @@ final class AppModel {
     /// 正在同步的来源；各来源上次同步失败的原因。
     var importSyncing: Set<String> = []
     var importSyncErrors: [String: String] = [:]
+    /// 排队等后台导入的来源（一次只导入一个）；正在写入便单的来源的进度。
+    var importQueue: [ImportQueueItem] = []
+    var importProgress: [String: ImportProgress] = [:]
+    @ObservationIgnored var importWorker: Task<Void, Never>?
     var caldavSheetShown = false
     var urlSheetShown = false
     var systemSheetShown = false

@@ -25,6 +25,18 @@ struct ImportSourceRow: View {
         return text
     }
 
+    private var queued: Bool { model.importQueued(source.id) }
+
+    /// 后台导入的状态：排队、读取、写入进度。
+    private var activity: String? {
+        if let progress = model.importProgress[source.id] {
+            return "正在写入便单 \(progress.done)/\(progress.total)"
+        }
+        if model.importSyncing.contains(source.id) { return "正在读取日历…" }
+        if queued { return "排队中，前面的导入完成后开始" }
+        return nil
+    }
+
     var body: some View {
         let list = model.snapshot.list(source.listID)
         HStack(spacing: 10) {
@@ -47,6 +59,18 @@ struct ImportSourceRow: View {
                     .foregroundStyle(Theme.subtext)
                     .lineLimit(1)
                     .help(source.address)
+                if let activity {
+                    HStack(spacing: 6) {
+                        Text(verbatim: activity)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.accent)
+                        if let progress = model.importProgress[source.id], progress.total > 0 {
+                            ProgressView(value: Double(progress.done), total: Double(progress.total))
+                                .progressViewStyle(.linear)
+                                .frame(width: 120)
+                        }
+                    }
+                }
                 if let problem {
                     Text(verbatim: problem)
                         .font(.system(size: 11))
@@ -57,7 +81,7 @@ struct ImportSourceRow: View {
             }
             Spacer(minLength: 8)
             if source.kind.syncs {
-                if model.importSyncing.contains(source.id) {
+                if model.importSyncing.contains(source.id) || queued {
                     ProgressView().controlSize(.small)
                 } else {
                     Button("立即同步") { Task { await model.syncImportSource(source, manual: true) } }

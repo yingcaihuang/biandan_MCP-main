@@ -173,7 +173,7 @@ struct CalDAVConnectSheet: View {
             Spacer(minLength: 6)
             if busy {
                 ProgressView().controlSize(.small)
-                Text(verbatim: calendars.isEmpty ? "正在连接…" : "正在导入…")
+                Text(verbatim: calendars.isEmpty ? "正在连接…" : "正在添加…")
                     .font(.system(size: 12)).foregroundStyle(Theme.subtext)
             }
             Button("取消") { dismiss() }.buttonStyle(.themed)

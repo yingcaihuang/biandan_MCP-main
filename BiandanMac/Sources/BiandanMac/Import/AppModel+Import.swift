@@ -70,6 +70,18 @@ struct ImportError: LocalizedError {
     var errorDescription: String? { message }
 }
 
+/// 后台导入队列里的一项。
+struct ImportQueueItem: Equatable, Sendable {
+    let sourceID: String
+    let trigger: ImportSyncTrigger
+}
+
+/// 写入便单的进度：已处理 / 总数。
+struct ImportProgress: Equatable, Sendable {
+    var done = 0
+    var total = 0
+}
+
 // MARK: - 导入日程
 
 extension AppModel {
@@ -169,14 +181,19 @@ extension AppModel {
         source.name = sourceName
         source.listID = listID
         try? store.saveImportSource(source)
+        reloadImportSources()
+        // 预览先关掉，写入在后台进行：进度显示在「已导入的日历」里，完成后发系统通知。
+        importPreview = nil
+        importNotice = "正在后台导入「\(sourceName)」，完成后会通知你"
 
         let counts = await applyImportPlan(preview.plan, links: preview.links, sourceID: source.id, listID: listID,
                                            sourceName: sourceName)
         recordSync(&source)
-        importPreview = nil
         var notice = "已导入「\(sourceName)」：" + counts.summary
         if counts.failed > 0 { notice += "，可以重新导入同一文件再试" }
         importNotice = notice
+        ImportNotifier.notify(title: counts.failed > 0 ? "日程导入完成，有 \(counts.failed) 条没写入" : "日程导入完成",
+                              body: notice, sourceID: source.id)
     }
 
     /// 删除来源、对应关系和保存的密码。已导入的任务保留。
@@ -231,21 +248,12 @@ extension AppModel {
         }
         reloadImportSources()
 
+        // 写日程放进后台队列，窗口不用等。
+        for source in ready { enqueueImportSync(source.id, trigger: .added) }
         var lines: [String] = []
-        for source in ready {
-            importSyncing.insert(source.id)
-            do {
-                let counts = try await syncAndRecord(source, trigger: .added)
-                importSyncErrors[source.id] = nil
-                lines.append("「\(source.name)」\(counts.summary)")
-            } catch {
-                importSyncErrors[source.id] = error.localizedDescription
-                lines.append("「\(source.name)」同步失败：\(error.localizedDescription)")
-            }
-            importSyncing.remove(source.id)
-        }
+        if !ready.isEmpty { lines.append("已添加 \(ready.count) 个 CalDAV 日历，正在后台导入，完成后会通知你") }
         lines += problems
-        importNotice = lines.isEmpty ? "没有添加日历" : "已添加 CalDAV 日历：" + lines.joined(separator: "；")
+        importNotice = lines.isEmpty ? "没有添加日历" : lines.joined(separator: "；")
     }
 
     /// 添加 URL 订阅：按名称建分类，立即同步一次。同一地址已订阅过时只同步。
@@ -258,7 +266,8 @@ extension AppModel {
         defer { importBusy = false }
         reloadImportSources()
         if let existing = importSources.first(where: { $0.kind == .url && $0.address == address }) {
-            await syncImportSource(existing, manual: true)
+            enqueueImportSync(existing.id, trigger: .manual)
+            importNotice = "「\(existing.name)」已经订阅过，正在后台同步，完成后会通知你"
             return
         }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -271,16 +280,9 @@ extension AppModel {
                                   address: address, createdAt: Date(), lastSyncAt: nil, lastCount: 0, enabled: true)
         try? store.saveImportSource(source)
         reloadImportSources()
-        importSyncing.insert(source.id)
-        defer { importSyncing.remove(source.id) }
-        do {
-            let counts = try await syncAndRecord(source, trigger: .added)
-            importSyncErrors[source.id] = nil
-            importNotice = "已订阅「\(sourceName)」：" + counts.summary
-        } catch {
-            importSyncErrors[source.id] = error.localizedDescription
-            importNotice = "已添加「\(sourceName)」，但首次同步失败：\(error.localizedDescription)"
-        }
+        // 写日程放进后台队列，订阅窗口不用等。
+        enqueueImportSync(source.id, trigger: .added)
+        importNotice = "已订阅「\(sourceName)」，正在后台导入，完成后会通知你"
     }
 
     func syncAllImportSources() async {
@@ -313,6 +315,7 @@ extension AppModel {
     func stopImportAutoSync() {
         importSyncTask?.cancel()
         importSyncTask = nil
+        cancelImportQueue()
     }
 
     func performSourceSync(_ original: ImportSource) async throws -> ImportCounts {
@@ -377,7 +380,14 @@ extension AppModel {
                                  sourceName: String) async -> ImportCounts {
         let linkByKey = Dictionary(links.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
         var counts = ImportCounts()
+        // 进度：每处理完一条加一，「已导入的日历」里显示「正在写入便单 n/总数」。
+        let total = plan.added.count + plan.restored.count + plan.updated.count + plan.removed.count
+        if total > 0 { importProgress[sourceID] = ImportProgress(done: 0, total: total) }
+        defer { importProgress[sourceID] = nil }
+        func step() { importProgress[sourceID]?.done += 1 }
         for event in plan.added {
+            guard !Task.isCancelled else { return counts }
+            defer { step() }
             if let taskID = await createImportedTask(event.input(listID: listID, sourceName: sourceName)) {
                 saveLink(sourceID, event, taskID: taskID)
                 counts.added += 1
@@ -386,6 +396,8 @@ extension AppModel {
             }
         }
         for event in plan.restored {
+            guard !Task.isCancelled else { return counts }
+            defer { step() }
             // 便单里只剩一个没有实例、看不见的空任务时，先清掉再重建。
             await purgeEmptyImportedTask(linkByKey[event.key]?.taskID)
             if let taskID = await createImportedTask(event.input(listID: listID, sourceName: sourceName)) {
@@ -396,6 +408,8 @@ extension AppModel {
             }
         }
         for event in plan.updated {
+            guard !Task.isCancelled else { return counts }
+            defer { step() }
             guard let link = linkByKey[event.key] else { continue }
             if snapshot.tasks[link.taskID] == nil {
                 // 便单里已经删掉了：重新建一条。
@@ -412,6 +426,8 @@ extension AppModel {
             counts.updated += 1
         }
         for link in plan.removed {
+            guard !Task.isCancelled else { return counts }
+            defer { step() }
             await abandonImported(taskID: link.taskID)
             var done = link
             done.abandoned = true

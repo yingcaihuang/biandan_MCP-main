@@ -37,20 +37,11 @@ extension AppModel {
         }
         reloadImportSources()
 
+        // 写日程放进后台队列，窗口不用等。
+        for source in ready { enqueueImportSync(source.id, trigger: .added) }
         var lines: [String] = []
-        for source in ready {
-            importSyncing.insert(source.id)
-            do {
-                let counts = try await syncAndRecord(source, trigger: .added)
-                importSyncErrors[source.id] = nil
-                lines.append("「\(source.name)」\(counts.summary)")
-            } catch {
-                importSyncErrors[source.id] = error.localizedDescription
-                lines.append("「\(source.name)」同步失败：\(error.localizedDescription)")
-            }
-            importSyncing.remove(source.id)
-        }
+        if !ready.isEmpty { lines.append("已添加 \(ready.count) 个邮箱账户日历，正在后台导入，完成后会通知你") }
         lines += problems
-        importNotice = lines.isEmpty ? "没有添加日历" : "已添加邮箱账户日历：" + lines.joined(separator: "；")
+        importNotice = lines.isEmpty ? "没有添加日历" : lines.joined(separator: "；")
     }
 }
